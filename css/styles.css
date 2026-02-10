@@ -1,0 +1,344 @@
+:root{
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --text:#111827;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+  --shadow: 0 8px 24px rgba(17,24,39,0.08);
+  --accent:#2563eb;
+  --accentHover:#1d4ed8;
+  --radius:14px;
+  --radiusSm:10px;
+  --dayW: 100px;
+  --rowH: 80px;
+
+}
+
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  padding:20px;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color:var(--text);
+  background:var(--bg);
+}
+.wrap{ max-width: 1200px; margin:0 auto; }
+
+.top{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin: 6px 0 14px;
+}
+h2{ margin:0; font-size:20px; font-weight:800; }
+.sub{ margin-top:6px; font-size:13px; color:var(--muted); }
+
+.actions{ display:flex; gap:10px; }
+button{
+  padding:10px 14px;
+  border-radius: var(--radiusSm);
+  border:1px solid transparent;
+  font-size:14px;
+  font-weight:800;
+  cursor:pointer;
+  transition: transform .05s ease, background .12s ease, border-color .12s ease;
+}
+button:active{ transform: translateY(1px); }
+
+#btn-export{ background:var(--accent); color:#fff; }
+#btn-export:hover{ background:var(--accentHover); }
+
+button.secondary{
+  background:#fff;
+  color:#111827;
+  border-color:var(--border);
+}
+button.secondary:hover{ border-color:#cbd5e1; background:#fbfbfb; }
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px;
+  box-shadow: var(--shadow);
+}
+
+.toolbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 10px;
+}
+.hint{ font-size:13px; color:var(--muted); }
+
+.filters{ display:flex; gap:10px; align-items:flex-end; }
+.filters label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:#374151;
+  margin:0 0 6px;
+}
+select{
+  min-width: 200px;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:var(--radiusSm);
+  background:#fff;
+  font-size:14px;
+  font-family: inherit;
+  font-weight:600;
+  outline:none;
+}
+select:focus{
+  border-color: rgba(37,99,235,0.55);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+.status{
+  margin: 10px 0 12px;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:var(--radiusSm);
+  padding:10px 12px;
+  font-size:12px;
+  color:#334155;
+  white-space: pre-wrap;
+}
+
+/* ===== Gantt layout ===== */
+.ganttWrap{
+  border:1px solid var(--border);
+  border-radius: var(--radiusSm);
+  overflow:auto;
+  background:#fff;
+}
+
+.ganttGrid{
+  width: max-content;   /* VERY IMPORTANT */
+  min-width: 100%;
+}
+
+.ganttHead{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display:grid;
+  grid-template-columns: 320px 1fr; /* wider left */
+  border-bottom:1px solid var(--border);
+  background:#fafafa;
+}
+
+.ganttLeftHead{
+  padding:10px 12px;
+  font-size:12px;
+  text-transform: uppercase;
+  letter-spacing:.08em;
+  color:#374151;
+  border-right:1px solid var(--border);
+  position: sticky;
+  left: 0;
+  z-index: 20;                 /* above timeline header */
+  background: #fafafa;         /* same as header bg */
+}
+
+.ganttTimelineHead{
+  display:flex;
+  flex-direction:column;
+  width: auto;
+  min-width: 0;
+}
+
+.monthHead, .dayHead{
+  width: auto;
+}
+
+.dayHead{ display:flex; }
+.monthHead{ display:flex; border-bottom:1px solid var(--border); }
+
+.dayCol{
+  width: var(--dayW);
+  border-right:1px solid var(--border);
+  padding:8px 10px;
+  background:#fafafa;
+}
+
+.dayCol .d1{
+  font-size:12px;
+  font-weight:700;
+  color:#111827;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.dayCol .d2{
+  margin-top:2px;
+  font-size:11px;
+  color:#6b7280;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.monthCell{
+  height:34px;
+  padding:8px 12px;
+  font-size:14px;        /* bigger */
+  font-weight:800;       /* less bold */
+  letter-spacing:0.3px;
+  color:#111827;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background:#f5f6f8;
+}
+
+.ganttTimeline{
+  position: relative;
+  height: var(--rowH);
+  width: auto;
+  background-color: #fffbe6 !important;
+  background:
+     repeating-linear-gradient(
+      to right,
+      #fafafa,
+      #fafafa calc(var(--dayW) - 1px),
+      #e5e7eb calc(var(--dayW) - 1px),
+      #e5e7eb var(--dayW)
+    );
+}
+
+.ganttRow{
+  display:grid;
+  grid-template-columns: 320px 1fr; /* match header */
+  border-bottom:1px solid var(--border);
+  background-color: #f8fafc;
+}
+
+/* allow the right-side timeline column to expand properly */
+.ganttHead > * , .ganttRow > * {
+  min-width: 0;
+}
+
+.ganttLeft{
+  padding:10px 12px;
+  border-right:1px solid var(--border);
+  height: var(--rowH);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:2px; /* spacing between title/meta */
+  position: sticky;
+  left: 0;
+  z-index: 10;                 /* above timeline grid */
+  background: #fff;            /* solid background so it doesn't look transparent */
+}
+
+.ganttLeft .title{
+  font-size:13px;
+  font-weight:800;
+  line-height:1.2;
+  white-space: normal;           /* allow wrap */
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; 
+   line-clamp: 2;             /* max 2 lines */
+  -webkit-box-orient: vertical;
+}
+
+.ganttLeft .meta{
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.2;
+  white-space: normal;           /* allow wrap */
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1; 
+  line-clamp: 1;        /* 1 line for material */
+  -webkit-box-orient: vertical;
+}
+
+/* Bars */
+.bar{
+  position:absolute;
+  top: 18px;
+  height: 28px;
+  border-radius: 999px;
+  border:1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 4px 10px rgba(17,24,39,0.08);
+  cursor: default;
+  opacity: 1 !important;
+}
+.bar.process{
+  background: rgba(37,99,235,0.18);
+  border-color: rgba(37,99,235,0.35);
+}
+.bar.rework{
+  background: rgba(239,68,68,0.18);
+  border-color: rgba(239,68,68,0.35);
+}
+.bar.ongoing{
+  outline: 2px solid rgba(37,99,235,0.18);
+}
+
+/* Station colors (Process) */
+.bar.process.st1{
+  background: rgba(126,87,194,0.18);      /* purple */
+  border-color: rgba(126,87,194,0.40);
+}
+.bar.process.st2{
+  background: rgba(30,136,229,0.18);      /* blue */
+  border-color: rgba(30,136,229,0.40);
+}
+.bar.process.st3{
+  background: rgba(67,160,71,0.18);       /* green */
+  border-color: rgba(67,160,71,0.40);
+}
+
+/* Rework always red (override station color) */
+.bar.rework{
+  background: rgba(239,68,68,0.18);
+  border-color: rgba(239,68,68,0.35);
+}
+
+/* Tooltip */
+.bar[data-tip]::after{
+  content: attr(data-tip);
+  position:absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: 320px;
+  white-space: pre-line;
+  background:#111827;
+  color:#fff;
+  padding:10px 10px;
+  border-radius: 10px;
+  font-size:12px;
+  font-weight:600;
+  opacity:0;
+  pointer-events:none;
+  transition: opacity .12s ease;
+  box-shadow: 0 16px 32px rgba(0,0,0,0.22);
+  z-index: 10;
+}
+.bar[data-tip]::before{
+  content:"";
+  position:absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 4px);
+  border: 6px solid transparent;
+  border-top-color:#111827;
+  opacity:0;
+  transition: opacity .12s ease;
+  z-index: 10;
+}
+.bar:hover::after,
+.bar:hover::before{
+  opacity:1;
+}
+
+@media (max-width: 720px){
+  body{ padding:14px; }
+  .top{ flex-direction: column; align-items: stretch; }
+  .actions{ justify-content: flex-start; }
+}

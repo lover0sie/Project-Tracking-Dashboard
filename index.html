@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Process Gantt</title>
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h2>Project Tracking Dashboard</h2>
+        <div class="sub">Data extracted from <b>Firestore</b> (Process + Rework)</div>
+      </div>
+
+      <div class="actions">
+        <button id="btn-refresh" class="secondary">Refresh</button>
+        <button id="btn-export">Export CSV</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="toolbar">
+        <div class="hint">
+          Hover a bar to see employee (ID) + start/end date/time.
+        </div>
+
+        <div class="filters">
+          <label for="dateMode">Date Range</label>
+          <select id="dateMode">
+            <option value="thisMonth">This month</option>
+            <option value="lastMonth">Last month</option>
+            <option value="last3Months">Last 3 months</option>
+            <option value="last6Months">Last 6 months</option>
+            <option value="auto">Auto (from data)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Gantt -->
+      <div class="ganttWrap">
+        <div class="ganttGrid">
+          <div class="ganttHead">
+            <div class="ganttLeftHead">Project</div>
+            <div class="ganttTimelineHead">
+              <div id="ganttMonthHead" class="monthHead"></div>
+              <div id="ganttDayHead" class="dayHead"></div>
+            </div>
+          </div>
+
+          <div id="ganttBody" class="ganttBody"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  
+
+  <script type="module" src="js/gantt.js"></script>
+</body>
+</html>
