@@ -294,7 +294,7 @@ function minMaxFromSegments(segments) {
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
 function renderGantt(projectMap, days, rangeMin, rangeMax) {
-  // 1) Build headers
+  // Build headers
   dayHeadEl.innerHTML = days.map(d => `
     <div class="dayCol">
       <div class="d1">${dateKey(d)}</div>
@@ -304,11 +304,10 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
 
   monthHeadEl.innerHTML = buildMonthHeader(days);
 
-  // 2) Compute widths ONCE
+  // Compute widths ONCE
   const dayW = getDayW();
   const totalWidthPx = days.length * dayW;
 
-  // (keep this if you still use --days in CSS)
   document.documentElement.style.setProperty("--days", String(days.length));
 
   // Force header widths (prevents “lines stop after 25 cols”)
