@@ -433,6 +433,19 @@ select:focus{
   .actions{ justify-content: flex-start; }
 }
 
+.procUl{
+  margin:0;
+  padding-left: 18px;
+  line-height:1.8;
+  font-weight:600;
+  color:#374151;
+}
+
+.procUl li{
+  margin-bottom:4px;
+}
+
+
 .legend{
   margin-top: 10px;
 }

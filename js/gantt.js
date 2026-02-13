@@ -25,31 +25,42 @@ let cachedEvents = [];
 
 /* Initialize process by station */
 const PROCESS_BY_STATION = {
-  "PV 1": [
-    "Hole Bevelling",
-    "Connector welding",
-    "Fitting and welding distribution box",
-    "Tube support and bush fitting tube sheet fitting",
-    "Tubesheet welding",
-    "Bracket and attachment welding",
-    "Unit side plate and base welding",
-    "Tube slotting and expansion",
-    "Tube slotting and expansion",
-  ],
-  // add more later:
-  // "PV 2": [...],
-};
+      "PV 1": [
+        "6 - Hole bevelling", 
+        "7 - Connector welding",
+        "8 - Fitting internal plate and GMAW C&B",
+        "9 - Fitting and welding distribution box", 
+        "10 - Tube support and bush fitting, tube sheet fitting",
+        "11 - Tubesheet welding",
+        "12 - Bracket and attachment welding",
+        "13 - Unit side plate and base welding",
+        "14 - Tube slotting and expansion",
+      ],
+
+      // My own testing
+      "PV 2": [
+        "6 - Hole bevelling", 
+        "7 - Connector welding",
+        "8 - Fitting internal plate and GMAW C&B",
+        "9 - Fitting and welding distribution box", 
+        "10 - Tube support and bush fitting, tube sheet fitting",
+        "11 - Tubesheet welding",
+        "12 - Bracket and attachment welding",
+        "13 - Unit side plate and base welding",
+        "14 - Tube slotting and expansion",
+      ]
+    };
 
 const PV1_LIST = [
-  "Hole Bevelling",
-  "Connector welding",
-  "Fitting and welding distribution box",
-  "Tube support and bush fitting tube sheet fitting",
-  "Tubesheet welding",
-  "Bracket and attachment welding",
-  "Unit side plate and base welding",
-  "Tube slotting and expansion",
-  "Tube slotting and expansion",
+  "6 - Hole bevelling", 
+  "7 - Connector welding",
+  "8 - Fitting internal plate and GMAW C&B",
+  "9 - Fitting and welding distribution box", 
+  "10 - Tube support and bush fitting, tube sheet fitting",
+  "11 - Tubesheet welding",
+  "12 - Bracket and attachment welding",
+  "13 - Unit side plate and base welding",
+  "14 - Tube slotting and expansion",
 ];
 
 
@@ -97,15 +108,15 @@ function formatDateTime(d) {
   return `${dateFmt.format(d)} ${timeFmt.format(d)}`;
 }
 
+// Update here if there are more stations!
 function stationClass(station) {
-  const s = String(station || "").toLowerCase().replace(/\s+/g, "");
+  const s = String(station || "").toLowerCase().replace(/\s+/g,"");
+
   if (s.includes("pv1")) return "st1";
   if (s.includes("pv2")) return "st2";
   if (s.includes("pv3")) return "st3";
-  if (s.includes("station1")) return "st1";
-  if (s.includes("station2")) return "st2";
-  if (s.includes("station3")) return "st3";
-  return "st2";
+
+  return "st1"; // default
 }
 
 function tsToDate(ts) {
@@ -344,82 +355,78 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
         <div class="d2">${weekdayName(d)}</div>
       </div>
     `;
-  }).join("")
+  }).join("");
 
   monthHeadEl.innerHTML = buildMonthHeader(days);
 
   // Compute widths ONCE
   const dayW = getDayW();
   const totalWidthPx = days.length * dayW;
+  const msPerDay = 24 * 60 * 60 * 1000;
 
-    /* === highlight today column in timeline === */
-  today.setHours(0,0,0,0);
-
-  const todayIndex = days.findIndex(d =>
-    d.getTime() === today.getTime()
-  );
-
+  // === highlight today column in timeline ===
+  const todayIndex = days.findIndex(d => d.getTime() === today.getTime());
   if (todayIndex >= 0){
     const leftPx = todayIndex * dayW;
     document.documentElement.style.setProperty("--todayLeft", leftPx + "px");
-
-    // add highlight class to all rows
-    setTimeout(() => {
-      document.querySelectorAll(".ganttTimeline")
-        .forEach(t => t.classList.add("todayCol"));
-    }, 0);
   }
-
 
   document.documentElement.style.setProperty("--days", String(days.length));
 
-  // Force header widths (prevents “lines stop after 25 cols”)
+  // Force header widths
   monthHeadEl.style.width = totalWidthPx + "px";
   dayHeadEl.style.width = totalWidthPx + "px";
 
   const headWrap = monthHeadEl.parentElement; // .ganttTimelineHead
   if (headWrap) headWrap.style.width = totalWidthPx + "px";
 
-  // 3) Build rows
+  // Build rows
   const projects = Array.from(projectMap.values()).sort((a, b) => {
     const an = `${a.projectName} (${a.serial})`;
     const bn = `${b.projectName} (${b.serial})`;
     return an.localeCompare(bn);
   });
 
-
-  const msPerDay = 24 * 60 * 60 * 1000;
-
   bodyEl.innerHTML = projects.map(p => {
     const title = `${p.projectName} (${p.serial})`;
     const meta = `Material Number: ${p.materialNumber || "-"}`;
 
-    const bars = p.segments.map(seg => {
-      const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
-      const segEnd   = clamp(seg.end.getTime(), rangeMin.getTime(), rangeMax.getTime());
+    const bars = p.segments
+      .filter(seg => {
+        // ✅ Skip segments completely outside the visible range
+        return !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime());
+      })
+      .map(seg => {
+        // Clip segment to visible window (only AFTER overlap check)
+        const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
+        const segEnd   = clamp(seg.end.getTime(),   rangeMin.getTime(), rangeMax.getTime());
 
-      const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
-      const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
+        const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
+        const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
 
-      const phaseClass = seg.phase === "rework" ? "rework" : "process"; // to change to line stop
-      const ongoingClass = seg.ongoing ? "ongoing" : "";
-      const stClass = stationClass(seg.station);
+        // ✅ define these (you were missing them)
+        const phaseClass = (seg.phase === "rework") ? "rework" : "process";
+        const ongoingClass = seg.ongoing ? "ongoing" : "";
+        const stClass = stationClass(seg.station);
 
-      const emp = `${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
-      const tip =
-        `Status: ${seg.ongoing ? "ONGOING" : "COMPLETED"}\n` +
-        `Process: ${seg.processLabel}\n` +
-        `Station: ${seg.station}\n` +
-        `Manpower: ${seg.manpower || "-"}\n` +
-        `Duration: ${formatDuration(seg.durationMs)}\n` +
-        (seg.remarks ? `Remarks: ${seg.remarks}` : "");
+        // Tooltip (you said earlier you removed start/end; keeping it minimal)
+        const emp = `${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
+        const tip =
+          `Process: ${seg.processLabel || "-"}\n` +
+          `Station: ${seg.station || "-"}\n` +
+          `Status: ${seg.ongoing ? "ONGOING" : "COMPLETED"}\n` +
+          `Manpower: ${seg.manpower ?? "-"}\n` +
+          `Duration: ${formatDuration(seg.durationMs)}\n` +
+          `Started by: ${emp}` +
+          (seg.remarks ? `\nRemarks: ${seg.remarks}` : "");
 
-      return `
-        <div class="bar ${phaseClass} ${stClass} ${ongoingClass}"
-             style="left:${leftPx}px; width:${widthPx}px;"
-             data-tip="${escapeAttr(tip)}"></div>
-      `;
-    }).join("");
+        return `
+          <div class="bar ${phaseClass} ${stClass} ${ongoingClass}"
+               style="left:${leftPx}px; width:${widthPx}px;"
+               data-tip="${escapeAttr(tip)}"></div>
+        `;
+      })
+      .join("");
 
     return `
       <div class="ganttRow">
@@ -427,7 +434,9 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
           <div class="title">${escapeHtml(title)}</div>
           <div class="meta">${escapeHtml(meta)}</div>
         </div>
-        <div class="ganttTimeline" style="width:${totalWidthPx}px">${bars}</div>
+        <div class="ganttTimeline ${todayIndex >= 0 ? "todayCol" : ""}" style="width:${totalWidthPx}px">
+          ${bars}
+        </div>
       </div>
     `;
   }).join("");
@@ -436,7 +445,6 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
   document.querySelectorAll(".ganttTimeline").forEach(tl => {
     tl.style.width = totalWidthPx + "px";
   });
-
 }
 
 

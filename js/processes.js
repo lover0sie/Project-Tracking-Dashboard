@@ -1,22 +1,34 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-
-/* Firebase config */
-const firebaseConfig = {
-  apiKey: "AIzaSyBePrEYgwU4tD9h82n9PbjfxtTyQMXm6Kk",
-  authDomain: "qrcodetesting-4f86e.firebaseapp.com",
-  projectId: "qrcodetesting-4f86e",
-  storageBucket: "qrcodetesting-4f86e.firebasestorage.app",
-  messagingSenderId: "746921254909",
-  appId: "1:746921254909:web:7acce026b9d96c97880394"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
 const el = (id) => document.getElementById(id);
 
-function escapeHtml(s) {
+/* ===== MASTER PROCESS LIST ===== */
+const PROCESS_BY_STATION = {
+  "PV 1": [
+    "6 - Hole bevelling", 
+    "7 - Connector welding",
+    "8 - Fitting internal plate and GMAW C&B",
+    "9 - Fitting and welding distribution box", 
+    "10 - Tube support and bush fitting, tube sheet fitting",
+    "11 - Tubesheet welding",
+    "12 - Bracket and attachment welding",
+    "13 - Unit side plate and base welding",
+    "14 - Tube slotting and expansion",
+  ],
+
+  "PV 2": [
+    "6 - Hole bevelling", 
+    "7 - Connector welding",
+    "8 - Fitting internal plate and GMAW C&B",
+    "9 - Fitting and welding distribution box", 
+    "10 - Tube support and bush fitting, tube sheet fitting",
+    "11 - Tubesheet welding",
+    "12 - Bracket and attachment welding",
+    "13 - Unit side plate and base welding",
+    "14 - Tube slotting and expansion",
+  ]
+};
+
+/* ===== escape helper ===== */
+function escapeHtml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
@@ -25,82 +37,47 @@ function escapeHtml(s) {
     .replaceAll("'","&#039;");
 }
 
-function normStation(s){
-  return String(s || "").trim().toUpperCase().replace(/\s+/g," ");
-}
-
-async function loadRuns(){
-  const snap = await getDocs(collection(db, "processRuns"));
-  const runs = [];
-  snap.forEach(d => runs.push(d.data()));
-  return runs;
-}
-
-function getStations(runs){
-  const set = new Set();
-  for (const r of runs) {
-    const st = normStation(r.station);
-    if (st) set.add(st);
-  }
-  return [...set].sort((a,b) => a.localeCompare(b));
-}
-
-function getProcessesForStation(runs, station){
-  const set = new Set();
-  for (const r of runs) {
-    if (normStation(r.station) !== station) continue;
-    const name = String(r.processName || "").trim();
-    if (name) set.add(name);
-  }
-  return [...set].sort((a,b) => a.localeCompare(b));
-}
-
-function renderStationOptions(stations, preferred){
+/* ===== dropdown stations ===== */
+function renderStationOptions(){
+  const stations = Object.keys(PROCESS_BY_STATION);
   const sel = el("stationPick");
-  sel.innerHTML = stations.map(s => {
-    const selected = (s === preferred) ? "selected" : "";
-    return `<option value="${escapeHtml(s)}" ${selected}>${escapeHtml(s)}</option>`;
-  }).join("");
+
+  sel.innerHTML = stations.map(s =>
+    `<option value="${s}">${escapeHtml(s)}</option>`
+  ).join("");
 }
 
-function renderProcessList(station, processes){
+/* ===== show process list ===== */
+function renderProcessList(station){
   const container = el("processList");
+  const list = PROCESS_BY_STATION[station] || [];
 
-  if (!processes.length) {
-    container.innerHTML = `<div class="hint">No processes found for ${escapeHtml(station)}.</div>`;
+  if (!list.length){
+    container.innerHTML = `<div class="hint">No process defined.</div>`;
     return;
   }
 
   container.innerHTML = `
     <div class="procBlock">
       <div class="procTitle">${escapeHtml(station)} Processes</div>
-      <ol class="procOl">
-        ${processes.map(p => `<li>${escapeHtml(p)}</li>`).join("")}
-      </ol>
+
+      <ul class="procUl">
+        ${list.map(p => `<li>${escapeHtml(p)}</li>`).join("")}
+      </ul>
     </div>
   `;
 }
 
-async function main(){
-  const runs = await loadRuns();
+/* ===== INIT ===== */
+function init(){
+  renderStationOptions();
 
-  const stations = getStations(runs);
-  if (!stations.length) {
-    el("processList").innerHTML = `<div class="hint">No station data found in processRuns.</div>`;
-    return;
-  }
+  const first = Object.keys(PROCESS_BY_STATION)[0];
+  renderProcessList(first);
 
-  // default: PV 1 if exists, otherwise first station
-  const defaultStation = stations.includes("PV 1") ? "PV 1" : stations[0];
-
-  renderStationOptions(stations, defaultStation);
-  renderProcessList(defaultStation, getProcessesForStation(runs, defaultStation));
-
-  el("stationPick").addEventListener("change", (e) => {
-    const station = e.target.value;
-    const processes = getProcessesForStation(runs, station);
-    renderProcessList(station, processes);
+  el("stationPick").addEventListener("change", e=>{
+    renderProcessList(e.target.value);
   });
 }
 
-main().catch(console.error);
+init();
