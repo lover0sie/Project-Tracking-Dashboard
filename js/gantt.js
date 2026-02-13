@@ -525,9 +525,20 @@ async function render() {
 
 /* UI events */
 el("btn-refresh").addEventListener("click", async () => {
-  cachedEvents = [];
-  await render();
+  try {
+    // force fetch again
+    cachedEvents = [];
+    const runs = await loadRuns();   // <-- this actually calls Firestore
+    console.log("Refresh fetched runs:", runs.length);
+
+    // re-render using the new runs we just loaded
+    await render();
+  } catch (e) {
+    console.error("Refresh failed:", e);
+    alert("Refresh failed. Check console.");
+  }
 });
+
 el("dateMode").addEventListener("change", () => render());
 el("btn-export").addEventListener("click", () => {
   if (!cachedEvents.length) {
@@ -539,3 +550,4 @@ el("btn-export").addEventListener("click", () => {
 
 /* Start */
 render();
+
