@@ -193,6 +193,17 @@ function endOfMonth(d){
   return x;
 }
 
+function minutesFromMs(ms) {
+  if (!ms || ms <= 0) return 0;
+  return Math.round(ms / 60000);
+}
+
+function manHoursFromMs(ms, manpower) {
+  const mp = Number(manpower || 0);
+  if (!ms || ms <= 0 || mp <= 0) return 0;
+  return (ms / 3600000) * mp; // hours * manpower
+}
+
 function clampRangeByMode(mode, minDate, maxDate) {
   const now = new Date();
 
@@ -448,34 +459,221 @@ function toCsvValue(v) {
   if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replaceAll('"','""')}"`;
   return s;
 }
-function exportRawCsv(events) {
-  const headers = [
-    "createdAt","serialNumber","projectName","description","materialNumber","model","type","refrigerant",
-    "location","status","notes","employeeName","employeeNumber","employeeStation"
+
+function exportExcelReport(runs) {
+  if (typeof XLSX === "undefined") {
+    alert("XLSX library not loaded. Check the xlsx script tag in index.html.");
+    return;
+  }
+
+  // ---------- Build RAW sheet ----------
+  const rawHeader = [
+    "projectName",
+    "description",
+    "serialNumber",
+    "materialNumber",
+    "process",
+    "station",
+    "manpower",
+    "status",
+    "startAt",
+    "endAt",
+    "duration_minutes",
+    "man_hours"
   ];
+
+  const rawRows = [rawHeader];
+
+  // Summary accumulator: key = station||process
+  const summaryMap = new Map();
+
+  for (const r of runs) {
+    const start = tsOrMsToDate(r.startAt, r.startEpochMs);
+    const end = tsOrMsToDate(r.endAt, r.endEpochMs);
+
+    const status = String(r.status || "").toLowerCase(); // running / completed
+    const ongoing = status === "running" || !end;
+
+    // Decide how to treat running rows:
+    // - For RAW: show endAt empty (and duration as up-to-now)
+    // - For SUMMARY: include running up-to-now (you can change to exclude if you want)
+    const effectiveEnd = ongoing ? new Date() : end;
+
+    let durationMs = 0;
+    if (start && effectiveEnd) durationMs = Math.max(0, effectiveEnd.getTime() - start.getTime());
+
+    const durationMin = minutesFromMs(durationMs);
+    const mh = manHoursFromMs(durationMs, r.manpower);
+
+    rawRows.push([
+      r.projectName || "",
+      r.description || "",
+      r.serialNumber || "",
+      r.materialNumber || "",
+      r.processName || "",
+      r.station || "",
+      r.manpower ?? "",
+      r.status || "",
+      start ? formatDateTime(start) : "",
+      (!ongoing && end) ? formatDateTime(end) : "",
+      durationMin,
+      mh.toFixed(2)
+    ]);
+
+    // ---------- Build SUMMARY ----------
+    const station = r.station || "(No Station)";
+    const proc = r.processName || "(No Process)";
+    const key = `${station}||${proc}`;
+
+    if (!summaryMap.has(key)) {
+      summaryMap.set(key, {
+        station,
+        process: proc,
+        runs: 0,
+        totalMinutes: 0,
+        totalManHours: 0,
+        totalManpowerCounted: 0
+      });
+    }
+
+    const agg = summaryMap.get(key);
+    agg.runs += 1;
+    agg.totalMinutes += durationMin;
+    agg.totalManHours += mh;
+    agg.totalManpowerCounted += Number(r.manpower || 0);
+  }
+
+  // Convert summaryMap -> rows sorted by station then process
+  const summaryHeader = [
+    "station",
+    "process",
+    "runs",
+    "total_minutes",
+    "total_hours",
+    "total_man_hours"
+  ];
+
+  const summaryRows = [summaryHeader];
+
+  const summaryArr = Array.from(summaryMap.values()).sort((a, b) => {
+    return a.station.localeCompare(b.station) || a.process.localeCompare(b.process);
+  });
+
+  for (const s of summaryArr) {
+    const totalHours = s.totalMinutes / 60;
+    summaryRows.push([
+      s.station,
+      s.process,
+      s.runs,
+      s.totalMinutes,
+      totalHours.toFixed(2),
+      s.totalManHours.toFixed(2)
+    ]);
+  }
+
+  // ---------- Create workbook ----------
+  const wb = XLSX.utils.book_new();
+
+  const wsRaw = XLSX.utils.aoa_to_sheet(rawRows);
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+
+  // Optional: a bit nicer column widths
+  wsRaw["!cols"] = [
+    { wch: 18 }, // projectName
+    { wch: 18 }, // description
+    { wch: 14 }, // serialNumber
+    { wch: 14 }, // materialNumber
+    { wch: 22 }, // process
+    { wch: 10 }, // station
+    { wch: 10 }, // manpower
+    { wch: 10 }, // status
+    { wch: 20 }, // startAt
+    { wch: 20 }, // endAt
+    { wch: 16 }, // duration_minutes
+    { wch: 12 }  // man_hours
+  ];
+
+  wsSummary["!cols"] = [
+    { wch: 10 }, // station
+    { wch: 28 }, // process
+    { wch: 8 },  // runs
+    { wch: 14 }, // total_minutes
+    { wch: 12 }, // total_hours
+    { wch: 16 }  // total_man_hours
+  ];
+
+  XLSX.utils.book_append_sheet(wb, wsRaw, "RawRuns");
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+  const filename = `ProcessReport_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+
+function exportRawCsv(runs) {
+
+  const headers = [
+    "projectName",
+    "description",
+    "serialNumber",
+    "materialNumber",
+    "process",
+    "station",
+    "manpower",
+    "startAt",
+    "endAt",
+    "duration_minutes",
+    "total_man_hours"
+  ];
+
   const lines = [headers.join(",")];
 
-  for (const e of events) {
-    const createdAt = tsToDate(e.createdAt);
+  for (const r of runs) {
+
+    const start = tsOrMsToDate(r.startAt, r.startEpochMs);
+    const end   = tsOrMsToDate(r.endAt, r.endEpochMs);
+
+    let durationMin = "";
+    let manHours = "";
+
+    if (start && end) {
+      const durationMs = end - start;
+      durationMin = Math.round(durationMs / 60000);
+
+      const manpower = Number(r.manpower || 0);
+      manHours = ((durationMs / 3600000) * manpower).toFixed(2); 
+      // hours × manpower
+    }
+
     const row = [
-      createdAt ? formatDateTime(createdAt) : "",
-      e.serialNumber, e.projectName, e.description, e.materialNumber, e.model, e.type, e.refrigerant,
-      e.location, e.status, e.notes, e.employeeName, e.employeeNumber, e.employeeStation
-    ].map(toCsvValue);
+      r.projectName || "",
+      r.description || "",
+      r.serialNumber || "",
+      r.materialNumber || "",
+      r.processName || "",
+      r.station || "",
+      r.manpower ?? "",
+      start ? formatDateTime(start) : "",
+      end ? formatDateTime(end) : "",
+      durationMin,
+      manHours
+    ].map(v => `"${String(v).replaceAll('"','""')}"`);
 
     lines.push(row.join(","));
   }
 
   const blob = new Blob([lines.join("\n")], { type:"text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
   a.href = url;
-  a.download = `processLogs_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `processRuns_${new Date().toISOString().slice(0,10)}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
 }
+
 
 /* Load + render */
 async function loadRuns() {
@@ -540,12 +738,11 @@ el("btn-refresh").addEventListener("click", async () => {
 });
 
 el("dateMode").addEventListener("change", () => render());
-el("btn-export").addEventListener("click", () => {
-  if (!cachedEvents.length) {
-    alert("No data yet. Click Refresh first.");
-    return;
-  }
-  exportRawCsv(cachedEvents);
+
+el("btn-export").addEventListener("click", async () => {
+  // Ensure we have the latest data (so export always includes newest runs)
+  const runs = await loadRuns();   // reload from Firestore
+  exportExcelReport(runs);
 });
 
 /* Start */

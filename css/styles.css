@@ -361,22 +361,31 @@ select:focus{
 
 /* Station colors (Process) */
 .bar.process.st1{
-  background: rgba(126,87,194,0.18);      /* purple */
-  border-color: rgba(126,87,194,0.40);
+  background: #7e57c2;      /* purple */
+  border-color: #6d28d9;
+  color: #fff;
 }
 .bar.process.st2{
-  background: rgba(30,136,229,0.18);      /* blue */
-  border-color: rgba(30,136,229,0.40);
+  background: #1e88e5;      /* blue */
+  border-color: #1565c0;
+  color: #fff;
 }
 .bar.process.st3{
-  background: rgba(67,160,71,0.18);       /* green */
-  border-color: rgba(67,160,71,0.40);
+  background: #43a047;      /* green */
+  border-color: #2e7d32;
+  color: #fff;
 }
 
-/* Rework always red (override station color) */
+/* ===== REWORK (always red) ===== */
 .bar.rework{
-  background: rgba(239,68,68,0.18);
-  border-color: rgba(239,68,68,0.35);
+  background: #ef4444;
+  border-color: #b91c1c;
+  color:#fff;
+}
+
+/* ongoing highlight */
+.bar.ongoing{
+  outline: 3px solid #f59e0b;
 }
 
 /* Tooltip */
@@ -489,7 +498,7 @@ select:focus{
 }
 
 /* swatches reuse your bar station classes */
-.swatch.st1{ background: rgba(126,87,194,0.35); border-color: rgba(126,87,194,0.55); }
-.swatch.st2{ background: rgba(30,136,229,0.35); border-color: rgba(30,136,229,0.55); }
-.swatch.st3{ background: rgba(67,160,71,0.35); border-color: rgba(67,160,71,0.55); }
-.swatch.rework{ background: rgba(239,68,68,0.35); border-color: rgba(239,68,68,0.55); }
+.swatch.st1{ background:#7e57c2; border-color:#6d28d9; }
+.swatch.st2{ background:#1e88e5; border-color:#1565c0; }
+.swatch.st3{ background:#43a047; border-color:#2e7d32; }
+.swatch.rework{ background:#ef4444; border-color:#b91c1c; }
