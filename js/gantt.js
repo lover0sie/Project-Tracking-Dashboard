@@ -23,8 +23,63 @@ const dayHeadEl = el("ganttDayHead");
 
 let cachedEvents = [];
 
+/* Initialize process by station */
+const PROCESS_BY_STATION = {
+  "PV 1": [
+    "Hole Bevelling",
+    "Connector welding",
+    "Fitting and welding distribution box",
+    "Tube support and bush fitting tube sheet fitting",
+    "Tubesheet welding",
+    "Bracket and attachment welding",
+    "Unit side plate and base welding",
+    "Tube slotting and expansion",
+    "Tube slotting and expansion",
+  ],
+  // add more later:
+  // "PV 2": [...],
+};
+
+const PV1_LIST = [
+  "Hole Bevelling",
+  "Connector welding",
+  "Fitting and welding distribution box",
+  "Tube support and bush fitting tube sheet fitting",
+  "Tubesheet welding",
+  "Bracket and attachment welding",
+  "Unit side plate and base welding",
+  "Tube slotting and expansion",
+  "Tube slotting and expansion",
+];
+
+
 
 /* Helpers */
+function formatDuration(ms){
+  if (!ms || ms <= 0) return "-";
+  const totalSec = Math.round(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+
+function tsOrMsToDate(ts, ms) {
+  if (ts && typeof ts.toDate === "function") return ts.toDate();
+  if (typeof ms === "number") return new Date(ms);
+  return null;
+}
+
+function normStation(s){
+  return String(s || "").trim().toUpperCase().replace(/\s+/g," ");
+}
+function stationKey(s){
+  // keep as "PV 1" style
+  return normStation(s);
+}
 
 function formatDateTime(d) {
   const dateFmt = new Intl.DateTimeFormat("en-GB", {
@@ -43,12 +98,13 @@ function formatDateTime(d) {
 }
 
 function stationClass(station) {
-  const s = (station || "").toLowerCase().replace(/\s+/g, "");
-
-  if (s.includes("station1") || s === "1" || s === "st1") return "st1";
-  if (s.includes("station2") || s === "2" || s === "st2") return "st2";
-  if (s.includes("station3") || s === "3" || s === "st3") return "st3";
-
+  const s = String(station || "").toLowerCase().replace(/\s+/g, "");
+  if (s.includes("pv1")) return "st1";
+  if (s.includes("pv2")) return "st2";
+  if (s.includes("pv3")) return "st3";
+  if (s.includes("station1")) return "st1";
+  if (s.includes("station2")) return "st2";
+  if (s.includes("station3")) return "st3";
   return "st2";
 }
 
@@ -57,20 +113,6 @@ function tsToDate(ts) {
   if (typeof ts.toDate === "function") return ts.toDate();
   if (typeof ts === "number") return new Date(ts);
   return null;
-}
-
-function normalizeStatus(s) { return (s || "").trim().toLowerCase(); }
-function getPhaseFromStatus(status) {
-  const s = normalizeStatus(status);
-  return s.includes("rework") ? "rework" : "process";
-}
-function isStartStatus(s) {
-  const t = normalizeStatus(s);
-  return t === "start process" || t === "start rework";
-}
-function isEndStatus(s) {
-  const t = normalizeStatus(s);
-  return t === "end process" || t === "end rework";
 }
 
 function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
@@ -185,81 +227,55 @@ function keyOf(serial, station, phase) {
   return `${serial}||${station}||${phase}`;
 }
 
-function buildSegmentsFromEvents(events) {
-  const groups = new Map();
+function runTimeToDate(v) {
+  if (v && typeof v.toDate === "function") return v.toDate(); // Firestore Timestamp
+  if (typeof v === "number") return new Date(v);              // epoch ms
+  return null;
+}
 
-  for (const e of events) {
-    const serial = e.serialNumber;
-    const station = e.location;
-    const phase = getPhaseFromStatus(e.status);
-    const createdAt = tsToDate(e.createdAt);
-    if (!serial || !station || !createdAt) continue;
-
-    const k = keyOf(serial, station, phase);
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push({ ...e, _t: createdAt, _phase: phase });
-  }
-
+function buildSegmentsFromRuns(runs) {
   const segments = [];
   const issues = [];
 
-  for (const [k, arr] of groups.entries()) {
-    arr.sort((a,b) => a._t - b._t);
+  for (const r of runs) {
+    const serial = r.serialNumber || "";
+    const station = r.station || "";
 
-    let startEv = null;
+    const start = tsOrMsToDate(r.startAt, r.startEpochMs);
+    const endRaw = tsOrMsToDate(r.endAt, r.endEpochMs);
 
-    for (const ev of arr) {
-      if (isStartStatus(ev.status)) {
-        startEv = ev;
-      } else if (isEndStatus(ev.status)) {
-        if (!startEv) {
-          issues.push({ type:"end_without_start", serialNumber: ev.serialNumber, station: ev.location, phase: ev._phase });
-          continue;
-        }
-
-        const start = new Date(startEv._t);
-        const end = new Date(ev._t);
-        if (end < start) {
-          issues.push({ type:"end_before_start", serialNumber: ev.serialNumber, station: ev.location, phase: ev._phase });
-          startEv = null;
-          continue;
-        }
-
-        segments.push({
-          serial: ev.serialNumber,
-          projectName: ev.projectName || startEv.projectName || "(No Project)",
-          materialNumber: ev.materialNumber || startEv.materialNumber || "",
-          station: ev.location,
-          phase: ev._phase, // "process" | "rework"
-          employeeName: startEv.employeeName || ev.employeeName || "",
-          employeeNumber: startEv.employeeNumber || ev.employeeNumber || "",
-          start,
-          end,
-          ongoing: false
-        });
-
-        startEv = null;
-      }
+    if (!serial || !station || !start) {
+      issues.push({ type: "missing_fields", id: r.id, serial, station });
+      continue;
     }
 
-    if (startEv) {
-      segments.push({
-        serial: startEv.serialNumber,
-        projectName: startEv.projectName || "(No Project)",
-        materialNumber: startEv.materialNumber || "",
-        station: startEv.location,
-        phase: startEv._phase,
-        employeeName: startEv.employeeName || "",
-        employeeNumber: startEv.employeeNumber || "",
-        start: new Date(startEv._t),
-        end: new Date(),          // show until now
-        ongoing: true
-      });
-    }
+    const status = String(r.status || "").toLowerCase();
+    const ongoing = status === "running" || !endRaw;
+
+    segments.push({
+      serial,
+      projectName: r.projectName || "(No Project)",
+      materialNumber: r.materialNumber || "",
+      description: r.description || "",
+      station,
+      phase: "process",                    // detect process or line stop
+      processLabel: r.processName || "-",
+      manpower: Number(r.manpower ?? 0) || 0,
+      remarks: r.remarks || "",
+      employeeName: r.startedByName || "",
+      employeeNumber: r.startedByNumber || "",
+      start,
+      end: endRaw || new Date(),
+      ongoing,
+      durationMs: typeof r.durationMs === "number"
+        ? r.durationMs
+        : (endRaw ? (endRaw.getTime() - start.getTime()) : 0)
+    });
   }
 
   return { segments, issues };
 }
+
 
 /* Project index */
 function buildProjectMap(segments) {
@@ -293,20 +309,56 @@ function minMaxFromSegments(segments) {
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
+function renderLegendsStationOnly(segments){
+  const stEl = document.getElementById("legendStations");
+  if (!stEl) return;
+
+  const uniq = [...new Set(segments.map(s => s.station))].sort();
+
+  stEl.innerHTML = uniq.map(st =>
+    `<span class="legItem"><span class="swatch ${stationClass(st)}"></span>${escapeHtml(st)}</span>`
+  ).join("");
+}
+
 function renderGantt(projectMap, days, rangeMin, rangeMax) {
   // Build headers
-  dayHeadEl.innerHTML = days.map(d => `
-    <div class="dayCol">
-      <div class="d1">${dateKey(d)}</div>
-      <div class="d2">${weekdayName(d)}</div>
-    </div>
-  `).join("");
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  dayHeadEl.innerHTML = days.map(d => {
+    const isToday = d.getTime() === today.getTime();
+    return `
+      <div class="dayCol ${isToday ? "today" : ""}">
+        <div class="d1">${dateKey(d)}</div>
+        <div class="d2">${weekdayName(d)}</div>
+      </div>
+    `;
+  }).join("")
 
   monthHeadEl.innerHTML = buildMonthHeader(days);
 
   // Compute widths ONCE
   const dayW = getDayW();
   const totalWidthPx = days.length * dayW;
+
+    /* === highlight today column in timeline === */
+  today.setHours(0,0,0,0);
+
+  const todayIndex = days.findIndex(d =>
+    d.getTime() === today.getTime()
+  );
+
+  if (todayIndex >= 0){
+    const leftPx = todayIndex * dayW;
+    document.documentElement.style.setProperty("--todayLeft", leftPx + "px");
+
+    // add highlight class to all rows
+    setTimeout(() => {
+      document.querySelectorAll(".ganttTimeline")
+        .forEach(t => t.classList.add("todayCol"));
+    }, 0);
+  }
+
 
   document.documentElement.style.setProperty("--days", String(days.length));
 
@@ -324,6 +376,7 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
     return an.localeCompare(bn);
   });
 
+
   const msPerDay = 24 * 60 * 60 * 1000;
 
   bodyEl.innerHTML = projects.map(p => {
@@ -337,17 +390,18 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
       const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
       const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
 
-      const phaseClass = seg.phase === "rework" ? "rework" : "process";
+      const phaseClass = seg.phase === "rework" ? "rework" : "process"; // to change to line stop
       const ongoingClass = seg.ongoing ? "ongoing" : "";
       const stClass = stationClass(seg.station);
 
       const emp = `${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
       const tip =
-        `Phase: ${seg.phase.toUpperCase()}\n` +
+        `Status: ${seg.ongoing ? "ONGOING" : "COMPLETED"}\n` +
+        `Process: ${seg.processLabel}\n` +
         `Station: ${seg.station}\n` +
-        `Employee: ${emp}\n` +
-        `Start: ${formatDateTime(seg.start)}\n` +
-        `End: ${seg.ongoing ? "(Ongoing)" : formatDateTime(seg.end)}`;
+        `Manpower: ${seg.manpower || "-"}\n` +
+        `Duration: ${formatDuration(seg.durationMs)}\n` +
+        (seg.remarks ? `Remarks: ${seg.remarks}` : "");
 
       return `
         <div class="bar ${phaseClass} ${stClass} ${ongoingClass}"
@@ -424,21 +478,21 @@ function exportRawCsv(events) {
 }
 
 /* Load + render */
-async function loadEvents() {
-  const snap = await getDocs(collection(db, "processLogs"));
-  const events = [];
-  snap.forEach(d => events.push(d.data()));
-  cachedEvents = events;
-  console.log("Total docs:", events.length);
-  console.log("Sample doc:", events[0]);
-  return events;
+async function loadRuns() {
+  const snap = await getDocs(collection(db, "processRuns"));
+  const runs = [];
+  snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
+  cachedEvents = runs;
+  return runs;
 }
+
 
 async function render() {
   try {
     console.log("render() start");
-    const events = cachedEvents.length ? cachedEvents : await loadEvents();
-    const { segments, issues } = buildSegmentsFromEvents(events);
+
+    const runs = cachedEvents.length ? cachedEvents : await loadRuns();
+    const { segments } = buildSegmentsFromRuns(runs);
 
     if (!segments.length) {
       monthHeadEl.innerHTML = "";
@@ -446,6 +500,8 @@ async function render() {
       bodyEl.innerHTML = "";
       return;
     }
+
+    renderLegendsStationOnly(segments);
 
     const { min, max } = minMaxFromSegments(segments);
     const mode = el("dateMode").value;
@@ -459,7 +515,6 @@ async function render() {
 
     console.log("segments:", segments.length);
     console.log("days:", days.length, "range:", rangeMin, rangeMax);
-
 
     renderGantt(projectMap, days, rangeMin, rangeMax);
 

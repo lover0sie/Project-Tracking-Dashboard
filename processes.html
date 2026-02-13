@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Processes</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h2>Processes</h2>
+        <div class="sub">Generated from Firestore <b>processRuns</b></div>
+      </div>
+
+      <div class="actions">
+        <a class="btn secondary" href="index.html">Back to Dashboard</a>
+      </div>
+    </header>
+
+    <section class="card">
+        <div class="toolbar">
+            <div class="hint">Select a station to see its process list.</div>
+
+            <div class="filters">
+            <label for="stationPick">Station</label>
+            <select id="stationPick"></select>
+            </div>
+        </div>
+
+        <div id="processList"></div>
+    </section>
+
+  </div>
+
+  <script type="module" src="js/processes.js"></script>
+</body>
+</html>

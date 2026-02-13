@@ -18,9 +18,11 @@
 
       <div class="actions">
         <button id="btn-refresh" class="secondary">Refresh</button>
+        <a class="btn secondary" href="processes.html">Process Description</a>
         <button id="btn-export">Export CSV</button>
       </div>
     </header>
+
 
     <section class="card">
       <div class="toolbar">
@@ -28,13 +30,7 @@
           Hover a bar to see employee (ID) + start/end date/time.
         </div>
 
-        <div class="legend">
-          <span class="legItem"><span class="swatch st1"></span>Station 1</span>
-          <span class="legItem"><span class="swatch st2"></span>Station 2</span>
-          <span class="legItem"><span class="swatch st3"></span>Station 3</span>
-          <span class="legItem"><span class="swatch rework"></span>Rework</span>
-        </div>
-
+        <div id="legendStations" class="legendRow"></div>
 
         <div class="filters">
           <label for="dateMode">Date Range</label>

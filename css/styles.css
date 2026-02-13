@@ -49,6 +49,61 @@ button:active{ transform: translateY(1px); }
 #btn-export{ background:var(--accent); color:#fff; }
 #btn-export:hover{ background:var(--accentHover); }
 
+a.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
+  padding:10px 14px;
+  border-radius: var(--radiusSm);
+  border:1px solid transparent;
+  font-size:14px;
+  font-weight:800;
+  cursor:pointer;
+}
+a.btn.secondary{
+  background:#fff;
+  color:#111827;
+  border-color:var(--border);
+}
+a.btn.secondary:hover{
+  border-color:#cbd5e1;
+  background:#fbfbfb;
+}
+
+/* Processes page blocks */
+.procBlock{
+  border:1px solid var(--border);
+  border-radius: var(--radiusSm);
+  padding:12px;
+  margin-bottom:12px;
+  background:#fff;
+}
+.procTitle{
+  font-weight:900;
+  margin-bottom:8px;
+}
+
+.procOl{
+  margin:0;
+  padding-left: 18px;
+  color:#374151;
+  line-height:1.65;
+  font-weight:600;
+}
+
+.pill{
+  margin-left:8px;
+  font-size:11px;
+  font-weight:900;
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:#f8fafc;
+  color:#334155;
+}
+
+
 button.secondary{
   background:#fff;
   color:#111827;
@@ -165,6 +220,12 @@ select:focus{
   background:#fafafa;
 }
 
+/* TODAY column highlight */
+.dayCol.today{
+  background:#e0f2fe !important;
+  border-right:1px solid #38bdf8;
+}
+
 .dayCol .d1{
   font-size:12px;
   font-weight:700;
@@ -177,6 +238,26 @@ select:focus{
   font-size:11px;
   color:#6b7280;
   font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+/* highlight body timeline column */
+.ganttTimeline.todayCol{
+  background:
+    
+    linear-gradient(to right,
+      transparent,
+      transparent calc(var(--todayLeft) - 1px),
+      rgba(56,189,248,0.35) calc(var(--todayLeft)),
+      rgba(56,189,248,0.35) calc(var(--todayLeft) + var(--dayW)),
+      transparent calc(var(--todayLeft) + var(--dayW))
+    ),
+     repeating-linear-gradient(
+      to right,
+      transparent,
+      transparent calc(var(--dayW) - 1px),
+      rgba(229,231,235,1) calc(var(--dayW) - 1px),
+      rgba(229,231,235,1) var(--dayW)
+    );
 }
 
 .monthCell{
@@ -194,7 +275,7 @@ select:focus{
   position: relative;
   height: var(--rowH);
   width: auto;
-  background-color: #fffbe6 !important;
+  background-color: #ffffff !important;
   background:
      repeating-linear-gradient(
       to right,
@@ -344,34 +425,71 @@ select:focus{
 }
 
 .legend{
+  margin-top: 10px;
+}
+
+.legendRow{
   margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--muted);
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+
+.legBlock{
+  border:1px solid var(--border);
+  border-radius: var(--radiusSm);
+  padding:10px 12px;
+  background:#fff;
+}
+
+.legTitle{
+  font-weight:900;
+  font-size:12px;
+  letter-spacing:.06em;
+  color:#374151;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+
+.legList{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 14px;
+}
+
+
+.dot{
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  background: rgba(30,136,229,0.45);
+  border:1px solid rgba(30,136,229,0.65);
 }
 
 .legItem{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  color: #374151;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  font-weight:800;
+  color:#374151;
+}
+
+.legItem.small{
+  font-weight:700;
 }
 
 .swatch{
-  width: 14px;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.08);
+  width:14px;
+  height:10px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.08);
   box-shadow: 0 2px 6px rgba(17,24,39,0.08);
 }
 
-/* match your bar colors */
+/* swatches reuse your bar station classes */
 .swatch.st1{ background: rgba(126,87,194,0.35); border-color: rgba(126,87,194,0.55); }
 .swatch.st2{ background: rgba(30,136,229,0.35); border-color: rgba(30,136,229,0.55); }
 .swatch.st3{ background: rgba(67,160,71,0.35); border-color: rgba(67,160,71,0.55); }
 .swatch.rework{ background: rgba(239,68,68,0.35); border-color: rgba(239,68,68,0.55); }
-
