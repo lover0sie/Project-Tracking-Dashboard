@@ -1,4 +1,5 @@
 :root{
+  /* Centralize sizing and color tokens here so tuning the whole UI stays easy. */
   --bg:#f6f7fb;
   --card:#ffffff;
   --text:#111827;
@@ -9,7 +10,7 @@
   --accentHover:#1d4ed8;
   --radius:14px;
   --radiusSm:10px;
-  --dayW: 100px;
+  --dayW: 140px;
   --rowH: 80px;
 
 }
@@ -165,6 +166,7 @@ select:focus{
 
 /* ===== Gantt layout ===== */
 .ganttWrap{
+  /* Keep overflow auto so wide timelines scroll instead of shrinking columns. */
   border:1px solid var(--border);
   border-radius: var(--radiusSm);
   overflow:auto;
@@ -177,6 +179,7 @@ select:focus{
 }
 
 .ganttHead{
+  /* Pin the header while scrolling so dates and month labels stay visible. */
   position: sticky;
   top: 0;
   z-index: 5;
@@ -214,6 +217,7 @@ select:focus{
 .monthHead{ display:flex; border-bottom:1px solid var(--border); }
 
 .dayCol{
+  /* Read width from --dayW so one variable controls all date column sizing. */
   width: var(--dayW);
   border-right:1px solid var(--border);
   padding:8px 10px;
@@ -272,6 +276,7 @@ select:focus{
 }
 
 .ganttTimeline{
+  /* Draw day separators with a repeating gradient instead of many extra DOM nodes. */
   position: relative;
   height: var(--rowH);
   width: auto;
@@ -309,7 +314,7 @@ select:focus{
   position: sticky;
   left: 0;
   z-index: 10;                 /* above timeline grid */
-  background: #fff;            /* solid background so it doesn't look transparent */
+  background: #fff;          /* solid background so it doesn't look transparent */
 }
 
 .ganttLeft .title{
@@ -338,6 +343,7 @@ select:focus{
 
 /* Bars */
 .bar{
+  /* Position each bar absolutely from time math done in gantt.js. */
   position:absolute;
   top: 18px;
   height: 28px;
@@ -510,7 +516,7 @@ select:focus{
   box-shadow: 0 2px 6px rgba(17,24,39,0.08);
 }
 
-/* swatches reuse your bar station classes */
+/* Swatches bar station classes */
 .swatch.st1{ background:#7e57c2; border-color:#6d28d9; }
 .swatch.st2{ background:#1e88e5; border-color:#1565c0; }
 .swatch.st3{ background:#43a047; border-color:#2e7d32; }

@@ -1,6 +1,8 @@
 const el = (id) => document.getElementById(id);
+// Use a short DOM helper so repeated element lookups stay readable.
 
 /* ===== MASTER PROCESS LIST ===== */
+// Keep this map as the single source for station -> ordered process steps.
 const PROCESS_BY_STATION = {
   "PV 1": [
     "6 - Hole bevelling", 
@@ -28,6 +30,7 @@ const PROCESS_BY_STATION = {
 };
 
 /* ===== escape helper ===== */
+// Escape strings before injecting into HTML to avoid broken markup.
 function escapeHtml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;")
@@ -39,6 +42,7 @@ function escapeHtml(s){
 
 /* ===== dropdown stations ===== */
 function renderStationOptions(){
+  // Derive dropdown options from the map keys so station list stays in sync.
   const stations = Object.keys(PROCESS_BY_STATION);
   const sel = el("stationPick");
 
@@ -49,6 +53,7 @@ function renderStationOptions(){
 
 /* ===== show process list ===== */
 function renderProcessList(station){
+  // Render one station at a time, with a fallback when no process is defined.
   const container = el("processList");
   const list = PROCESS_BY_STATION[station] || [];
 
@@ -70,6 +75,7 @@ function renderProcessList(station){
 
 /* ===== INIT ===== */
 function init(){
+  // Set initial UI state, then subscribe to station changes.
   renderStationOptions();
 
   const first = Object.keys(PROCESS_BY_STATION)[0];

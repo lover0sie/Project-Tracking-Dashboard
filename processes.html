@@ -9,6 +9,7 @@
 
 <body>
   <div class="wrap">
+    <!-- Mirror dashboard structure here so both pages feel consistent. -->
     <header class="top">
       <div>
         <h2>Processes</h2>
@@ -21,6 +22,7 @@
     </header>
 
     <section class="card">
+        <!-- Use this selector to switch which station's process steps are shown. -->
         <div class="toolbar">
             <div class="hint">Select a station to see its process list.</div>
 
@@ -30,11 +32,13 @@
             </div>
         </div>
 
+        <!-- Let JavaScript inject the process list HTML into this block. -->
         <div id="processList"></div>
     </section>
 
   </div>
 
+  <!-- Keep process page behavior in a small dedicated module. -->
   <script type="module" src="js/processes.js"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@
 
 <body>
   <div class="wrap">
+    <!-- Keep the dashboard title and global actions in one header for quick navigation. -->
     <header class="top">
       <div>
         <h2>Project Tracking Dashboard</h2>
@@ -19,12 +20,13 @@
       <div class="actions">
         <button id="btn-refresh" class="secondary">Refresh</button>
         <a class="btn secondary" href="processes.html">Process Description</a>
-        <button id="btn-export">Export CSV</button>
+        <button id="btn-export">Export Excel File</button>
       </div>
     </header>
 
 
     <section class="card">
+      <!-- Use this toolbar to hold usage hints, legend output, and date-range controls. -->
       <div class="toolbar">
         <div class="hint">
           Hover a bar to see manpower and duration.
@@ -47,6 +49,7 @@
       <!-- Gantt -->
       <div class="ganttWrap">
         <div class="ganttGrid">
+          <!-- Split timeline headers into month row and day row so both can scroll together. -->
           <div class="ganttHead">
             <div class="ganttLeftHead">Project</div>
             <div class="ganttTimelineHead">
@@ -55,6 +58,7 @@
             </div>
           </div>
 
+          <!-- Render project rows from JavaScript into this container. -->
           <div id="ganttBody" class="ganttBody"></div>
         </div>
       </div>
@@ -64,6 +68,7 @@
   <!-- Export to Excel (multi-sheet) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
+<!-- Load gantt.js as a module so Firebase imports and dashboard logic work directly in browser. -->
 <script type="module" src="js/gantt.js"></script>
 
 </body>

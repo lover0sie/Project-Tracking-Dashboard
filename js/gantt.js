@@ -13,6 +13,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+// Initialize Firebase once, then reuse this Firestore instance across all reads.
 
 /* DOM */
 const el = (id) => document.getElementById(id);
@@ -22,6 +23,7 @@ const monthHeadEl = el("ganttMonthHead");
 const dayHeadEl = el("ganttDayHead");
 
 let cachedEvents = [];
+// Cache fetched runs to avoid hitting Firestore on every re-render.
 
 /* Initialize process by station */
 const PROCESS_BY_STATION = {
@@ -37,7 +39,6 @@ const PROCESS_BY_STATION = {
         "14 - Tube slotting and expansion",
       ],
 
-      // My own testing
       "PV 2": [
         "6 - Hole bevelling", 
         "7 - Connector welding",
@@ -108,7 +109,7 @@ function formatDateTime(d) {
   return `${dateFmt.format(d)} ${timeFmt.format(d)}`;
 }
 
-// Update here if there are more stations!
+/* Update here if there are more stations! */
 function stationClass(station) {
   const s = String(station || "").toLowerCase().replace(/\s+/g,"");
 
@@ -131,6 +132,7 @@ function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
 function endOfDay(d){ const x=new Date(d); x.setHours(23,59,59,999); return x; }
 
 function getDayW(){
+  // Read CSS variable --dayW so timeline math always matches visual column width.
   const v = getComputedStyle(document.documentElement).getPropertyValue("--dayW").trim();
   return Number(v.replace("px","")) || 120;
 }
@@ -147,6 +149,7 @@ function weekdayName(d) {
 }
 
 function buildDateRange(minDate, maxDate) {
+  // Generate one Date object per day to build both headers and pixel positions.
   const out = [];
   let cur = startOfDay(minDate);
   const end = startOfDay(maxDate);
@@ -158,6 +161,7 @@ function buildDateRange(minDate, maxDate) {
 }
 
 function buildMonthHeader(days){
+  // Group contiguous days by month and make one wide cell per group.
   const cells = [];
   let i = 0;
 
@@ -256,6 +260,7 @@ function runTimeToDate(v) {
 }
 
 function buildSegmentsFromRuns(runs) {
+  // Normalize raw Firestore documents into timeline-ready segment objects.
   const segments = [];
   const issues = [];
 
@@ -301,6 +306,7 @@ function buildSegmentsFromRuns(runs) {
 
 /* Project index */
 function buildProjectMap(segments) {
+  // Group segments by serial number so each project becomes one row.
   const map = new Map();
   for (const s of segments) {
     if (!map.has(s.serial)) {
@@ -343,6 +349,7 @@ function renderLegendsStationOnly(segments){
 }
 
 function renderGantt(projectMap, days, rangeMin, rangeMax) {
+  // Render headers first, then rows, using one shared day width unit.
   // Build headers
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -388,6 +395,7 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
   });
 
   bodyEl.innerHTML = projects.map(p => {
+    // Build bars only for segments overlapping current visible date range.
     const title = `${p.projectName} (${p.serial})`;
     const meta = `Material Number: ${p.materialNumber || "-"}`;
 
@@ -404,20 +412,18 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
         const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
         const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
 
-        // ✅ define these (you were missing them)
+        // Define class names once so visual states are easy to scan.
         const phaseClass = (seg.phase === "rework") ? "rework" : "process";
         const ongoingClass = seg.ongoing ? "ongoing" : "";
         const stClass = stationClass(seg.station);
 
-        // Tooltip (you said earlier you removed start/end; keeping it minimal)
-        const emp = `${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
+        // Keep tooltip content concise and focused on run status.
         const tip =
           `Process: ${seg.processLabel || "-"}\n` +
           `Station: ${seg.station || "-"}\n` +
           `Status: ${seg.ongoing ? "ONGOING" : "COMPLETED"}\n` +
           `Manpower: ${seg.manpower ?? "-"}\n` +
-          `Duration: ${formatDuration(seg.durationMs)}\n` +
-          `Started by: ${emp}` +
+          `Duration: ${formatDuration(seg.durationMs)}` +
           (seg.remarks ? `\nRemarks: ${seg.remarks}` : "");
 
         return `
@@ -469,6 +475,7 @@ function toCsvValue(v) {
 }
 
 function exportExcelReport(runs) {
+  // Export two sheets: raw runs for detail and summary for station/process totals.
   if (typeof XLSX === "undefined") {
     alert("XLSX library not loaded. Check the xlsx script tag in index.html.");
     return;
@@ -504,7 +511,7 @@ function exportExcelReport(runs) {
 
     // Decide how to treat running rows:
     // - For RAW: show endAt empty (and duration as up-to-now)
-    // - For SUMMARY: include running up-to-now (you can change to exclude if you want)
+    // - For SUMMARY: include running up-to-now (this rule is simple to adjust later)
     const effectiveEnd = ongoing ? new Date() : end;
 
     let durationMs = 0;
@@ -585,7 +592,6 @@ function exportExcelReport(runs) {
   const wsRaw = XLSX.utils.aoa_to_sheet(rawRows);
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
 
-  // Optional: a bit nicer column widths
   wsRaw["!cols"] = [
     { wch: 18 }, // projectName
     { wch: 18 }, // description
@@ -685,6 +691,7 @@ function exportRawCsv(runs) {
 
 /* Load + render */
 async function loadRuns() {
+  // Fetch all processRuns documents, then keep them in memory cache.
   const snap = await getDocs(collection(db, "processRuns"));
   const runs = [];
   snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
@@ -694,6 +701,7 @@ async function loadRuns() {
 
 
 async function render() {
+  // Orchestrate full refresh: data -> normalized segments -> date range -> DOM render.
   try {
     console.log("render() start");
 
