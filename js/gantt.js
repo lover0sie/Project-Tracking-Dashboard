@@ -67,6 +67,16 @@ const PV1_LIST = [
 
 
 /* Helpers */
+
+function normalizeText(s){
+  if (!s) return "";
+  return String(s)
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase()); 
+    // capitalize first letter of each word
+}
+
+
 function formatDuration(ms){
   if (!ms || ms <= 0) return "-";
   const totalSec = Math.round(ms / 1000);
@@ -78,10 +88,15 @@ function formatDuration(ms){
   return `${s}s`;
 }
 
-
+// Update to accept epoch long int
 function tsOrMsToDate(ts, ms) {
   if (ts && typeof ts.toDate === "function") return ts.toDate();
-  if (typeof ms === "number") return new Date(ms);
+
+  const n = (typeof ms === "number") ? ms
+          : (typeof ms === "string" && ms.trim() !== "" && !isNaN(ms)) ? Number(ms)
+          : null;
+
+  if (typeof n === "number" && Number.isFinite(n)) return new Date(n);
   return null;
 }
 
@@ -247,20 +262,7 @@ function clampRangeByMode(mode, minDate, maxDate) {
   return { minDate, maxDate };
 }
 
-
-/* Segment builder: pair start/end per serial+station+phase */
-function keyOf(serial, station, phase) {
-  return `${serial}||${station}||${phase}`;
-}
-
-function runTimeToDate(v) {
-  if (v && typeof v.toDate === "function") return v.toDate(); // Firestore Timestamp
-  if (typeof v === "number") return new Date(v);              // epoch ms
-  return null;
-}
-
 function buildSegmentsFromRuns(runs) {
-  // Normalize raw Firestore documents into timeline-ready segment objects.
   const segments = [];
   const issues = [];
 
@@ -269,15 +271,33 @@ function buildSegmentsFromRuns(runs) {
     const station = r.station || "";
 
     const start = tsOrMsToDate(r.startAt, r.startEpochMs);
-    const endRaw = tsOrMsToDate(r.endAt, r.endEpochMs);
+
+    const statusRaw = String(r.status || "").toLowerCase().trim(); // running / completed / on_hold
+    const status =
+      (statusRaw === "completed" || statusRaw === "running" || statusRaw === "on_hold")
+        ? statusRaw
+        : "running";
+
+    // Pick end time based on status:
+    const endCompleted = tsOrMsToDate(r.endAt, r.endEpochMs);
+    const holdTime = tsOrMsToDate(r.holdAt, r.holdEpochMs);
+
+    let end = null;
+    if (status === "completed") end = endCompleted;
+    else if (status === "on_hold") end = holdTime || new Date();
+    else end = new Date(); // running
 
     if (!serial || !station || !start) {
       issues.push({ type: "missing_fields", id: r.id, serial, station });
       continue;
     }
 
-    const status = String(r.status || "").toLowerCase();
-    const ongoing = status === "running" || !endRaw;
+    if (end && end.getTime() < start.getTime()) end = new Date(start.getTime());
+
+    const durationMs =
+      typeof r.durationMs === "number"
+        ? r.durationMs
+        : (start && end ? (end.getTime() - start.getTime()) : 0);
 
     segments.push({
       serial,
@@ -285,18 +305,20 @@ function buildSegmentsFromRuns(runs) {
       materialNumber: r.materialNumber || "",
       description: r.description || "",
       station,
-      phase: "process",                    // detect process or line stop
+      phase: "process",
       processLabel: r.processName || "-",
       manpower: Number(r.manpower ?? 0) || 0,
       remarks: r.remarks || "",
       employeeName: r.startedByName || "",
       employeeNumber: r.startedByNumber || "",
       start,
-      end: endRaw || new Date(),
-      ongoing,
-      durationMs: typeof r.durationMs === "number"
-        ? r.durationMs
-        : (endRaw ? (endRaw.getTime() - start.getTime()) : 0)
+      end,
+      status,
+      holdReason: r.holdReason || "",
+      holdAt: holdTime || null,
+
+      ongoing: (status === "running"),   // only running gets ongoing styling
+      durationMs: Math.max(0, durationMs)
     });
   }
 
@@ -401,7 +423,7 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
 
     const bars = p.segments
       .filter(seg => {
-        // ✅ Skip segments completely outside the visible range
+        //  Skip segments completely outside the visible range
         return !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime());
       })
       .map(seg => {
@@ -421,15 +443,21 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
         const tip =
           `Process: ${seg.processLabel || "-"}\n` +
           `Station: ${seg.station || "-"}\n` +
-          `Status: ${seg.ongoing ? "ONGOING" : "COMPLETED"}\n` +
+          `Status: ${String(seg.status || "").replaceAll("_"," ").toUpperCase()}\n` +
           `Manpower: ${seg.manpower ?? "-"}\n` +
           `Duration: ${formatDuration(seg.durationMs)}` +
+          (seg.status === "on_hold" && seg.holdReason ? `\nHold reason: ${normalizeText(seg.holdReason)}` : "") +
           (seg.remarks ? `\nRemarks: ${seg.remarks}` : "");
 
+        const statusClass =
+          seg.status === "completed" ? "status-completed"
+          : seg.status === "on_hold" ? "status-onhold"
+          : "status-running";
+
         return `
-          <div class="bar ${phaseClass} ${stClass} ${ongoingClass}"
-               style="left:${leftPx}px; width:${widthPx}px;"
-               data-tip="${escapeAttr(tip)}"></div>
+          <div class="bar ${phaseClass} ${stClass} ${ongoingClass} ${statusClass}"
+              style="left:${leftPx}px; width:${widthPx}px;"
+              data-tip="${escapeAttr(tip)}"></div>
         `;
       })
       .join("");
@@ -504,15 +532,14 @@ function exportExcelReport(runs) {
 
   for (const r of runs) {
     const start = tsOrMsToDate(r.startAt, r.startEpochMs);
-    const end = tsOrMsToDate(r.endAt, r.endEpochMs);
+    const endCompleted = tsOrMsToDate(r.endAt, r.endEpochMs);
+    const holdTime = tsOrMsToDate(r.holdAt, r.holdEpochMs);
 
-    const status = String(r.status || "").toLowerCase(); // running / completed
-    const ongoing = status === "running" || !end;
-
-    // Decide how to treat running rows:
-    // - For RAW: show endAt empty (and duration as up-to-now)
-    // - For SUMMARY: include running up-to-now (this rule is simple to adjust later)
-    const effectiveEnd = ongoing ? new Date() : end;
+    const status = String(r.status || "").toLowerCase().trim();
+    const effectiveEnd =
+      status === "completed" ? endCompleted
+      : status === "on_hold" ? (holdTime || new Date())
+      : new Date(); // running
 
     let durationMs = 0;
     if (start && effectiveEnd) durationMs = Math.max(0, effectiveEnd.getTime() - start.getTime());
@@ -528,9 +555,11 @@ function exportExcelReport(runs) {
       r.processName || "",
       r.station || "",
       r.manpower ?? "",
-      r.status || "",
+      String(r.status || "").replaceAll("_"," ").toUpperCase(),
       start ? formatDateTime(start) : "",
-      (!ongoing && end) ? formatDateTime(end) : "",
+      (status === "completed" && endCompleted) ? formatDateTime(endCompleted)
+      : (status === "on_hold" && holdTime) ? formatDateTime(holdTime)
+      : "",
       durationMin,
       mh.toFixed(2)
     ]);

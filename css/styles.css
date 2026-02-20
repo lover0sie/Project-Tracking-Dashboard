@@ -367,20 +367,27 @@ select:focus{
 
 /* Station colors (Process) */
 .bar.process.st1{
-  background: #7e57c2;      /* purple */
+  background: #8f55f4;      /* purple */
   border-color: #6d28d9;
   color: #fff;
 }
 .bar.process.st2{
-  background: #1e88e5;      /* blue */
-  border-color: #1565c0;
+  background: #e97f16;      /* orange */
+  border-color: #a55b11;
   color: #fff;
 }
 .bar.process.st3{
-  background: #43a047;      /* green */
-  border-color: #2e7d32;
+  background: #e241a1;      /* pink */
+  border-color: #a42b74;
   color: #fff;
 }
+
+/* Swatches bar station classes */
+.swatch.st1{ background:#8f55f4; border-color:#6d28d9; }
+.swatch.st2{ background:#e97f16; border-color:#a55b11; }
+.swatch.st3{ background:#e241a1; border-color:#a42b74; }
+.swatch.rework{ background:#ef4444; border-color:#b91c1c; }
+
 
 /* ===== REWORK (always red) ===== */
 .bar.rework{
@@ -428,10 +435,31 @@ select:focus{
   transition: opacity .12s ease;
   z-index: 10;
 }
+
+/* Tooltip colors by status (box + arrow) */
+.bar.status-onhold[data-tip]::after{ background:#d32f2f; color:#fff; }
+.bar.status-onhold[data-tip]::before{ border-top-color:#d32f2f; }
+
+.bar.status-completed[data-tip]::after{ background:#2e7d32; color:#fff; }
+.bar.status-completed[data-tip]::before{ border-top-color:#2e7d32; }
+
+.bar.status-running[data-tip]::after{ background:#f9a825; color:#111; }
+.bar.status-running[data-tip]::before{ border-top-color:#f9a825; }
+
+
 .bar:hover::after,
 .bar:hover::before{
   opacity:1;
 }
+
+
+/* Tooltip colors by status */
+.bar.status-onhold:hover::after{ background: #d32f2f; }     /* red */
+.bar.status-completed:hover::after{ background: #2e7d32; }  /* green */
+.bar.status-running:hover::after{ background: #f9a825; }    /* yellow */
+
+/* Optional: make yellow tooltip text darker for readability */
+.bar.status-running:hover::after{ color: #111; }
 
 @media (max-width: 720px){
   body{ padding:14px; }
@@ -516,8 +544,3 @@ select:focus{
   box-shadow: 0 2px 6px rgba(17,24,39,0.08);
 }
 
-/* Swatches bar station classes */
-.swatch.st1{ background:#7e57c2; border-color:#6d28d9; }
-.swatch.st2{ background:#1e88e5; border-color:#1565c0; }
-.swatch.st3{ background:#43a047; border-color:#2e7d32; }
-.swatch.rework{ background:#ef4444; border-color:#b91c1c; }
