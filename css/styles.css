@@ -1,3 +1,4 @@
+/* ==================== Design Tokens ==================== */
 :root{
   /* Centralize sizing and color tokens here so tuning the whole UI stays easy. */
   --bg:#f6f7fb;
@@ -10,11 +11,15 @@
   --accentHover:#1d4ed8;
   --radius:14px;
   --radiusSm:10px;
-  --dayW: 140px;
+  --dayW: 120px;
   --rowH: 80px;
+  --colProject: 260px;
+  --colProc: 120px;
+  --colStatus: 110px;
 
 }
 
+/* ==================== Base Layout ==================== */
 *{ box-sizing:border-box; }
 body{
   margin:0;
@@ -25,6 +30,7 @@ body{
 }
 .wrap{ max-width: 1200px; margin:0 auto; }
 
+/* ==================== Page Header ==================== */
 .top{
   display:flex;
   align-items:flex-end;
@@ -35,6 +41,7 @@ body{
 h2{ margin:0; font-size:20px; font-weight:800; }
 .sub{ margin-top:6px; font-size:13px; color:var(--muted); }
 
+/* ==================== Global Actions ==================== */
 .actions{ display:flex; gap:10px; }
 button{
   padding:10px 14px;
@@ -72,7 +79,7 @@ a.btn.secondary:hover{
   background:#fbfbfb;
 }
 
-/* Processes page blocks */
+/* ==================== Process Description Page ==================== */
 .procBlock{
   border:1px solid var(--border);
   border-radius: var(--radiusSm);
@@ -112,6 +119,7 @@ button.secondary{
 }
 button.secondary:hover{ border-color:#cbd5e1; background:#fbfbfb; }
 
+/* ==================== Dashboard Card + Filters ==================== */
 .card{
   background:var(--card);
   border:1px solid var(--border);
@@ -132,7 +140,7 @@ button.secondary:hover{ border-color:#cbd5e1; background:#fbfbfb; }
 .filters{ display:flex; gap:10px; align-items:flex-end; }
 .filters label{
   display:block;
-  font-size:12px;
+  font-size:11px;
   font-weight:700;
   color:#374151;
   margin:0 0 6px;
@@ -164,7 +172,7 @@ select:focus{
   white-space: pre-wrap;
 }
 
-/* ===== Gantt layout ===== */
+/* ==================== Gantt: Wrapper and Grid ==================== */
 .ganttWrap{
   /* Keep overflow auto so wide timelines scroll instead of shrinking columns. */
   border:1px solid var(--border);
@@ -178,13 +186,14 @@ select:focus{
   min-width: 100%;
 }
 
+/* ==================== Gantt: Sticky Header ==================== */
 .ganttHead{
   /* Pin the header while scrolling so dates and month labels stay visible. */
   position: sticky;
   top: 0;
   z-index: 5;
   display:grid;
-  grid-template-columns: 320px 1fr; /* wider left */
+  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr; /* Project | ProcNo | Status | Timeline */
   border-bottom:1px solid var(--border);
   background:#fafafa;
 }
@@ -192,6 +201,8 @@ select:focus{
 .ganttLeftHead{
   padding:10px 12px;
   font-size:12px;
+  font-weight:800;
+  font-family: "Segoe UI", system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing:.08em;
   color:#374151;
@@ -202,6 +213,21 @@ select:focus{
   background: #fafafa;         /* same as header bg */
 }
 
+.ganttHead .ganttLeftHead:nth-child(1){ left:0; }
+.ganttHead .ganttLeftHead:nth-child(2){ left:var(--colProject); }
+.ganttHead .ganttLeftHead:nth-child(3){ left:calc(var(--colProject) + var(--colProc)); }
+
+.ganttHead .ganttLeftHead{
+  position: sticky;
+  z-index: 20;
+  background:#fafafa;
+  border-right:1px solid var(--border);
+}
+
+.ganttLeftHead.small{
+  text-align:center;
+}
+
 .ganttTimelineHead{
   display:flex;
   flex-direction:column;
@@ -209,6 +235,116 @@ select:focus{
   min-width: 0;
 }
 
+/* ==================== Gantt: Sticky Body Columns ==================== */
+.ganttCell{
+  padding:10px 12px;
+  border-right:1px solid var(--border);
+  height: var(--rowH);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position: sticky;
+  left: 0;
+  background:#fff;
+  z-index: 10;
+}
+
+/* Make each sticky column offset correctly */
+.ganttCell.project{ left: 0; z-index: 12; justify-content:flex-start; }
+.ganttCell.procNo{ left: var(--colProject); z-index: 11; }
+.ganttCell.status{ left: calc(var(--colProject) + var(--colProc)); z-index: 11; }
+
+.ganttCell.procNo,
+.ganttCell.status{
+  background: #f8fafc; 
+}
+
+.ganttCell.procNo > div{
+  font-size:14px;
+}
+
+.ganttCell.project{
+  background:#f8fafc;
+}
+
+/* Prevent global .status card styles from affecting the sticky Status column cell. */
+.ganttCell.status{
+  margin: 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  padding: 10px 12px;
+  white-space: normal;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Match Project column text style with day header typography. */
+.ganttCell.project .title{
+  font-size:13px;
+  font-weight:700;
+  color:#111827;
+  font-family:"Segoe UI", system-ui, sans-serif;
+  line-height:1.2;
+  white-space: normal;
+  overflow: hidden;
+  display:-webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ganttCell.project .meta{
+  margin-top:2px;
+  font-size:12px;
+  font-weight:400;
+  color:#6b7280;
+  font-family:"Segoe UI", system-ui, sans-serif;
+  line-height:1.2;
+  white-space: normal;
+  overflow: hidden;
+  display:-webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+/* ==================== Gantt: Status Pill ==================== */
+.statusPill{
+  min-width:90px;
+  text-align:center;
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.4px;
+  border:2px solid;
+  box-shadow:none;      
+}
+
+/* RUNNING */
+.statusPill.running{
+  background:#fff7cc;
+  border-color:#f59e0b;
+  color:#92400e;
+}
+
+/* COMPLETED */
+.statusPill.completed{
+  background:#dcfce7;
+  border-color:#22c55e;
+  color:#065f46;
+}
+
+/* ON HOLD */
+.statusPill.onhold{
+  background:#fee2e2;
+  border-color:#ef4444;
+  color:#7f1d1d;
+}
+
+
+/* ==================== Gantt: Day/Month Header ==================== */
 .monthHead, .dayHead{
   width: auto;
 }
@@ -267,14 +403,15 @@ select:focus{
 .monthCell{
   height:34px;
   padding:8px 12px;
-  font-size:14px;        /* bigger */
-  font-weight:800;       /* less bold */
+  font-size:14px;        
+  font-weight:800;       
   letter-spacing:0.3px;
   color:#111827;
   font-family: "Segoe UI", system-ui, sans-serif;
   background:#f5f6f8;
 }
 
+/* ==================== Gantt: Timeline Rows ==================== */
 .ganttTimeline{
   /* Draw day separators with a repeating gradient instead of many extra DOM nodes. */
   position: relative;
@@ -293,7 +430,7 @@ select:focus{
 
 .ganttRow{
   display:grid;
-  grid-template-columns: 320px 1fr; /* match header */
+  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
   border-bottom:1px solid var(--border);
   background-color: #f8fafc;
 }
@@ -341,7 +478,7 @@ select:focus{
   -webkit-box-orient: vertical;
 }
 
-/* Bars */
+/* ==================== Gantt Bars ==================== */
 .bar{
   /* Position each bar absolutely from time math done in gantt.js. */
   position:absolute;
@@ -353,31 +490,20 @@ select:focus{
   cursor: default;
   opacity: 1 !important;
 }
-.bar.process{
-  background: rgba(37,99,235,0.18);
-  border-color: rgba(37,99,235,0.35);
-}
-.bar.rework{
-  background: rgba(239,68,68,0.18);
-  border-color: rgba(239,68,68,0.35);
-}
-.bar.ongoing{
-  outline: 2px solid rgba(37,99,235,0.18);
-}
 
 /* Station colors (Process) */
 .bar.process.st1{
-  background: #8f55f4;      /* purple */
+  background: #8f55f4;      
   border-color: #6d28d9;
   color: #fff;
 }
 .bar.process.st2{
-  background: #e97f16;      /* orange */
+  background: #e97f16;     
   border-color: #a55b11;
   color: #fff;
 }
 .bar.process.st3{
-  background: #e241a1;      /* pink */
+  background: #e241a1;      
   border-color: #a42b74;
   color: #fff;
 }
@@ -386,22 +512,13 @@ select:focus{
 .swatch.st1{ background:#8f55f4; border-color:#6d28d9; }
 .swatch.st2{ background:#e97f16; border-color:#a55b11; }
 .swatch.st3{ background:#e241a1; border-color:#a42b74; }
-.swatch.rework{ background:#ef4444; border-color:#b91c1c; }
-
-
-/* ===== REWORK (always red) ===== */
-.bar.rework{
-  background: #ef4444;
-  border-color: #b91c1c;
-  color:#fff;
-}
 
 /* ongoing highlight */
 .bar.ongoing{
   outline: 3px solid #f59e0b;
 }
 
-/* Tooltip */
+/* ==================== Bar Tooltip ==================== */
 .bar[data-tip]::after{
   content: attr(data-tip);
   position:absolute;
@@ -461,12 +578,14 @@ select:focus{
 /* Optional: make yellow tooltip text darker for readability */
 .bar.status-running:hover::after{ color: #111; }
 
+/* ==================== Responsive Rules ==================== */
 @media (max-width: 720px){
   body{ padding:14px; }
   .top{ flex-direction: column; align-items: stretch; }
   .actions{ justify-content: flex-start; }
 }
 
+/* ==================== Process Lists ==================== */
 .procUl{
   margin:0;
   padding-left: 18px;
@@ -480,6 +599,7 @@ select:focus{
 }
 
 
+/* ==================== Legend ==================== */
 .legend{
   margin-top: 10px;
 }

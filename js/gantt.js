@@ -21,61 +21,53 @@ const el = (id) => document.getElementById(id);
 const bodyEl = el("ganttBody");
 const monthHeadEl = el("ganttMonthHead");
 const dayHeadEl = el("ganttDayHead");
+const ganttWrapEl = document.querySelector(".ganttWrap");
 
 let cachedEvents = [];
 // Cache fetched runs to avoid hitting Firestore on every re-render.
 
-/* Initialize process by station */
-const PROCESS_BY_STATION = {
-      "PV 1": [
-        "6 - Hole bevelling", 
-        "7 - Connector welding",
-        "8 - Fitting internal plate and GMAW C&B",
-        "9 - Fitting and welding distribution box", 
-        "10 - Tube support and bush fitting, tube sheet fitting",
-        "11 - Tubesheet welding",
-        "12 - Bracket and attachment welding",
-        "13 - Unit side plate and base welding",
-        "14 - Tube slotting and expansion",
-      ],
-
-      "PV 2": [
-        "6 - Hole bevelling", 
-        "7 - Connector welding",
-        "8 - Fitting internal plate and GMAW C&B",
-        "9 - Fitting and welding distribution box", 
-        "10 - Tube support and bush fitting, tube sheet fitting",
-        "11 - Tubesheet welding",
-        "12 - Bracket and attachment welding",
-        "13 - Unit side plate and base welding",
-        "14 - Tube slotting and expansion",
-      ]
-    };
-
-const PV1_LIST = [
-  "6 - Hole bevelling", 
-  "7 - Connector welding",
-  "8 - Fitting internal plate and GMAW C&B",
-  "9 - Fitting and welding distribution box", 
-  "10 - Tube support and bush fitting, tube sheet fitting",
-  "11 - Tubesheet welding",
-  "12 - Bracket and attachment welding",
-  "13 - Unit side plate and base welding",
-  "14 - Tube slotting and expansion",
-];
-
-
-
 /* Helpers */
 
-function normalizeText(s){
-  if (!s) return "";
-  return String(s)
-    .toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase()); 
-    // capitalize first letter of each word
+function getProcessNo(processLabel){
+  const m = String(processLabel || "").trim().match(/^(\d+)/);
+  return m ? m[1] : "-";
 }
 
+function statusUi(status){
+  const s = String(status || "").toLowerCase().trim();
+  if (s === "completed") return { text: "Completed", cls: "completed" };
+  if (s === "on_hold") return { text: "On Hold", cls: "onhold" };
+  return { text: "Running", cls: "running" };
+}
+
+function latestSegment(segs){
+  return segs.slice().sort((a,b)=>
+    ((b.end?.getTime?.()||0)-(a.end?.getTime?.()||0)) ||
+    ((b.start?.getTime?.()||0)-(a.start?.getTime?.()||0))
+  )[0];
+}
+
+function normalizeHoldReason(reason){
+  if (!reason) return "";
+
+  const map = {
+    rework: "Rework Required",
+    item_missing: "Item Missing",
+    item_shortage: "Material Shortage",
+    resume_tomorrow: "Resume Next Shift / Tomorrow",
+    others: "Others"
+  };
+
+  const key = String(reason).toLowerCase().trim();
+
+  // if exists in map → use nice label
+  if (map[key]) return map[key];
+
+  // fallback: convert item_missing → Item Missing
+  return key
+    .replaceAll("_"," ")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
 
 function formatDuration(ms){
   if (!ms || ms <= 0) return "-";
@@ -103,10 +95,7 @@ function tsOrMsToDate(ts, ms) {
 function normStation(s){
   return String(s || "").trim().toUpperCase().replace(/\s+/g," ");
 }
-function stationKey(s){
-  // keep as "PV 1" style
-  return normStation(s);
-}
+
 
 function formatDateTime(d) {
   const dateFmt = new Intl.DateTimeFormat("en-GB", {
@@ -133,13 +122,6 @@ function stationClass(station) {
   if (s.includes("pv3")) return "st3";
 
   return "st1"; // default
-}
-
-function tsToDate(ts) {
-  if (!ts) return null;
-  if (typeof ts.toDate === "function") return ts.toDate();
-  if (typeof ts === "number") return new Date(ts);
-  return null;
 }
 
 function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
@@ -371,8 +353,6 @@ function renderLegendsStationOnly(segments){
 }
 
 function renderGantt(projectMap, days, rangeMin, rangeMax) {
-  // Render headers first, then rows, using one shared day width unit.
-  // Build headers
   const today = new Date();
   today.setHours(0,0,0,0);
 
@@ -388,12 +368,10 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
 
   monthHeadEl.innerHTML = buildMonthHeader(days);
 
-  // Compute widths ONCE
   const dayW = getDayW();
   const totalWidthPx = days.length * dayW;
   const msPerDay = 24 * 60 * 60 * 1000;
 
-  // === highlight today column in timeline ===
   const todayIndex = days.findIndex(d => d.getTime() === today.getTime());
   if (todayIndex >= 0){
     const leftPx = todayIndex * dayW;
@@ -402,14 +380,12 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
 
   document.documentElement.style.setProperty("--days", String(days.length));
 
-  // Force header widths
   monthHeadEl.style.width = totalWidthPx + "px";
   dayHeadEl.style.width = totalWidthPx + "px";
 
-  const headWrap = monthHeadEl.parentElement; // .ganttTimelineHead
+  const headWrap = monthHeadEl.parentElement;
   if (headWrap) headWrap.style.width = totalWidthPx + "px";
 
-  // Build rows
   const projects = Array.from(projectMap.values()).sort((a, b) => {
     const an = `${a.projectName} (${a.serial})`;
     const bn = `${b.projectName} (${b.serial})`;
@@ -417,36 +393,41 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
   });
 
   bodyEl.innerHTML = projects.map(p => {
-    // Build bars only for segments overlapping current visible date range.
     const title = `${p.projectName} (${p.serial})`;
     const meta = `Material Number: ${p.materialNumber || "-"}`;
 
+    const cur = latestSegment(p.segments) || null;
+    const procNo = getProcessNo(cur?.processLabel);
+    const st = statusUi(cur?.status);
+
     const bars = p.segments
       .filter(seg => {
-        //  Skip segments completely outside the visible range
         return !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime());
       })
       .map(seg => {
-        // Clip segment to visible window (only AFTER overlap check)
         const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
         const segEnd   = clamp(seg.end.getTime(),   rangeMin.getTime(), rangeMax.getTime());
 
         const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
         const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
 
-        // Define class names once so visual states are easy to scan.
         const phaseClass = (seg.phase === "rework") ? "rework" : "process";
         const ongoingClass = seg.ongoing ? "ongoing" : "";
         const stClass = stationClass(seg.station);
 
-        // Keep tooltip content concise and focused on run status.
         const tip =
           `Process: ${seg.processLabel || "-"}\n` +
           `Station: ${seg.station || "-"}\n` +
           `Status: ${String(seg.status || "").replaceAll("_"," ").toUpperCase()}\n` +
           `Manpower: ${seg.manpower ?? "-"}\n` +
           `Duration: ${formatDuration(seg.durationMs)}` +
-          (seg.status === "on_hold" && seg.holdReason ? `\nHold reason: ${normalizeText(seg.holdReason)}` : "") +
+          (seg.status === "on_hold" && seg.holdReason
+            ? `\nHold reason: ${
+                seg.holdReason === "others" && seg.remarks
+                  ? seg.remarks
+                  : normalizeHoldReason(seg.holdReason)
+              }`
+            : "") +
           (seg.remarks ? `\nRemarks: ${seg.remarks}` : "");
 
         const statusClass =
@@ -456,18 +437,29 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
 
         return `
           <div class="bar ${phaseClass} ${stClass} ${ongoingClass} ${statusClass}"
-              style="left:${leftPx}px; width:${widthPx}px;"
-              data-tip="${escapeAttr(tip)}"></div>
+               style="left:${leftPx}px; width:${widthPx}px;"
+               data-tip="${escapeAttr(tip)}"></div>
         `;
       })
       .join("");
 
     return `
       <div class="ganttRow">
-        <div class="ganttLeft">
-          <div class="title">${escapeHtml(title)}</div>
-          <div class="meta">${escapeHtml(meta)}</div>
+        <div class="ganttCell project">
+          <div>
+            <div class="title">${escapeHtml(title)}</div>
+            <div class="meta">${escapeHtml(meta)}</div>
+          </div>
         </div>
+
+        <div class="ganttCell procNo">
+          <div style="font-weight:900;">${escapeHtml(procNo)}</div>
+        </div>
+
+        <div class="ganttCell status">
+          <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+        </div>
+
         <div class="ganttTimeline ${todayIndex >= 0 ? "todayCol" : ""}" style="width:${totalWidthPx}px">
           ${bars}
         </div>
@@ -475,12 +467,20 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
     `;
   }).join("");
 
-  // Ensure ALL timeline rows match total width
+
   document.querySelectorAll(".ganttTimeline").forEach(tl => {
     tl.style.width = totalWidthPx + "px";
   });
-}
 
+  // Auto-scroll horizontally so today's column is visible at the start of timeline area.
+  if (ganttWrapEl && todayIndex >= 0) {
+    const targetLeft = todayIndex * dayW;
+    requestAnimationFrame(() => {
+      const maxScroll = Math.max(0, ganttWrapEl.scrollWidth - ganttWrapEl.clientWidth);
+      ganttWrapEl.scrollLeft = clamp(targetLeft, 0, maxScroll);
+    });
+  }
+}
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -493,13 +493,6 @@ function escapeHtml(s) {
 function escapeAttr(s) {
   // for data-tip attribute
   return String(s ?? "").replaceAll('"', "&quot;");
-}
-
-/* CSV export (raw events) */
-function toCsvValue(v) {
-  const s = (v ?? "").toString();
-  if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replaceAll('"','""')}"`;
-  return s;
 }
 
 function exportExcelReport(runs) {
@@ -652,70 +645,6 @@ function exportExcelReport(runs) {
   XLSX.writeFile(wb, filename);
 }
 
-
-function exportRawCsv(runs) {
-
-  const headers = [
-    "projectName",
-    "description",
-    "serialNumber",
-    "materialNumber",
-    "process",
-    "station",
-    "manpower",
-    "startAt",
-    "endAt",
-    "duration_minutes",
-    "total_man_hours"
-  ];
-
-  const lines = [headers.join(",")];
-
-  for (const r of runs) {
-
-    const start = tsOrMsToDate(r.startAt, r.startEpochMs);
-    const end   = tsOrMsToDate(r.endAt, r.endEpochMs);
-
-    let durationMin = "";
-    let manHours = "";
-
-    if (start && end) {
-      const durationMs = end - start;
-      durationMin = Math.round(durationMs / 60000);
-
-      const manpower = Number(r.manpower || 0);
-      manHours = ((durationMs / 3600000) * manpower).toFixed(2); 
-      // hours × manpower
-    }
-
-    const row = [
-      r.projectName || "",
-      r.description || "",
-      r.serialNumber || "",
-      r.materialNumber || "",
-      r.processName || "",
-      r.station || "",
-      r.manpower ?? "",
-      start ? formatDateTime(start) : "",
-      end ? formatDateTime(end) : "",
-      durationMin,
-      manHours
-    ].map(v => `"${String(v).replaceAll('"','""')}"`);
-
-    lines.push(row.join(","));
-  }
-
-  const blob = new Blob([lines.join("\n")], { type:"text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `processRuns_${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
 
 
 /* Load + render */
