@@ -1,5 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+import {
+  getFirestore,
+  collectionGroup,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 /* Firebase config */
 const firebaseConfig = {
@@ -299,6 +303,12 @@ function buildSegmentsFromRuns(runs) {
       holdReason: r.holdReason || "",
       holdAt: holdTime || null,
 
+      qrKind: r.qrKind || "",
+      chillerSerialNumber: r.chillerSerialNumber || "",
+      pvSerialNumber: r.pvSerialNumber || "",
+      vesselType: r.vesselType || "",
+      coolingType: r.coolingType || "",
+
       ongoing: (status === "running"),   // only running gets ongoing styling
       durationMs: Math.max(0, durationMs)
     });
@@ -327,6 +337,57 @@ function buildProjectMap(segments) {
     p.segments.push(s);
   }
   return map;
+}
+
+const UNIT_ORDER = ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER", "CHILLER"];
+
+function unitSortKey(unitType) {
+  const idx = UNIT_ORDER.indexOf(unitType);
+  return idx >= 0 ? idx : 999;
+}
+
+function buildMaterialTree(segments) {
+  // materialNumber -> { materialNumber, projectName, chillerSerialNumber, units: Map(unitKey -> unit) }
+  const tree = new Map();
+
+  for (const s of segments) {
+    const materialNumber = s.materialNumber || "(No Material)";
+    const projectName = s.projectName || "(No Project)";
+
+    // Decide unit identity
+    const qrKind = (s.qrKind || "").toUpperCase();
+    const isPv = qrKind === "PV" || !!s.pvSerialNumber;
+
+    const unitType = isPv ? (s.vesselType || "PV") : "CHILLER";
+    const unitSerial = isPv ? (s.pvSerialNumber || s.serial) : (s.chillerSerialNumber || s.serial);
+
+    const unitKey = `${unitType}||${unitSerial}`;
+
+    if (!tree.has(materialNumber)) {
+      tree.set(materialNumber, {
+        materialNumber,
+        projectName,
+        chillerSerialNumber: s.chillerSerialNumber || "",
+        units: new Map()
+      });
+    }
+
+    const proj = tree.get(materialNumber);
+    if (!proj.projectName || proj.projectName === "(No Project)") proj.projectName = projectName;
+    if (!proj.chillerSerialNumber && s.chillerSerialNumber) proj.chillerSerialNumber = s.chillerSerialNumber;
+
+    if (!proj.units.has(unitKey)) {
+      proj.units.set(unitKey, {
+        unitType,
+        unitSerial,
+        segments: []
+      });
+    }
+
+    proj.units.get(unitKey).segments.push(s);
+  }
+
+  return tree;
 }
 
 function minMaxFromSegments(segments) {
@@ -649,8 +710,8 @@ function exportExcelReport(runs) {
 
 /* Load + render */
 async function loadRuns() {
-  // Fetch all processRuns documents, then keep them in memory cache.
-  const snap = await getDocs(collection(db, "processRuns"));
+  // Reads ALL runs under processRuns/{chillerSerial}/runs/{runId}
+  const snap = await getDocs(collectionGroup(db, "runs"));
   const runs = [];
   snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
   cachedEvents = runs;
