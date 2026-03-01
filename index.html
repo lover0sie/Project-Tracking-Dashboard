@@ -18,6 +18,8 @@
       </div>
 
       <div class="actions">
+        <button id="btn-gantt" class="secondary">Timeline View</button>
+        <button id="btn-tree" class="secondary">Tree View</button>
         <button id="btn-refresh" class="secondary">Refresh</button>
         <a class="btn secondary" href="processes.html">Process Description</a>
         <button id="btn-export">Export Excel File</button>
@@ -51,11 +53,11 @@
         <div class="ganttGrid">
           <!-- Split timeline headers into month row and day row so both can scroll together. -->
           <div class="ganttHead">
-            <div class="ganttLeftHead">Project</div>
-            <div class="ganttLeftHead small">Current Process No.</div>
-            <div class="ganttLeftHead small">Status</div>
+            <div id="colHead1" class="ganttLeftHead">Project</div>
+            <div id="colHead2" class="ganttLeftHead small">Current Process No.</div>
+            <div id="colHead3" class="ganttLeftHead small">Status</div>
 
-            <div class="ganttTimelineHead">
+            <div id="timelineHead" class="ganttTimelineHead">
               <div id="ganttMonthHead" class="monthHead"></div>
               <div id="ganttDayHead" class="dayHead"></div>
             </div>
@@ -70,11 +72,54 @@
 
   
 
-  <!-- Export to Excel (multi-sheet) -->
+<!-- Export to Excel -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-<!-- Load gantt.js as a module so Firebase imports and dashboard logic work directly in browser. -->
-<script type="module" src="js/gantt.js"></script>
+<!-- View Controller -->
+<script type="module">
+  import { renderTree } from "./js/tree.js";
+  import { renderGanttView } from "./js/gantt.js";
+  import { clearCache } from "./js/timeline.js";
 
+  const btnTree = document.getElementById("btn-tree");
+  const btnGantt = document.getElementById("btn-gantt");
+  const btnRefresh = document.getElementById("btn-refresh");
+
+  function setTreeHeaders() {
+    document.getElementById("timelineHead")?.classList.add("hidden");
+
+    // hide entire gantt header row
+    document.querySelector(".ganttHead")?.classList.add("hidden");
+  }
+
+  function setGanttHeaders() {
+    document.getElementById("timelineHead")?.classList.remove("hidden");
+    document.querySelector(".ganttHead")?.classList.remove("hidden");
+  }
+
+  // Default view = Gantt
+  setGanttHeaders();
+  renderGanttView();
+
+  btnTree.addEventListener("click", async () => {
+    setTreeHeaders();
+    await renderTree();
+  });
+
+  btnGantt.addEventListener("click", async () => {
+    setGanttHeaders();
+    await renderGanttView();
+  });
+
+  btnRefresh.addEventListener("click", async () => {
+    clearCache();
+    if (document.getElementById("timelineHead").classList.contains("hidden")) {
+      await renderTree();
+    } else {
+      await renderGanttView();
+    }
+  });
+
+</script>
 </body>
 </html>

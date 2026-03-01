@@ -19,6 +19,8 @@
 
 }
 
+.hidden { display:none !important; }
+
 /* ==================== Base Layout ==================== */
 *{ box-sizing:border-box; }
 body{
@@ -224,6 +226,13 @@ select:focus{
   border-right:1px solid var(--border);
 }
 
+.ganttTimeline,
+.ganttDayHead,
+.ganttMonthHead {
+  position: relative;
+}
+
+
 .ganttLeftHead.small{
   text-align:center;
 }
@@ -360,12 +369,6 @@ select:focus{
   background:#fafafa;
 }
 
-/* TODAY column highlight */
-.dayCol.today{
-  background:#e0f2fe !important;
-  border-right:1px solid #38bdf8;
-}
-
 .dayCol .d1{
   font-size:12px;
   font-weight:700;
@@ -380,18 +383,10 @@ select:focus{
   font-family: "Segoe UI", system-ui, sans-serif;
 }
 
-/* highlight body timeline column */
+/* Grid only */
 .ganttTimeline.todayCol{
   background:
-    
-    linear-gradient(to right,
-      transparent,
-      transparent calc(var(--todayLeft) - 1px),
-      rgba(56,189,248,0.35) calc(var(--todayLeft)),
-      rgba(56,189,248,0.35) calc(var(--todayLeft) + var(--dayW)),
-      transparent calc(var(--todayLeft) + var(--dayW))
-    ),
-     repeating-linear-gradient(
+    repeating-linear-gradient(
       to right,
       transparent,
       transparent calc(var(--dayW) - 1px),
@@ -399,6 +394,41 @@ select:focus{
       rgba(229,231,235,1) var(--dayW)
     );
 }
+
+/* TODAY overlay (same left for fill + border) */
+.ganttTimeline.todayCol::before,
+#ganttDayHead::before,
+#ganttMonthHead::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--todayLeft, -9999px);
+  width: var(--dayW, 120px);
+  background: rgba(37, 99, 235, 0.10);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ganttTimeline.todayCol::after,
+#ganttDayHead::after,
+#ganttMonthHead::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--todayLeft, -9999px);
+  width: var(--dayW, 120px);
+  border-left: 1px solid rgba(37, 99, 235, 0.35);
+  border-right: 1px solid rgba(37, 99, 235, 0.35);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Keep bars above the overlay */
+.ganttTimeline .bar { z-index: 2; }
+
+
 
 .monthCell{
   height:34px;
@@ -439,6 +469,54 @@ select:focus{
 .ganttHead > * , .ganttRow > * {
   min-width: 0;
 }
+
+/* Smaller project header row */
+.ganttRow.groupRow {
+  min-height: 52px;          /* adjust  */
+}
+
+.ganttRow.groupRow .ganttCell.project {
+  padding: 8px 12px;
+}
+
+.ganttRow.groupRow .title {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.ganttRow.groupRow .meta {
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: .8;
+}
+
+/* FIX: shrink group row cells too */
+.ganttRow.groupRow .ganttCell,
+.ganttRow.groupRow .ganttTimeline{
+  height: 52px !important;     /* match your group row */
+}
+
+/* Layout container */
+.groupHeaderRow{
+  display:flex;
+  justify-content:space-between;   /* push left + right */
+  align-items:center;
+  width:100%;
+}
+
+/* Material block aligned right */
+.materialRight{
+  font-size:12px;
+  color:#6b7280;
+  display:flex;
+  gap:6px;
+  align-items:baseline;
+}
+
+.materialRight b{
+  color:#111827;
+}
+
 
 .ganttLeft{
   padding:10px 12px;
@@ -492,20 +570,20 @@ select:focus{
 }
 
 /* Station colors (Process) */
-.bar.process.st1{
-  background: #8f55f4;      
-  border-color: #6d28d9;
-  color: #fff;
+.bar.st1{
+  background:#8f55f4;
+  border-color:#6d28d9;
+  color:#fff;
 }
-.bar.process.st2{
-  background: #e97f16;     
-  border-color: #a55b11;
-  color: #fff;
+.bar.st2{
+  background:#e97f16;
+  border-color:#a55b11;
+  color:#fff;
 }
-.bar.process.st3{
-  background: #e241a1;      
-  border-color: #a42b74;
-  color: #fff;
+.bar.st3{
+  background:#e241a1;
+  border-color:#a42b74;
+  color:#fff;
 }
 
 /* Swatches bar station classes */
@@ -664,3 +742,91 @@ select:focus{
   box-shadow: 0 2px 6px rgba(17,24,39,0.08);
 }
 
+/* ================= TREE CARD VIEW =================*/
+
+.treeCard{
+  background:#ffffff;
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:18px;
+  box-shadow:0 6px 18px rgba(0,0,0,.06);
+  border:1px solid #eef0f4;
+}
+
+.treeCardHeader{
+  padding-bottom:14px;
+  margin-bottom:14px;
+  border-bottom:1px solid #f0f2f6;
+}
+
+.treeProject{
+  font-size:18px;
+  font-weight:700;
+  color:#111827;
+}
+
+.treeMaterial,
+.treeChiller{
+  font-size:13px;
+  color:#6b7280;
+  margin-top:4px;
+}
+
+.treeUnits{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.treeUnitCard{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 14px;
+  border-radius:10px;
+  background:#f9fafc;
+  border:1px solid #eef1f5;
+  transition:.2s;
+}
+
+.treeUnitCard:hover{
+  background:#f2f6ff;
+}
+
+.unitLeft{
+  display:flex;
+  flex-direction:column;
+}
+
+.unitType{
+  font-size:12px;
+  font-weight:600;
+  color:#6b7280;
+  letter-spacing:.5px;
+}
+
+
+.unitSerial{
+  font-size:14px;        /* match process size */
+  font-weight:600;       /* match weight */
+  color:#1f2937;         /* match process color */
+}
+
+.unitRight{
+  display:flex;
+  align-items:center;
+  gap:16px;   /* spacing between process and status */
+}
+
+.unitProgress{
+  font-size:14px;        /* same as serial */
+  font-weight:600;       /* same as serial */
+  color:#1f2937;         /* same as serial */
+}
+
+/* ======= GROUPING ============= */
+
+.groupRow .project{
+  background:#f9fafb;
+  border-bottom:1px solid #eef2f7;
+}

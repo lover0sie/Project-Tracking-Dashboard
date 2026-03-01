@@ -1,23 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import {
-  getFirestore,
-  collectionGroup,
-  getDocs
-} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-
-/* Firebase config */
-const firebaseConfig = {
-  apiKey: "AIzaSyBePrEYgwU4tD9h82n9PbjfxtTyQMXm6Kk",
-  authDomain: "qrcodetesting-4f86e.firebaseapp.com",
-  projectId: "qrcodetesting-4f86e",
-  storageBucket: "qrcodetesting-4f86e.firebasestorage.app",
-  messagingSenderId: "746921254909",
-  appId: "1:746921254909:web:7acce026b9d96c97880394"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-// Initialize Firebase once, then reuse this Firestore instance across all reads.
+import { loadRuns, clearCache } from "./timeline.js";
 
 /* DOM */
 const el = (id) => document.getElementById(id);
@@ -339,56 +320,59 @@ function buildProjectMap(segments) {
   return map;
 }
 
-const UNIT_ORDER = ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER", "CHILLER"];
 
-function unitSortKey(unitType) {
-  const idx = UNIT_ORDER.indexOf(unitType);
-  return idx >= 0 ? idx : 999;
+const UNIT_ORDER = ["CHILLER", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
+
+function unitRank(unitType){
+  const u = String(unitType || "").toUpperCase().trim();
+  const i = UNIT_ORDER.indexOf(u);
+  return i >= 0 ? i : 999;
 }
 
-function buildMaterialTree(segments) {
-  // materialNumber -> { materialNumber, projectName, chillerSerialNumber, units: Map(unitKey -> unit) }
-  const tree = new Map();
+function unitInfoFromSeg(seg){
+  // PV
+  if (String(seg.qrKind || "").toUpperCase() === "PV") {
+    const unitType = String(seg.vesselType || "PV").toUpperCase().trim();
+    const unitSerial = seg.pvSerialNumber || seg.serial || "";
+    return { unitType, unitSerial };
+  }
+  // CHILLER
+  return { unitType: "CHILLER", unitSerial: seg.chillerSerialNumber || seg.serial || "" };
+}
 
-  for (const s of segments) {
-    const materialNumber = s.materialNumber || "(No Material)";
-    const projectName = s.projectName || "(No Project)";
+function buildMaterialGroups(segments){
+  // key: materialNumber
+  // group: { projectName, materialNumber, units: Map(unitKey -> {unitType, unitSerial, segs:[]}) }
+  const groups = new Map();
 
-    // Decide unit identity
-    const qrKind = (s.qrKind || "").toUpperCase();
-    const isPv = qrKind === "PV" || !!s.pvSerialNumber;
+  for (const seg of segments) {
+    const materialNumber = seg.materialNumber || "(No Material)";
+    const projectName = seg.projectName || "(No Project)";
 
-    const unitType = isPv ? (s.vesselType || "PV") : "CHILLER";
-    const unitSerial = isPv ? (s.pvSerialNumber || s.serial) : (s.chillerSerialNumber || s.serial);
-
+    const { unitType, unitSerial } = unitInfoFromSeg(seg);
     const unitKey = `${unitType}||${unitSerial}`;
 
-    if (!tree.has(materialNumber)) {
-      tree.set(materialNumber, {
+    if (!groups.has(materialNumber)) {
+      groups.set(materialNumber, {
         materialNumber,
         projectName,
-        chillerSerialNumber: s.chillerSerialNumber || "",
         units: new Map()
       });
     }
 
-    const proj = tree.get(materialNumber);
-    if (!proj.projectName || proj.projectName === "(No Project)") proj.projectName = projectName;
-    if (!proj.chillerSerialNumber && s.chillerSerialNumber) proj.chillerSerialNumber = s.chillerSerialNumber;
+    const g = groups.get(materialNumber);
+    if (!g.projectName || g.projectName === "(No Project)") g.projectName = projectName;
 
-    if (!proj.units.has(unitKey)) {
-      proj.units.set(unitKey, {
-        unitType,
-        unitSerial,
-        segments: []
-      });
+    if (!g.units.has(unitKey)) {
+      g.units.set(unitKey, { unitType, unitSerial, segs: [] });
     }
-
-    proj.units.get(unitKey).segments.push(s);
+    g.units.get(unitKey).segs.push(seg);
   }
 
-  return tree;
+  return groups;
 }
+
+
 
 function minMaxFromSegments(segments) {
   let min = null, max = null;
@@ -413,7 +397,7 @@ function renderLegendsStationOnly(segments){
   ).join("");
 }
 
-function renderGantt(projectMap, days, rangeMin, rangeMax) {
+function renderGantt(days, rangeMin, rangeMax, segments) {
   const today = new Date();
   today.setHours(0,0,0,0);
 
@@ -434,12 +418,10 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
   const msPerDay = 24 * 60 * 60 * 1000;
 
   const todayIndex = days.findIndex(d => d.getTime() === today.getTime());
-  if (todayIndex >= 0){
+  if (todayIndex >= 0) {
     const leftPx = todayIndex * dayW;
     document.documentElement.style.setProperty("--todayLeft", leftPx + "px");
   }
-
-  document.documentElement.style.setProperty("--days", String(days.length));
 
   monthHeadEl.style.width = totalWidthPx + "px";
   dayHeadEl.style.width = totalWidthPx + "px";
@@ -447,93 +429,100 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
   const headWrap = monthHeadEl.parentElement;
   if (headWrap) headWrap.style.width = totalWidthPx + "px";
 
-  const projects = Array.from(projectMap.values()).sort((a, b) => {
-    const an = `${a.projectName} (${a.serial})`;
-    const bn = `${b.projectName} (${b.serial})`;
-    return an.localeCompare(bn);
-  });
+  // ---- Group by material number -> units ----
+  const groups = buildMaterialGroups(segments);
+  const groupArr = Array.from(groups.values()).sort((a,b) =>
+    (a.projectName || "").localeCompare(b.projectName || "") ||
+    (a.materialNumber || "").localeCompare(b.materialNumber || "")
+  );
 
-  bodyEl.innerHTML = projects.map(p => {
-    const title = `${p.projectName} (${p.serial})`;
-    const meta = `Material Number: ${p.materialNumber || "-"}`;
+  bodyEl.innerHTML = groupArr.map(g => {
 
-    const cur = latestSegment(p.segments) || null;
-    const procNo = getProcessNo(cur?.processLabel);
-    const st = statusUi(cur?.status);
-
-    const bars = p.segments
-      .filter(seg => {
-        return !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime());
-      })
-      .map(seg => {
-        const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
-        const segEnd   = clamp(seg.end.getTime(),   rangeMin.getTime(), rangeMax.getTime());
-
-        const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
-        const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
-
-        const phaseClass = (seg.phase === "rework") ? "rework" : "process";
-        const ongoingClass = seg.ongoing ? "ongoing" : "";
-        const stClass = stationClass(seg.station);
-
-        const tip =
-          `Process: ${seg.processLabel || "-"}\n` +
-          `Station: ${seg.station || "-"}\n` +
-          `Status: ${String(seg.status || "").replaceAll("_"," ").toUpperCase()}\n` +
-          `Manpower: ${seg.manpower ?? "-"}\n` +
-          `Duration: ${formatDuration(seg.durationMs)}` +
-          (seg.status === "on_hold" && seg.holdReason
-            ? `\nHold reason: ${
-                seg.holdReason === "others" && seg.remarks
-                  ? seg.remarks
-                  : normalizeHoldReason(seg.holdReason)
-              }`
-            : "") +
-          (seg.remarks ? `\nRemarks: ${seg.remarks}` : "");
-
-        const statusClass =
-          seg.status === "completed" ? "status-completed"
-          : seg.status === "on_hold" ? "status-onhold"
-          : "status-running";
-
-        return `
-          <div class="bar ${phaseClass} ${stClass} ${ongoingClass} ${statusClass}"
-               style="left:${leftPx}px; width:${widthPx}px;"
-               data-tip="${escapeAttr(tip)}"></div>
-        `;
-      })
-      .join("");
-
-    return `
-      <div class="ganttRow">
-        <div class="ganttCell project">
-          <div>
-            <div class="title">${escapeHtml(title)}</div>
-            <div class="meta">${escapeHtml(meta)}</div>
+    // Group header row (Project + Material)
+    const headerRow = `
+      <div class="ganttRow groupRow">
+        <div class="ganttCell project" style="grid-column: 1 / span 3;">
+          <div class="groupHeaderRow">
+            <div class="title">${escapeHtml(g.projectName)}</div>
+            <div class="materialRight">
+              <span class="metaLabel">Material Number:</span>
+              <b>${escapeHtml(g.materialNumber)}</b>
+            </div>
           </div>
         </div>
-
-        <div class="ganttCell procNo">
-          <div style="font-weight:900;">${escapeHtml(procNo)}</div>
-        </div>
-
-        <div class="ganttCell status">
-          <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
-        </div>
-
-        <div class="ganttTimeline ${todayIndex >= 0 ? "todayCol" : ""}" style="width:${totalWidthPx}px">
-          ${bars}
-        </div>
+        <div class="ganttTimeline ${todayIndex >= 0 ? "todayCol" : ""}" style="width:${totalWidthPx}px"></div>
       </div>
     `;
-  }).join("");
 
+    // Unit child rows
+    const units = Array.from(g.units.values()).sort(
+      (a,b) => unitRank(a.unitType) - unitRank(b.unitType) || String(a.unitSerial).localeCompare(String(b.unitSerial))
+    );
+
+    const unitRows = units.map(u => {
+      const cur = latestSegment(u.segs) || null;
+      const procNo = getProcessNo(cur?.processLabel);
+      const st = statusUi(cur?.status);
+
+      const bars = u.segs
+        .filter(seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime()))
+        .map(seg => {
+          const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
+          const segEnd   = clamp(seg.end.getTime(),   rangeMin.getTime(), rangeMax.getTime());
+
+          const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
+          const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
+
+          const stClass = stationClass(seg.station);
+          const ongoingClass =
+            seg.status === "completed" ? "status-completed"
+            : seg.status === "on_hold" ? "status-onhold"
+            : "status-running";
+
+          return `
+            <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
+                 style="left:${leftPx}px; width:${widthPx}px;"
+                 data-tip="${escapeAttr(
+                   `Process: ${seg.processLabel || "-"}\n` +
+                   `Station: ${seg.station || "-"}\n` +
+                   `Status: ${(seg.status || "").replaceAll("_"," ").toUpperCase()}\n` +
+                   `Manpower: ${seg.manpower ?? "-"}\n` +
+                   `Duration: ${formatDuration(seg.durationMs)}`
+                 )}"></div>
+          `;
+        }).join("");
+
+      return `
+        <div class="ganttRow unitRow">
+          <div class="ganttCell project">
+            <div class="title indent">
+              ${escapeHtml(u.unitType)} <span class="meta">(${escapeHtml(u.unitSerial || "-")})</span>
+            </div>
+          </div>
+
+          <div class="ganttCell procNo">
+            <div style="font-weight:900;">${escapeHtml(procNo)}</div>
+          </div>
+
+          <div class="ganttCell status">
+            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+          </div>
+
+          <div class="ganttTimeline ${todayIndex >= 0 ? "todayCol" : ""}" style="width:${totalWidthPx}px">
+            ${bars}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    return headerRow + unitRows;
+  }).join("");
 
   document.querySelectorAll(".ganttTimeline").forEach(tl => {
     tl.style.width = totalWidthPx + "px";
   });
 
-  // Auto-scroll horizontally so today's column is visible at the start of timeline area.
+  // Auto-scroll to today
   if (ganttWrapEl && todayIndex >= 0) {
     const targetLeft = todayIndex * dayW;
     requestAnimationFrame(() => {
@@ -542,6 +531,8 @@ function renderGantt(projectMap, days, rangeMin, rangeMax) {
     });
   }
 }
+
+
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -706,34 +697,18 @@ function exportExcelReport(runs) {
   XLSX.writeFile(wb, filename);
 }
 
-
-
-/* Load + render */
-async function loadRuns() {
-  // Reads ALL runs under processRuns/{chillerSerial}/runs/{runId}
-  const snap = await getDocs(collectionGroup(db, "runs"));
-  const runs = [];
-  snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
-  cachedEvents = runs;
-  return runs;
-}
-
-
 async function render() {
-  // Orchestrate full refresh: data -> normalized segments -> date range -> DOM render.
   try {
-    console.log("render() start");
+    const runs = await loadRuns();
 
-    const runs = cachedEvents.length ? cachedEvents : await loadRuns();
-    const { segments } = buildSegmentsFromRuns(runs);
-
-    if (!segments.length) {
+    if (!runs.length) {
+      bodyEl.innerHTML = "";
       monthHeadEl.innerHTML = "";
       dayHeadEl.innerHTML = "";
-      bodyEl.innerHTML = "";
       return;
     }
 
+    const { segments } = buildSegmentsFromRuns(runs);
     renderLegendsStationOnly(segments);
 
     const { min, max } = minMaxFromSegments(segments);
@@ -744,12 +719,8 @@ async function render() {
     const rangeMax = endOfDay(range.maxDate);
 
     const days = buildDateRange(rangeMin, rangeMax);
-    const projectMap = buildProjectMap(segments);
 
-    console.log("segments:", segments.length);
-    console.log("days:", days.length, "range:", rangeMin, rangeMax);
-
-    renderGantt(projectMap, days, rangeMin, rangeMax);
+    renderGantt(days, rangeMin, rangeMax, segments);
 
   } catch (err) {
     console.error(err);
@@ -758,18 +729,8 @@ async function render() {
 
 /* UI events */
 el("btn-refresh").addEventListener("click", async () => {
-  try {
-    // force fetch again
-    cachedEvents = [];
-    const runs = await loadRuns();   // <-- this actually calls Firestore
-    console.log("Refresh fetched runs:", runs.length);
-
-    // re-render using the new runs we just loaded
-    await render();
-  } catch (e) {
-    console.error("Refresh failed:", e);
-    alert("Refresh failed. Check console.");
-  }
+  clearCache();
+  await render();
 });
 
 el("dateMode").addEventListener("change", () => render());
@@ -781,5 +742,9 @@ el("btn-export").addEventListener("click", async () => {
 });
 
 /* Start */
-render();
+async function renderGanttView() {
+  console.log("GANTT RENDER CALLED");
+  await render();
+}
 
+export { renderGanttView };

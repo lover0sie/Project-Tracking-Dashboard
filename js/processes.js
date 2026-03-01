@@ -3,29 +3,58 @@ const el = (id) => document.getElementById(id);
 
 /* ===== MASTER PROCESS LIST ===== */
 // Keep this map as the single source for station -> ordered process steps.
-const PROCESS_BY_STATION = {
-  "PV 1": [
-    "6 - Hole bevelling", 
-    "7 - Connector welding",
-    "8 - Fitting internal plate and GMAW C&B",
-    "9 - Fitting and welding distribution box", 
-    "10 - Tube support and bush fitting, tube sheet fitting",
-    "11 - Tubesheet welding",
-    "12 - Bracket and attachment welding",
-    "13 - Unit side plate and base welding",
+// Vessel -> processes
+const PROCESS_BY_PV = {
+  "EVAPORATOR": [
+    "6, 7, 8 - Hole bevelling, connector welding, fitting internal plate and GMAW C&B",
+    "9, 10, 11 - Distribution box, tube support and bush, tubesheet fitting and welding",
+    "12, 13 - Bracket, attachment, side plate, and base fitting and welding and copper tube brazing",
     "14 - Tube slotting and expansion",
+    "15 - Primer painting",
+    "16 - Pneumatic testing",
+    "17 - Hydrostatic testing",
+    "18, 19 - Primer (weld seam) and top painting"
   ],
 
-  "PV 2": [
-    "6 - Hole bevelling", 
-    "7 - Connector welding",
-    "8 - Fitting internal plate and GMAW C&B",
-    "9 - Fitting and welding distribution box", 
-    "10 - Tube support and bush fitting, tube sheet fitting",
-    "11 - Tubesheet welding",
-    "12 - Bracket and attachment welding",
-    "13 - Unit side plate and base welding",
+   "CONDENSER": [
+    "6, 7, 8 - Hole bevelling, connector welding, fitting internal plate and GMAW C&B",
+    "9, 10, 11 - Distribution box, tube support and bush, tubesheet fitting and welding",
+    "12, 13 - Bracket, attachment, side plate, and base fitting and welding and copper tube brazing",
     "14 - Tube slotting and expansion",
+    "15 - Primer painting",
+    "16 - Pneumatic testing",
+    "17 - Hydrostatic testing",
+    "18, 19 - Primer (weld seam) and top coat painting"
+  ],
+
+  "OIL SEPARATOR":[
+    "6, 7 - Hole bevelling and connector welding",
+    "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding",
+    "12 - Bracket and attachment fitting and welding",
+    "15 - Primer painting",
+    "16 - Pneumatic testing",
+    "19 - Top coat painting"
+  ],
+
+  "ECONOMIZER":[
+    "6, 7 - Hole bevelling and connector welding",
+    "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding",
+    "12 - Bracket and attachment fitting and welding",
+    "15 - Primer painting",
+    "16 - Pneumatic testing",
+    "19 - Top coat painting"
+  ]
+}
+
+// CHILLER -> processes
+const PROCESS_BY_CHILLER = {
+  "AIR-COOLED": [
+    "Piping shop",
+    "Steel pipe cutting"
+  ],
+  "WATER-COOLED": [
+    "Piping shop",
+    "Steel pipe cutting"
   ]
 };
 
@@ -41,21 +70,34 @@ function escapeHtml(s){
 }
 
 /* ===== dropdown stations ===== */
-function renderStationOptions(){
-  // Derive dropdown options from the map keys so station list stays in sync.
-  const stations = Object.keys(PROCESS_BY_STATION);
+function renderCategoryOptions(){
   const sel = el("stationPick");
 
-  sel.innerHTML = stations.map(s =>
-    `<option value="${s}">${escapeHtml(s)}</option>`
-  ).join("");
+  const pvKeys = Object.keys(PROCESS_BY_PV);
+  const chillerKeys = Object.keys(PROCESS_BY_CHILLER);
+
+  sel.innerHTML = `
+    <optgroup label="PV Units">
+      ${pvKeys.map(k => `<option value="PV||${k}">${escapeHtml(k)}</option>`).join("")}
+    </optgroup>
+    <optgroup label="Chiller">
+      ${chillerKeys.map(k => `<option value="CHILLER||${k}">${escapeHtml(k)}</option>`).join("")}
+    </optgroup>
+  `;
 }
 
 /* ===== show process list ===== */
-function renderProcessList(station){
-  // Render one station at a time, with a fallback when no process is defined.
+function renderProcessList(value){
   const container = el("processList");
-  const list = PROCESS_BY_STATION[station] || [];
+
+  const [kind, key] = value.split("||");
+
+  let list = [];
+  if (kind === "PV") {
+    list = PROCESS_BY_PV[key] || [];
+  } else if (kind === "CHILLER") {
+    list = PROCESS_BY_CHILLER[key] || [];
+  }
 
   if (!list.length){
     container.innerHTML = `<div class="hint">No process defined.</div>`;
@@ -64,8 +106,7 @@ function renderProcessList(station){
 
   container.innerHTML = `
     <div class="procBlock">
-      <div class="procTitle">${escapeHtml(station)} Processes</div>
-
+      <div class="procTitle">${escapeHtml(key)} Processes</div>
       <ul class="procUl">
         ${list.map(p => `<li>${escapeHtml(p)}</li>`).join("")}
       </ul>
@@ -75,13 +116,12 @@ function renderProcessList(station){
 
 /* ===== INIT ===== */
 function init(){
-  // Set initial UI state, then subscribe to station changes.
-  renderStationOptions();
+  renderCategoryOptions();
 
-  const first = Object.keys(PROCESS_BY_STATION)[0];
-  renderProcessList(first);
+  const sel = el("stationPick");
+  renderProcessList(sel.value);
 
-  el("stationPick").addEventListener("change", e=>{
+  sel.addEventListener("change", e=>{
     renderProcessList(e.target.value);
   });
 }
