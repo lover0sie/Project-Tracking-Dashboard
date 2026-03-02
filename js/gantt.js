@@ -40,7 +40,8 @@ function normalizeHoldReason(reason){
     item_missing: "Item Missing",
     item_shortage: "Material Shortage",
     resume_tomorrow: "Resume Next Shift / Tomorrow",
-    others: "Others"
+    others: "Others",
+    browser_closed: "Auto Hold (Browser Closed / Tab Closed)"
   };
 
   const key = String(reason).toLowerCase().trim();
