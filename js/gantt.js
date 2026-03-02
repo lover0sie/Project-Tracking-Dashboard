@@ -483,12 +483,20 @@ function renderGantt(days, rangeMin, rangeMax, segments) {
             <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
                  style="left:${leftPx}px; width:${widthPx}px;"
                  data-tip="${escapeAttr(
-                   `Process: ${seg.processLabel || "-"}\n` +
-                   `Station: ${seg.station || "-"}\n` +
-                   `Status: ${(seg.status || "").replaceAll("_"," ").toUpperCase()}\n` +
-                   `Manpower: ${seg.manpower ?? "-"}\n` +
-                   `Duration: ${formatDuration(seg.durationMs)}`
-                 )}"></div>
+                `Process: ${seg.processLabel || "-"}\n` +
+                `Station: ${seg.station || "-"}\n` +
+                `Status: ${(seg.status || "").replaceAll("_"," ").toUpperCase()}\n` +
+                `Manpower: ${seg.manpower ?? "-"}\n` +
+                `Duration: ${formatDuration(seg.durationMs)}` +
+                (seg.status === "on_hold"
+                  ? `\nHold Reason: ${
+                      seg.holdReason === "others" && seg.remarks
+                        ? seg.remarks
+                        : (normalizeHoldReason(seg.holdReason) || "-")
+                    }` +
+                    (seg.remarks && seg.holdReason !== "others" ? `\nRemarks: ${seg.remarks}` : "")
+                  : "")
+              )}"></div>
           `;
         }).join("");
 
