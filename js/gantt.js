@@ -555,6 +555,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
             <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
                  style="left:${leftPx}px; width:${widthPx}px;"
                  data-tip="${escapeAttr(
+                  `Process: ${seg.processLabel || "-"}\n` +
                   `Station: ${seg.station || "-"}\n` +
                   `Manpower: ${seg.manpower ?? "-"}\n` +
                   `Start: ${formatDateTime(seg.start)}\n` +
@@ -731,6 +732,7 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
             <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
                  style="left:${leftPx}px; width:${widthPx}px;"
                  data-tip="${escapeAttr(
+                  `Process: ${seg.processLabel || "-"}\n` +
                   `Station: ${seg.station || "-"}\n` +
                   `Manpower: ${seg.manpower ?? "-"}\n` +
                   `Start: ${formatDateTime(seg.start)}\n` +
