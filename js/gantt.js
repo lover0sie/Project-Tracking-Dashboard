@@ -13,9 +13,59 @@ let cachedEvents = [];
 
 /* Helpers */
 
+const TZ = "Asia/Kuala_Lumpur";
+const START_HOUR = 7;
+const END_HOUR = 22;
+
+function activeDurationMs(seg){
+  const base = Number(seg?.durationMs || 0); // stored accumulated active time
+
+  if (!seg) return 0;
+
+  // If currently running, add time since last resume (or since start if never resumed)
+  if (seg.status === "running") {
+    const anchor = seg.resumedAt || seg.start;
+    const extra = anchor ? Math.max(0, Date.now() - anchor.getTime()) : 0;
+    return base + extra;
+  }
+
+  // on_hold / completed -> durationMs already represents active time until hold/end
+  return base;
+}
+
+
+function getHourW(){
+  // Sset this in CSS: :root{ --hourW: 90px; }
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--hourW").trim();
+  return Number(v.replace("px","")) || 90;
+}
+
+
+function startOfWorkDay(d){
+  const x = new Date(d);
+  x.setHours(START_HOUR, 0, 0, 0);
+  return x;
+}
+
+function endOfWorkDay(d){
+  const x = new Date(d);
+  x.setHours(END_HOUR, 0, 0, 0);
+  return x;
+}
+
+function hourLabel(h){
+  // h in 24h
+  const isPM = h >= 12;
+  const twelve = (h % 12) || 12;
+  return `${twelve}:00 ${isPM ? "PM" : "AM"}`;
+}
+
+
 function getProcessNo(processLabel){
-  const m = String(processLabel || "").trim().match(/^(\d+)/);
-  return m ? m[1] : "-";
+  if(!processLabel) return "";
+
+  const nums = processLabel.split("-")[0];
+  return nums.replace(/\s+/g,"");
 }
 
 function statusUi(status){
@@ -78,41 +128,57 @@ function tsOrMsToDate(ts, ms) {
   return null;
 }
 
-function normStation(s){
-  return String(s || "").trim().toUpperCase().replace(/\s+/g," ");
-}
+function formatDateTime(d){
+  if(!d) return "-";
 
-
-function formatDateTime(d) {
-  const dateFmt = new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("en-GB",{
     day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  });
-
-  const timeFmt = new Intl.DateTimeFormat("en-GB", {
+    month: "short",
+    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
     hour12: true
-  });
+  }).format(d);
+}
 
-  return `${dateFmt.format(d)} ${timeFmt.format(d)}`;
+function formatStopText(seg){
+  if(!seg) return "-";
+
+  // if still running → no stop time yet
+  if(seg.status === "running"){
+    return "-";
+  }
+
+  return formatDateTime(seg.end);
 }
 
 /* Update here if there are more stations! */
 function stationClass(station) {
   const s = String(station || "").toLowerCase().replace(/\s+/g,"");
 
-  if (s.includes("pv1")) return "st1";
-  if (s.includes("pv2")) return "st2";
-  if (s.includes("pv3")) return "st3";
-
-  return "st1"; // default
+  if (s.includes("pv1")) return "st-pv1"; // PV 1
+  if (s.includes("pv2")) return "st-pv2"; // PV 2
+  if (s.includes("subassy") || s.includes ("sub")) return "st-subassy"; // Sub Assy
+  if (s.includes("pipingshop") || s.includes("piping")) return "st-piping"; // Piping Shop
+  if (s.includes("fabrication")) return "st-fabrication";
+  if (s.includes ("pneumatic")) return "st-pneumatic"; // Pneumatic + Paint booth + Hydro
+  return "st-pv1"; // default
 }
 
 function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
 
 function endOfDay(d){ const x=new Date(d); x.setHours(23,59,59,999); return x; }
+
+function buildDateRange(minDate, maxDate) {
+  const out = [];
+  let cur = startOfDay(minDate);
+  const end = startOfDay(maxDate);
+  while (cur <= end) {
+    out.push(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
 
 function getDayW(){
   // Read CSS variable --dayW so timeline math always matches visual column width.
@@ -131,18 +197,19 @@ function weekdayName(d) {
   return new Intl.DateTimeFormat("en-GB", { weekday:"long" }).format(d);
 }
 
-function buildDateRange(minDate, maxDate) {
-  // Generate one Date object per day to build both headers and pixel positions.
-  const out = [];
-  let cur = startOfDay(minDate);
-  const end = startOfDay(maxDate);
-  while (cur <= end) {
-    out.push(new Date(cur));
-    cur.setDate(cur.getDate() + 1);
+function buildHourHeader(){
+  const hourW = getHourW();
+  const cells = [];
+  for (let h = START_HOUR; h <= END_HOUR; h++){
+    cells.push(`
+      <div class="dayCol" style="width:${hourW}px; flex:0 0 ${hourW}px;">
+        <div class="d1">${hourLabel(h)}</div>
+        <div class="d2"></div>
+      </div>
+    `);
   }
-  return out;
+  return cells.join("");
 }
-
 function buildMonthHeader(days){
   // Group contiguous days by month and make one wide cell per group.
   const cells = [];
@@ -202,32 +269,22 @@ function manHoursFromMs(ms, manpower) {
   return (ms / 3600000) * mp; // hours * manpower
 }
 
-function clampRangeByMode(mode, minDate, maxDate) {
-  const now = new Date();
+function getMYTodayKey(){
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); // YYYY-MM-DD
+}
 
-  if (mode === "thisMonth") {
-    return { minDate: startOfMonth(now), maxDate: endOfMonth(now) };
-  }
+function parseDayKeyToDate(dayKey){
+  // dayKey = YYYY-MM-DD
+  const [y,m,d] = dayKey.split("-").map(Number);
+  return new Date(y, m-1, d);
+}
 
-  if (mode === "lastMonth") {
-    const last = addMonths(now, -1);
-    return { minDate: startOfMonth(last), maxDate: endOfMonth(last) };
-  }
-
-  if (mode === "last3Months") {
-    const start = startOfMonth(addMonths(now, -2)); // includes current month
-    const end = endOfMonth(now);
-    return { minDate: start, maxDate: end };
-  }
-
-  if (mode === "last6Months") {
-    const start = startOfMonth(addMonths(now, -5)); // includes current month
-    const end = endOfMonth(now);
-    return { minDate: start, maxDate: end };
-  }
-
-  // auto (use data min/max)
-  return { minDate, maxDate };
+function fmtDailyHeader(dayKey){
+  const d = parseDayKeyToDate(dayKey);
+  const label = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ, weekday:"long", day:"2-digit", month:"2-digit", year:"numeric"
+  }).format(d);
+  return `${label} (07:00–22:00)`;
 }
 
 function buildSegmentsFromRuns(runs) {
@@ -239,6 +296,7 @@ function buildSegmentsFromRuns(runs) {
     const station = r.station || "";
 
     const start = tsOrMsToDate(r.startAt, r.startEpochMs);
+    const resumed = tsOrMsToDate(r.resumedAt, r.resumedEpochMs);
 
     const statusRaw = String(r.status || "").toLowerCase().trim(); // running / completed / on_hold
     const status =
@@ -284,6 +342,7 @@ function buildSegmentsFromRuns(runs) {
       status,
       holdReason: r.holdReason || "",
       holdAt: holdTime || null,
+      resumedAt: resumed || null,
 
       qrKind: r.qrKind || "",
       chillerSerialNumber: r.chillerSerialNumber || "",
@@ -342,13 +401,12 @@ function unitInfoFromSeg(seg){
 }
 
 function buildMaterialGroups(segments){
-  // key: materialNumber
-  // group: { projectName, materialNumber, units: Map(unitKey -> {unitType, unitSerial, segs:[]}) }
   const groups = new Map();
 
   for (const seg of segments) {
     const materialNumber = seg.materialNumber || "(No Material)";
     const projectName = seg.projectName || "(No Project)";
+    const chillerSerialNumber = seg.chillerSerialNumber || "(No Serial Num)";
 
     const { unitType, unitSerial } = unitInfoFromSeg(seg);
     const unitKey = `${unitType}||${unitSerial}`;
@@ -357,12 +415,19 @@ function buildMaterialGroups(segments){
       groups.set(materialNumber, {
         materialNumber,
         projectName,
+        chillerSerialNumber,     // ✅ store it here
         units: new Map()
       });
     }
 
     const g = groups.get(materialNumber);
+
     if (!g.projectName || g.projectName === "(No Project)") g.projectName = projectName;
+
+    //  keep the first non-empty chiller serial number
+    if (!g.chillerSerialNumber || g.chillerSerialNumber === "(No Serial Num)") {
+      g.chillerSerialNumber = chillerSerialNumber;
+    }
 
     if (!g.units.has(unitKey)) {
       g.units.set(unitKey, { unitType, unitSerial, segs: [] });
@@ -373,8 +438,6 @@ function buildMaterialGroups(segments){
   return groups;
 }
 
-
-
 function minMaxFromSegments(segments) {
   let min = null, max = null;
   for (const s of segments) {
@@ -384,9 +447,6 @@ function minMaxFromSegments(segments) {
   return { min, max };
 }
 
-/* Position bars by time */
-function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
-
 function renderLegendsStationOnly(segments){
   const stEl = document.getElementById("legendStations");
   if (!stEl) return;
@@ -394,11 +454,184 @@ function renderLegendsStationOnly(segments){
   const uniq = [...new Set(segments.map(s => s.station))].sort();
 
   stEl.innerHTML = uniq.map(st =>
-    `<span class="legItem"><span class="swatch ${stationClass(st)}"></span>${escapeHtml(st)}</span>`
+    `<span class="legItem">
+      <span class="swatch ${stationClass(st)}"></span>
+      ${escapeHtml(st)}
+    </span>`
   ).join("");
 }
 
-function renderGantt(days, rangeMin, rangeMax, segments) {
+/* Position bars by time */
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+
+function renderGanttDaily(rangeMin, rangeMax, segments) {
+  
+  // disable monthly today highlight
+  document.documentElement.style.setProperty("--todayLeft", "-9999px");
+  document.querySelectorAll(".todayCol").forEach(el => el.classList.remove("todayCol"));
+  
+  // This writes into the SAME ganttMonthHead/ganttDayHead/ganttBody
+  const hourW = getHourW();
+  document.documentElement.style.setProperty("--colW", hourW + "px");
+  document.documentElement.style.setProperty("--minorDiv", "2"); // 30-min lines
+  
+  const msPerHour = 3600000;
+
+  // No month grouping in daily
+  monthHeadEl.innerHTML = "";
+  dayHeadEl.innerHTML = buildHourHeader();
+
+  const hoursCount = (END_HOUR - START_HOUR) + 1;
+  const totalWidthPx = hoursCount * hourW;
+
+  monthHeadEl.style.width = totalWidthPx + "px";
+  dayHeadEl.style.width = totalWidthPx + "px";
+
+  const headWrap = monthHeadEl.parentElement;
+  if (headWrap) headWrap.style.width = totalWidthPx + "px";
+
+  // ---- Same grouping as your multi-day gantt ----
+  const groups = buildMaterialGroups(segments);
+  const groupArr = Array.from(groups.values()).sort((a,b) =>
+    (a.projectName || "").localeCompare(b.projectName || "") ||
+    (a.materialNumber || "").localeCompare(b.materialNumber || "")
+  );
+
+  bodyEl.innerHTML = groupArr.map(g => {
+
+    const headerRow = `
+      <div class="ganttRow groupRow">
+        <div class="ganttCell project" style="grid-column: 1 / span 3;">
+          <div class="groupHeaderRow">
+            <div class="title">${escapeHtml(g.projectName)}</div>
+            <div class="materialRight">
+              <b>${escapeHtml(g.materialNumber || "-")}</b>
+              <span class="divider">|</span>
+              <b>${escapeHtml(g.chillerSerialNumber || "-")}</b>
+            </div>
+          </div>
+        </div>
+        <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px"></div>
+      </div>
+    `;
+
+    const units = Array.from(g.units.values()).sort(
+      (a,b) => unitRank(a.unitType) - unitRank(b.unitType) ||
+               String(a.unitSerial).localeCompare(String(b.unitSerial))
+    );
+
+    const unitRows = units.map(u => {
+      const cur = latestSegment(u.segs) || null;
+      const procNo = getProcessNo(cur?.processLabel);
+      const st = statusUi(cur?.status);
+
+      const bars = u.segs
+        .filter(seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime()))
+        .map(seg => {
+          const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
+          const segEnd   = clamp(seg.end.getTime(),   rangeMin.getTime(), rangeMax.getTime());
+
+          const leftPx  = ((segStart - rangeMin.getTime()) / msPerHour) * hourW;
+          const widthPx = Math.max(10, ((segEnd - segStart) / msPerHour) * hourW);
+
+          const stClass = stationClass(seg.station);
+          const ongoingClass =
+            seg.status === "completed" ? "status-completed"
+            : seg.status === "on_hold" ? "status-onhold"
+            : "status-running";
+
+          return `
+            <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
+                 style="left:${leftPx}px; width:${widthPx}px;"
+                 data-tip="${escapeAttr(
+                  `Station: ${seg.station || "-"}\n` +
+                  `Manpower: ${seg.manpower ?? "-"}\n` +
+                  `Start: ${formatDateTime(seg.start)}\n` +
+                  `Stop: ${formatStopText(seg)}\n` +
+                  `Duration: ${formatDuration(activeDurationMs(seg))}` +
+                  (seg.status === "on_hold"
+                    ? `\nHold Reason: ${
+                        seg.holdReason === "others" && seg.remarks
+                          ? seg.remarks
+                          : (normalizeHoldReason(seg.holdReason) || "-")
+                      }` +
+                      (seg.remarks && seg.holdReason !== "others" ? `\nRemarks: ${seg.remarks}` : "")
+                    : "")
+                )}"></div>
+          `;
+        }).join("");
+
+      return `
+        <div class="ganttRow unitRow">
+          <div class="ganttCell project">
+            <div class="title indent">
+              ${escapeHtml(u.unitType)} <span class="meta">(${escapeHtml(u.unitSerial || "-")})</span>
+            </div>
+          </div>
+
+          <div class="ganttCell procNo">
+            <div style="font-weight:900;">${escapeHtml(procNo)}</div>
+          </div>
+
+          <div class="ganttCell status">
+            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+          </div>
+
+          <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+            ${bars}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    return headerRow + unitRows;
+  }).join("");
+
+  function drawNowLine(rangeMin, rangeMax, hourW){
+
+    const now = new Date();
+
+    if(now < rangeMin || now > rangeMax) return;
+
+    const msPerHour = 3600000;
+
+    const leftPx =
+      ((now.getTime() - rangeMin.getTime()) / msPerHour) * hourW;
+
+    document.querySelectorAll(".ganttTimeline").forEach(tl => {
+
+      const line = document.createElement("div");
+      line.className = "nowLine";
+      line.style.left = leftPx + "px";
+
+      tl.appendChild(line);
+
+    });
+
+  }
+
+  drawNowLine(rangeMin, rangeMax, hourW);
+
+  document.querySelectorAll(".ganttTimeline").forEach(tl => {
+    tl.style.width = totalWidthPx + "px";
+  });
+
+  // Auto-scroll to "now" if within 07:00–22:00
+  if (ganttWrapEl) {
+    const now = Date.now();
+    if (now >= rangeMin.getTime() && now <= rangeMax.getTime()) {
+      const leftPx = ((now - rangeMin.getTime()) / msPerHour) * hourW;
+      requestAnimationFrame(() => {
+        const maxScroll = Math.max(0, ganttWrapEl.scrollWidth - ganttWrapEl.clientWidth);
+        ganttWrapEl.scrollLeft = clamp(leftPx - 200, 0, maxScroll);
+      });
+    }
+  }
+}
+
+function renderGantt(days, rangeMin, rangeMax, segments, dom) {
+  if (!bodyEl || !monthHeadEl || !dayHeadEl) return; 
+
   const today = new Date();
   today.setHours(0,0,0,0);
 
@@ -415,6 +648,8 @@ function renderGantt(days, rangeMin, rangeMax, segments) {
   monthHeadEl.innerHTML = buildMonthHeader(days);
 
   const dayW = getDayW();
+  document.documentElement.style.setProperty("--colW", dayW + "px");
+  document.documentElement.style.setProperty("--minorDiv", "1"); // no half-day lines
   const totalWidthPx = days.length * dayW;
   const msPerDay = 24 * 60 * 60 * 1000;
 
@@ -446,8 +681,9 @@ function renderGantt(days, rangeMin, rangeMax, segments) {
           <div class="groupHeaderRow">
             <div class="title">${escapeHtml(g.projectName)}</div>
             <div class="materialRight">
-              <span class="metaLabel">Material Number:</span>
-              <b>${escapeHtml(g.materialNumber)}</b>
+              <b>${escapeHtml(g.materialNumber || "-")}</b>
+              <span class="divider">|</span>
+              <b>${escapeHtml(g.chillerSerialNumber || "-")}</b>
             </div>
           </div>
         </div>
@@ -484,20 +720,20 @@ function renderGantt(days, rangeMin, rangeMax, segments) {
             <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
                  style="left:${leftPx}px; width:${widthPx}px;"
                  data-tip="${escapeAttr(
-                `Process: ${seg.processLabel || "-"}\n` +
-                `Station: ${seg.station || "-"}\n` +
-                `Status: ${(seg.status || "").replaceAll("_"," ").toUpperCase()}\n` +
-                `Manpower: ${seg.manpower ?? "-"}\n` +
-                `Duration: ${formatDuration(seg.durationMs)}` +
-                (seg.status === "on_hold"
-                  ? `\nHold Reason: ${
-                      seg.holdReason === "others" && seg.remarks
-                        ? seg.remarks
-                        : (normalizeHoldReason(seg.holdReason) || "-")
-                    }` +
-                    (seg.remarks && seg.holdReason !== "others" ? `\nRemarks: ${seg.remarks}` : "")
-                  : "")
-              )}"></div>
+                  `Station: ${seg.station || "-"}\n` +
+                  `Manpower: ${seg.manpower ?? "-"}\n` +
+                  `Start: ${formatDateTime(seg.start)}\n` +
+                  `Stop: ${formatStopText(seg)}\n` +
+                  `Duration: ${formatDuration(activeDurationMs(seg))}` +
+                  (seg.status === "on_hold"
+                    ? `\nHold Reason: ${
+                        seg.holdReason === "others" && seg.remarks
+                          ? seg.remarks
+                          : (normalizeHoldReason(seg.holdReason) || "-")
+                      }` +
+                      (seg.remarks && seg.holdReason !== "others" ? `\nRemarks: ${seg.remarks}` : "")
+                    : "")
+                )}"></div>
           `;
         }).join("");
 
@@ -540,8 +776,6 @@ function renderGantt(days, rangeMin, rangeMax, segments) {
     });
   }
 }
-
-
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -717,27 +951,88 @@ async function render() {
       return;
     }
 
+    // Build segments FIRST (so both daily + monthly can use it)
     const { segments } = buildSegmentsFromRuns(runs);
     renderLegendsStationOnly(segments);
 
-    const { min, max } = minMaxFromSegments(segments);
-    const mode = el("dateMode").value;
-    const range = clampRangeByMode(mode, min, max);
+    const mode = el("dateMode")?.value || "daily";
 
-    const rangeMin = startOfDay(range.minDate);
-    const rangeMax = endOfDay(range.maxDate);
+    // DAILY MODE
+    if (mode === "daily") {
+      const picker = el("dayPicker");
+      const todayKey = getMYTodayKey();
+      if (picker && !picker.value) picker.value = todayKey;
 
-    const days = buildDateRange(rangeMin, rangeMax);
+      const dayDate = parseDayKeyToDate(picker?.value || todayKey);
 
-    renderGantt(days, rangeMin, rangeMax, segments);
+      const rangeMin = startOfWorkDay(dayDate);
+      const rangeMax = endOfWorkDay(dayDate);
+      
+      const hourW = getHourW();
+      document.documentElement.style.setProperty("--colW", hourW + "px");
+      document.documentElement.style.setProperty("--minorDiv", "2");
+
+      const segsInWindow = segments.filter(s =>
+        s.end.getTime() > rangeMin.getTime() && s.start.getTime() < rangeMax.getTime()
+      );
+
+      renderGanttDaily(rangeMin, rangeMax, segsInWindow);
+      return;
+    }
+  
+    // MONTHLY MODE
+    if (mode === "month") {
+      // monthly uses monthPicker (YYYY-MM)
+      const mp = el("monthPicker");
+      const now = new Date();
+      const def = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+      if (mp && !mp.value) mp.value = def;
+
+      const [yy, mm] = (mp?.value || def).split("-").map(Number);
+      const monthStart = new Date(yy, mm-1, 1);
+      const monthEnd = new Date(yy, mm, 0); // last day of month
+
+      const dayW = getDayW();
+      document.documentElement.style.setProperty("--colW", dayW + "px");
+      document.documentElement.style.setProperty("--minorDiv", "1");
+
+      const rangeMin = startOfDay(monthStart);
+      const rangeMax = endOfDay(monthEnd);
+
+      const days = buildDateRange(rangeMin, rangeMax);
+      renderGantt(days, rangeMin, rangeMax, segments);
+      return;
+    }
 
   } catch (err) {
     console.error(err);
   }
 }
 
+function syncPickers(){
+  const mode = el("dateMode")?.value || "daily";
+
+  const daySlot = el("daySlot");
+  const monthSlot = el("monthSlot");
+  const btnToday = el("btnToday");
+
+  if (daySlot) daySlot.classList.toggle("hidden", mode !== "daily");
+  if (monthSlot) monthSlot.classList.toggle("hidden", mode !== "month");
+
+  // TODAY button only for month mode
+  if (btnToday) btnToday.classList.toggle("hidden", mode !== "month");
+}
+
+syncPickers();
+
+el("dateMode")?.addEventListener("change", () => {
+  syncPickers();
+  render();
+});
+   
+
 /* UI events */
-el("btn-refresh").addEventListener("click", async () => {
+el("btn-refresh")?.addEventListener("click", async () => {
   clearCache();
   await render();
 });
@@ -750,10 +1045,98 @@ el("btn-export").addEventListener("click", async () => {
   exportExcelReport(runs);
 });
 
+el("dayPicker")?.addEventListener("change", () => render());
+
+el("monthPicker")?.addEventListener("change", () => render());
+
+el("btnToday")?.addEventListener("click", () => {
+  const today = new Date();
+  const monthStr = today.toISOString().slice(0,7); // YYYY-MM
+  el("monthPicker").value = monthStr;
+  render();
+});
+
+
+
+
 /* Start */
 async function renderGanttView() {
   console.log("GANTT RENDER CALLED");
   await render();
 }
 
+
+/* Tooltip functions */
+
+let tipEl = null;
+
+function ensureTip(){
+  if (tipEl) return tipEl;
+  tipEl = document.createElement("div");
+  tipEl.className = "ganttTip";
+  document.body.appendChild(tipEl);
+  return tipEl;
+}
+
+function hideTip(){
+  if (!tipEl) return;
+  tipEl.classList.remove("show", "status-onhold", "status-completed", "status-running");
+}
+
+function showTipForBar(barEl){
+  const tip = ensureTip();
+  const text = barEl.getAttribute("data-tip") || "";
+  if (!text) return;
+
+  // status class from bar
+  tip.className = "ganttTip show";
+  if (barEl.classList.contains("status-onhold")) tip.classList.add("status-onhold");
+  else if (barEl.classList.contains("status-completed")) tip.classList.add("status-completed");
+  else tip.classList.add("status-running");
+
+  tip.textContent = text;
+}
+
+function positionTip(clientX, clientY){
+  if (!tipEl) return;
+
+  const pad = 12;
+  const tipRect = tipEl.getBoundingClientRect();
+
+  // prefer above cursor
+  let x = clientX - tipRect.width / 2;
+  let y = clientY - tipRect.height - 14;
+
+  // clamp to viewport
+  x = Math.max(pad, Math.min(window.innerWidth - tipRect.width - pad, x));
+  if (y < pad) y = clientY + 18; // if no space above, place below
+
+  tipEl.style.left = `${x}px`;
+  tipEl.style.top  = `${y}px`;
+}
+
+function bindFloatingTooltip(){
+  // Use event delegation so it works after re-render
+  document.addEventListener("mouseover", (e) => {
+    const bar = e.target.closest?.(".bar[data-tip]");
+    if (!bar) return;
+    showTipForBar(bar);
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!tipEl || !tipEl.classList.contains("show")) return;
+    positionTip(e.clientX, e.clientY);
+  });
+
+  document.addEventListener("mouseout", (e) => {
+    const bar = e.target.closest?.(".bar[data-tip]");
+    if (!bar) return;
+    hideTip();
+  });
+
+  // Hide on scroll (optional, prevents laggy tooltip)
+  document.addEventListener("scroll", () => hideTip(), true);
+}
+
 export { renderGanttView };
+bindFloatingTooltip();

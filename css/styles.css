@@ -16,6 +16,9 @@
   --colProject: 260px;
   --colProc: 120px;
   --colStatus: 110px;
+  --hourW: 90px; /* width of 1 hour column in daily view */
+  --colW: var(--dayW);
+  --minorDiv: 1;
 
 }
 
@@ -232,6 +235,15 @@ select:focus{
   position: relative;
 }
 
+/* Make month + day headers render as horizontal rows */
+.ganttMonthHead,
+.ganttDayHead {
+  display: flex;
+  flex-wrap: nowrap;      /* prevent wrapping (stacking) */
+  white-space: nowrap;
+}
+
+
 
 .ganttLeftHead.small{
   text-align:center;
@@ -256,6 +268,11 @@ select:focus{
   left: 0;
   background:#fff;
   z-index: 10;
+}
+
+.ganttCell, .ganttLeftHead{
+  background:#f8fafc;
+  z-index: 30; 
 }
 
 /* Make each sticky column offset correctly */
@@ -362,10 +379,15 @@ select:focus{
 .monthHead{ display:flex; border-bottom:1px solid var(--border); }
 
 .dayCol{
-  /* Read width from --dayW so one variable controls all date column sizing. */
-  width: var(--dayW);
-  border-right:1px solid var(--border);
-  padding:8px 10px;
+  text-align:center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+  flex: 0 0 var(--colW);  /* default width for multi-day mode */
+  width: var(--colW);
+  box-sizing: border-box;
   background:#fafafa;
 }
 
@@ -389,9 +411,9 @@ select:focus{
     repeating-linear-gradient(
       to right,
       transparent,
-      transparent calc(var(--dayW) - 1px),
-      rgba(229,231,235,1) calc(var(--dayW) - 1px),
-      rgba(229,231,235,1) var(--dayW)
+      transparent calc(var(--colW) - 1px),
+      rgba(229,231,235,1) calc(var(--colW) - 1px),
+      rgba(229,231,235,1) var(--colW)
     );
 }
 
@@ -404,7 +426,7 @@ select:focus{
   top: 0;
   bottom: 0;
   left: var(--todayLeft, -9999px);
-  width: var(--dayW, 120px);
+  width: var(--colW, 120px);
   background: rgba(37, 99, 235, 0.10);
   z-index: 1;
   pointer-events: none;
@@ -418,17 +440,29 @@ select:focus{
   top: 0;
   bottom: 0;
   left: var(--todayLeft, -9999px);
-  width: var(--dayW, 120px);
+  width: var(--colW, 120px);
   border-left: 1px solid rgba(37, 99, 235, 0.35);
   border-right: 1px solid rgba(37, 99, 235, 0.35);
   z-index: 1;
   pointer-events: none;
 }
 
+/* Force the actual header elements to be horizontal */
+#ganttMonthHead,
+#ganttDayHead{
+  display:flex;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+#ganttDayHead .dayCol,
+#ganttMonthHead .monthCell{
+  border-right: 1px solid var(--border);
+}
+
 /* Keep bars above the overlay */
 .ganttTimeline .bar { z-index: 2; }
-
-
 
 .monthCell{
   height:34px;
@@ -443,18 +477,37 @@ select:focus{
 
 /* ==================== Gantt: Timeline Rows ==================== */
 .ganttTimeline{
-  /* Draw day separators with a repeating gradient instead of many extra DOM nodes. */
   position: relative;
   height: var(--rowH);
-  width: auto;
-  background-color: #ffffff !important;
+  z-index: 1;
   background:
-     repeating-linear-gradient(
+    repeating-linear-gradient(
       to right,
       #fafafa,
-      #fafafa calc(var(--dayW) - 1px),
-      #e5e7eb calc(var(--dayW) - 1px),
-      #e5e7eb var(--dayW)
+      #fafafa calc(var(--colW) - 1px),
+      #e5e7eb calc(var(--colW) - 1px),
+      #e5e7eb var(--colW)
+    );
+}
+
+/* Daily mode: strong line per hour + lighter line at half-hour */
+.ganttTimeline.dailyGrid{
+  background:
+    /* minor line (30 min) */
+    repeating-linear-gradient(
+      to right,
+      transparent,
+      transparent calc((var(--colW) / var(--minorDiv)) - 1px),
+      rgba(229,231,235,0.55) calc((var(--colW) / var(--minorDiv)) - 1px),
+      rgba(229,231,235,0.55) calc(var(--colW) / var(--minorDiv))
+    ),
+    /* major line (hour) */
+    repeating-linear-gradient(
+      to right,
+      #fafafa,
+      #fafafa calc(var(--colW) - 1px),
+      #828589 calc(var(--colW) - 1px),
+      #737579 var(--colW)
     );
 }
 
@@ -463,6 +516,8 @@ select:focus{
   grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
   border-bottom:1px solid var(--border);
   background-color: #f8fafc;
+  width: max-content;
+  min-width: 100%;
 }
 
 /* allow the right-side timeline column to expand properly */
@@ -472,11 +527,18 @@ select:focus{
 
 /* Smaller project header row */
 .ganttRow.groupRow {
-  min-height: 52px;          /* adjust  */
+  min-height: 52px;
+  background:#f8fafc;
+  border-top:2px solid #cbd5e1;
+  border-bottom:1px solid #e5e7eb;  
+  margin-top:10px;       
 }
 
 .ganttRow.groupRow .ganttCell.project {
   padding: 8px 12px;
+  font-size:15px;
+  font-weight:800;
+  color:#111827;
 }
 
 .ganttRow.groupRow .title {
@@ -496,6 +558,19 @@ select:focus{
   height: 52px !important;     /* match your group row */
 }
 
+.ganttRow.groupRow .ganttTimeline{
+  background-color: #f1f5f9;
+}
+
+.ganttRow.unitRow{
+  background:#ffffff;
+}
+
+.ganttRow.unitRow:nth-child(even){
+  background:#fbfdff;
+}
+
+
 /* Layout container */
 .groupHeaderRow{
   display:flex;
@@ -504,19 +579,27 @@ select:focus{
   width:100%;
 }
 
+.groupHeaderRow .title{
+  font-size:12px;
+  color:#6b7280;
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+
 /* Material block aligned right */
 .materialRight{
   font-size:12px;
   color:#6b7280;
   display:flex;
   gap:6px;
-  align-items:baseline;
+  align-items:center;
 }
 
 .materialRight b{
   color:#111827;
+  font-weight:700;
 }
-
 
 .ganttLeft{
   padding:10px 12px;
@@ -570,26 +653,19 @@ select:focus{
 }
 
 /* Station colors (Process) */
-.bar.st1{
-  background:#8f55f4;
-  border-color:#6d28d9;
-  color:#fff;
-}
-.bar.st2{
-  background:#e97f16;
-  border-color:#a55b11;
-  color:#fff;
-}
-.bar.st3{
-  background:#e241a1;
-  border-color:#a42b74;
-  color:#fff;
-}
+.bar.st-pv1{ background:#cfed3a; border-color:#789019; color:#fff; }  /* purple */
+.bar.st-pv2{ background:#ec4899; border-color:#be185d; color:#fff; }  /* pink */
+.bar.st-subassy{ background:#1d4ed8; border-color:#1e40af; color:#fff; } /* dark blue */
+.bar.st-piping{ background:#166534; border-color:#14532d; color:#fff; } /* dark green */
+.bar.st-fabrication { background:#077c91; border-color:#0b6a7b; color:#fff } /* cyan */
+.bar.st-pneumatic {background:#754960; border-color:#533545; color:#fff  }
 
-/* Swatches bar station classes */
-.swatch.st1{ background:#8f55f4; border-color:#6d28d9; }
-.swatch.st2{ background:#e97f16; border-color:#a55b11; }
-.swatch.st3{ background:#e241a1; border-color:#a42b74; }
+.swatch.st-pv1{ background:#cfed3a; border-color:#789019; }
+.swatch.st-pv2{ background:#ec4899; border-color:#be185d; }
+.swatch.st-subassy{ background:#1d4ed8; border-color:#1e40af; }
+.swatch.st-piping{ background:#166534; border-color:#14532d; }
+.swatch.st-fabrication {background:#077c91; border-color:#0b6a7b;}
+.swatch.st-pneumatic {background:#754960; border-color:#533545; }
 
 /* ongoing highlight */
 .bar.ongoing{
@@ -597,56 +673,41 @@ select:focus{
 }
 
 /* ==================== Bar Tooltip ==================== */
-.bar[data-tip]::after{
-  content: attr(data-tip);
-  position:absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(100% + 10px);
-  width: max-content;
-  max-width: 320px;
-  white-space: pre-line;
-  background:#111827;
-  color:#fff;
-  padding:10px 10px;
-  border-radius: 10px;
-  font-size:12px;
-  font-weight:600;
-  opacity:0;
-  pointer-events:none;
-  transition: opacity .12s ease;
-  box-shadow: 0 16px 32px rgba(0,0,0,0.22);
-  z-index: 10;
-}
+
+.bar[data-tip]::after,
 .bar[data-tip]::before{
-  content:"";
-  position:absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(100% + 4px);
-  border: 6px solid transparent;
-  border-top-color:#111827;
-  opacity:0;
-  transition: opacity .12s ease;
-  z-index: 10;
+  display:none !important;
 }
 
-/* Tooltip colors by status (box + arrow) */
-.bar.status-onhold[data-tip]::after{ background:#d32f2f; color:#fff; }
-.bar.status-onhold[data-tip]::before{ border-top-color:#d32f2f; }
-
-.bar.status-completed[data-tip]::after{ background:#2e7d32; color:#fff; }
-.bar.status-completed[data-tip]::before{ border-top-color:#2e7d32; }
-
-.bar.status-running[data-tip]::after{ background:#f9a825; color:#111; }
-.bar.status-running[data-tip]::before{ border-top-color:#f9a825; }
-
-
-.bar:hover::after,
-.bar:hover::before{
-  opacity:1;
+/* Floating tooltip */
+/* Floating tooltip rendered into <body> so it won't be clipped by ganttWrap */
+.ganttTip{
+  position: fixed;
+  max-width: 360px;
+  white-space: pre-line;
+  background: #111827;
+  color: #fff;
+  padding: 10px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 16px 32px rgba(0,0,0,0.22);
+  pointer-events: none;
+  z-index: 99999; /* above sticky header */
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity .08s ease, transform .08s ease;
 }
 
+.ganttTip.show{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* optional: status colors */
+.ganttTip.status-onhold{ background:#d32f2f; }
+.ganttTip.status-completed{ background:#2e7d32; }
+.ganttTip.status-running{ background:#f9a825; color:#111; }
 
 /* Tooltip colors by status */
 .bar.status-onhold:hover::after{ background: #d32f2f; }     /* red */
@@ -829,4 +890,176 @@ select:focus{
 .groupRow .project{
   background:#f9fafb;
   border-bottom:1px solid #eef2f7;
+}
+
+/* ========== DAILY GANTT CHART ================== */
+.daily-gantt {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dg-header {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.dg-header .left {
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.dg-header .axis {
+  position: relative;
+  height: 44px;
+}
+
+.dg-hour {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid #eef2f7;
+  font-size: 11px;
+  color: #6b7280;
+  padding-left: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.dg-row {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dg-row .label {
+  padding: 10px 12px;
+  border-right: 1px solid #f1f5f9;
+  font-size: 13px;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.dg-row .lane {
+  position: relative;
+  height: 44px;
+}
+
+.dg-bar {
+  position: absolute;
+  top: 10px;
+  height: 24px;
+  border-radius: 10px;
+  background: #2563eb1a;
+  border: 1px solid #2563eb55;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nowLine{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:2px;
+  background:#ef4444;
+  box-shadow:0 0 6px rgba(239,68,68,0.6);
+  z-index:3;
+  pointer-events:none;
+}
+
+/* ==== Picker customization ========== */
+
+.pickerSlot{
+  display:flex;
+  align-items:flex-end;
+  gap:10px;
+}
+
+.pickerGroup{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.pickerLabel{
+  font-size:11px;
+  font-weight:800;
+  color:#374151;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+
+.pickerInput{
+  height: 40px;
+  min-width: 190px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  outline: none;
+  transition: box-shadow .12s ease, border-color .12s ease;
+}
+
+.pickerInput:focus{
+  border-color: rgba(37,99,235,0.55);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+.pickerInput{
+  background: linear-gradient(#fff, #fbfbfb);
+}
+
+/* === Bar At Top ============ */
+
+.ganttTopBar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap; /* will wrap on small screens */
+}
+
+.ganttTopBar .hint{
+  margin:0;
+  font-size:11px;
+  font-weight:800;
+  color:#374151;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+
+/* Left = legend */
+.leftPack{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width: 280px;
+}
+
+/* Middle = picker */
+.midPack{
+  display:flex;
+  justify-content:center;
+  flex: 1;
+}
+
+/* Right = dropdown */
+.rightPack{
+  display:flex;
+  justify-content:flex-end;
+  min-width: 240px;
 }
