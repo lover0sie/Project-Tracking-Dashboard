@@ -17,6 +17,17 @@ const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 7;
 const END_HOUR = 22;
 
+function elapsedDuration(seg){
+  if(!seg?.start) return 0;
+
+  const endTime =
+    seg.status === "running"
+      ? Date.now()
+      : seg.end?.getTime();
+
+  return endTime - seg.start.getTime();
+}
+
 function activeDurationMs(seg){
   const base = Number(seg?.durationMs || 0); // stored accumulated active time
 
@@ -548,7 +559,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
                   `Manpower: ${seg.manpower ?? "-"}\n` +
                   `Start: ${formatDateTime(seg.start)}\n` +
                   `Stop: ${formatStopText(seg)}\n` +
-                  `Duration: ${formatDuration(activeDurationMs(seg))}` +
+                  `Duration: ${formatDuration(elapsedDuration(seg))}` +
                   (seg.status === "on_hold"
                     ? `\nHold Reason: ${
                         seg.holdReason === "others" && seg.remarks
@@ -724,7 +735,7 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
                   `Manpower: ${seg.manpower ?? "-"}\n` +
                   `Start: ${formatDateTime(seg.start)}\n` +
                   `Stop: ${formatStopText(seg)}\n` +
-                  `Duration: ${formatDuration(activeDurationMs(seg))}` +
+                  `Duration: ${formatDuration(elapsedDuration(seg))}` +
                   (seg.status === "on_hold"
                     ? `\nHold Reason: ${
                         seg.holdReason === "others" && seg.remarks
