@@ -8,7 +8,8 @@ const PROCESS_BY_PV = {
   "EVAPORATOR": [
     "6 - Hole bevelling",
     "7 - Connector welding",
-    "8 - Fitting internal plate and GMAW C&B",
+    "8A - Fitting internal plate",
+    "8B - GMAW C&B",
     "9 - Fitting and welding distribution box",
     "10 - Tube support, bush fitting, and tube sheet fitting",
     "11 - Tubesheet welding",
@@ -25,7 +26,8 @@ const PROCESS_BY_PV = {
    "CONDENSER": [
     "6 - Hole bevelling",
     "7 - Connector welding",
-    "8 - Fitting internal plate and GMAW C&B",
+    "8A - Fitting internal plate",
+    "8B - GMAW C&B",
     "9 - Fitting and welding distribution box",
     "10 - Tube support, bush fitting, and tube sheet fitting",
     "11 - Tubesheet welding",

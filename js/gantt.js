@@ -18,22 +18,30 @@ const START_HOUR = 7;
 const END_HOUR = 22;
 
 function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
+
   const isWaiting = partType === "waiting" || seg.phase === "waiting";
 
-  const processLine = isWaiting
-    ? `Process: Waiting`
-    : `Process: ${seg.processLabel || "-"}`;
+  // --- WAITING TOOLTIP ---
+  if (isWaiting) {
+    return (
+      `Process: WAITING\n` +
+      `From: ${formatDateTime(sliceStart)}\n` +
+      `To: ${formatDateTime(sliceEnd)}\n` +
+      `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}`
+    );
+  }
 
+  // --- NORMAL PROCESS TOOLTIP ---
   const startedLine =
-    `Started By: ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
+    `Started: ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
 
   const resumedLine =
     seg.resumedAt
-      ? `Resumed By: ${seg.resumedByName || "-"} (${seg.resumedByNumber || "-"})`
-      : `Resumed By: -`;
+      ? `Resumed: ${seg.resumedByName || "-"} (${seg.resumedByNumber || "-"})`
+      : `Resumed: -`;
 
   const holdLine =
-    (seg.status === "on_hold" && !isWaiting)
+    seg.status === "on_hold"
       ? `\nHold Reason: ${
           seg.holdReason === "others" && seg.remarks
             ? seg.remarks
@@ -44,13 +52,41 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
   return (
     `${startedLine}\n` +
     /* `${resumedLine}\n` + */
-    `${processLine}\n` +
+    `Process: ${seg.processLabel || "-"}\n` +
     `Manpower: ${seg.manpower ?? "-"}\n` +
-    `From: ${formatDateTime(sliceStart)}\n` + 
-     `To: ${formatDateTime(sliceEnd)}\n` + 
+    `From: ${formatDateTime(sliceStart)}\n` +
+    `To: ${formatDateTime(sliceEnd)}\n` +
     `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}` +
     holdLine
   );
+}
+
+function fitDailyToScreen(){
+  // only in daily mode
+  const mode = el("dateMode")?.value || "daily";
+  if (mode !== "daily") return;
+
+  const hoursCount = (END_HOUR - START_HOUR) + 1; // 16
+
+  // left sticky columns width from CSS variables
+  const rootStyle = getComputedStyle(document.documentElement);
+  const colProject = parseFloat(rootStyle.getPropertyValue("--colProject")) || 260;
+  const colProc    = parseFloat(rootStyle.getPropertyValue("--colProc")) || 120;
+  const colStatus  = parseFloat(rootStyle.getPropertyValue("--colStatus")) || 110;
+
+  // available width inside your card (use ganttWrap width)
+  const wrap = document.querySelector(".ganttWrap");
+  if (!wrap) return;
+
+  const wrapWidth = wrap.clientWidth;
+
+  // timeline area width = wrap - left columns
+  const timelineWidth = Math.max(300, wrapWidth - (colProject + colProc + colStatus));
+
+  // compute hour width, clamp so it doesn’t become too tiny/huge
+  const hourW = Math.max(40, Math.min(120, Math.floor(timelineWidth / hoursCount)));
+
+  document.documentElement.style.setProperty("--hourW", hourW + "px");
 }
 
 function elapsedDuration(seg){
@@ -138,6 +174,10 @@ function hourLabel(h){
 
 function getProcessNo(processLabel){
   if(!processLabel) return "";
+
+  // Special case
+
+  if (processLabel.toLowerCase() === "piping shop") { return "Piping Shop";}
 
   const nums = processLabel.split("-")[0];
   return nums.replace(/\s+/g,"");
@@ -1187,6 +1227,8 @@ async function render() {
         s.end.getTime() > rangeMin.getTime() && s.start.getTime() < rangeMax.getTime()
       );
 
+      fitDailyToScreen();
+
       renderGanttDaily(rangeMin, rangeMax, segsInWindow);
       return;
     }
@@ -1355,6 +1397,11 @@ function bindFloatingTooltip(){
   // Hide on scroll (optional, prevents laggy tooltip)
   document.addEventListener("scroll", () => hideTip(), true);
 }
+
+window.addEventListener("resize", () => {
+  fitDailyToScreen();
+  render();
+});
 
 export { renderGanttView };
 bindFloatingTooltip();
