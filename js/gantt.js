@@ -17,6 +17,42 @@ const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 7;
 const END_HOUR = 22;
 
+function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
+  const isWaiting = partType === "waiting" || seg.phase === "waiting";
+
+  const processLine = isWaiting
+    ? `Process: Waiting`
+    : `Process: ${seg.processLabel || "-"}`;
+
+  const startedLine =
+    `Started By: ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
+
+  const resumedLine =
+    seg.resumedAt
+      ? `Resumed By: ${seg.resumedByName || "-"} (${seg.resumedByNumber || "-"})`
+      : `Resumed By: -`;
+
+  const holdLine =
+    (seg.status === "on_hold" && !isWaiting)
+      ? `\nHold Reason: ${
+          seg.holdReason === "others" && seg.remarks
+            ? seg.remarks
+            : (normalizeHoldReason(seg.holdReason) || "-")
+        }`
+      : "";
+
+  return (
+    `${startedLine}\n` +
+    /* `${resumedLine}\n` + */
+    `${processLine}\n` +
+    `Manpower: ${seg.manpower ?? "-"}\n` +
+    `From: ${formatDateTime(sliceStart)}\n` + 
+     `To: ${formatDateTime(sliceEnd)}\n` + 
+    `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}` +
+    holdLine
+  );
+}
+
 function elapsedDuration(seg){
   if(!seg?.start) return 0;
 
@@ -42,6 +78,34 @@ function activeDurationMs(seg){
 
   // on_hold / completed -> durationMs already represents active time until hold/end
   return base;
+}
+
+function sliceSegForWaiting(seg){
+  // returns parts: active/waiting/active based on holdAt + resumedAt
+  const parts = [];
+  const s = seg.start;
+  const e = seg.end;
+  if (!s || !e) return parts;
+
+  const h = seg.holdAt;
+  const r = seg.resumedAt;
+
+  // no hold/resume => one active part
+  if (!h || !r || r.getTime() <= h.getTime()) {
+    parts.push({ type:"process", start:s, end:e });
+    return parts;
+  }
+
+  // active from start -> hold
+  if (h.getTime() > s.getTime()) parts.push({ type:"process", start:s, end:h });
+
+  // waiting from hold -> resume
+  parts.push({ type:"waiting", start:h, end:r });
+
+  // active from resume -> end
+  if (e.getTime() > r.getTime()) parts.push({ type:"process", start:r, end:e });
+
+  return parts;
 }
 
 
@@ -83,6 +147,7 @@ function statusUi(status){
   const s = String(status || "").toLowerCase().trim();
   if (s === "completed") return { text: "Completed", cls: "completed" };
   if (s === "on_hold") return { text: "On Hold", cls: "onhold" };
+  if (s === "waiting") return { text: "Waiting", cls: "waiting" };
   return { text: "Running", cls: "running" };
 }
 
@@ -348,6 +413,8 @@ function buildSegmentsFromRuns(runs) {
       remarks: r.remarks || "",
       employeeName: r.startedByName || "",
       employeeNumber: r.startedByNumber || "",
+      resumedByName: r.resumedByName || "",
+      resumedByNumber: r.resumedByNumber || "",
       start,
       end,
       status,
@@ -475,6 +542,119 @@ function renderLegendsStationOnly(segments){
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
+function buildSplitBarsHtml({ seg, rangeMin, rangeMax, unitMs, unitW, stationCls, statusCls, tipTextBuilder }) {
+  const parts = [];
+
+  function makeBar(startMs, endMs, extraCls = "") {
+    const a = clamp(startMs, rangeMin.getTime(), rangeMax.getTime());
+    const b = clamp(endMs,   rangeMin.getTime(), rangeMax.getTime());
+    if (b <= a) return "";
+
+    const leftPx  = ((a - rangeMin.getTime()) / unitMs) * unitW;
+    const widthPx = Math.max(8, ((b - a) / unitMs) * unitW);
+
+    return `
+      <div class="bar ${stationCls} ${statusCls} ${extraCls}"
+           style="left:${leftPx}px; width:${widthPx}px;"
+           data-tip="${escapeAttr(tipTextBuilder(seg, new Date(a), new Date(b), extraCls))}">
+      </div>
+    `;
+  }
+
+  const startMs = seg.start?.getTime?.() ?? null;
+  const endMs   = seg.end?.getTime?.() ?? null;
+  if (startMs == null || endMs == null) return "";
+
+  const holdMs   = seg.holdAt?.getTime?.() ?? null;
+  const resumeMs = seg.resumedAt?.getTime?.() ?? null;
+
+  // Only split when we have a proper hold→resume gap in-between
+  const canSplit =
+    holdMs != null &&
+    resumeMs != null &&
+    holdMs > startMs &&
+    resumeMs > holdMs;
+
+  if (canSplit) {
+    parts.push(makeBar(startMs, holdMs, "active"));
+    parts.push(makeBar(holdMs, resumeMs, "waiting"));
+    parts.push(makeBar(resumeMs, endMs, "active"));
+  } else {
+    parts.push(makeBar(startMs, endMs, "active"));
+  }
+
+  return parts.join("");
+}
+
+function withWaitingSegments(segs){
+  // Input: process segments only (phase="process")
+  // Output: process + synthetic waiting segments inserted between them (per unit)
+  const out = [];
+
+  const items = segs
+    .filter(s => s && s.start && s.end)
+    .slice()
+    .sort((a,b) => a.start.getTime() - b.start.getTime());
+
+  for (let i = 0; i < items.length; i++) {
+    const cur = items[i];
+    out.push(cur);
+
+    const next = items[i + 1];
+    if (!next) continue;
+
+    // waiting between cur.end -> next.start
+    const a = cur.end.getTime();
+    const b = next.start.getTime();
+
+    if (b > a) {
+      out.push({
+        ...cur,                     // inherit unit/project fields
+        phase: "waiting",
+        processLabel: "WAITING",    // so process parsing doesn’t show ",,,,"
+        status: "waiting",
+        station: "",                // not a station color
+        manpower: 0,
+        start: new Date(a),
+        end: new Date(b),
+        ongoing: false
+      });
+    }
+  }
+
+  return out;
+}
+
+function buildLanes(segs){
+  // Sort by start time
+  const sorted = segs.slice().sort((a,b) => a.start - b.start);
+
+  const lanes = []; // each lane is { endMs:number, segs:[] }
+
+  for (const seg of sorted) {
+    const s = seg.start.getTime();
+    const e = seg.end.getTime();
+
+    // try place into an existing lane
+    let placed = false;
+    for (const lane of lanes) {
+      if (s >= lane.endMs) {
+        lane.segs.push(seg);
+        lane.endMs = Math.max(lane.endMs, e);
+        placed = true;
+        break;
+      }
+    }
+
+    // otherwise create a new lane
+    if (!placed) {
+      lanes.push({ endMs: e, segs: [seg] });
+    }
+  }
+
+  return lanes.map(l => l.segs);
+}
+
 function renderGanttDaily(rangeMin, rangeMax, segments) {
   
   // disable monthly today highlight
@@ -531,66 +711,85 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
                String(a.unitSerial).localeCompare(String(b.unitSerial))
     );
 
-    const unitRows = units.map(u => {
-      const cur = latestSegment(u.segs) || null;
-      const procNo = getProcessNo(cur?.processLabel);
-      const st = statusUi(cur?.status);
+   const unitRows = units.map(u => {
+      const segs = withWaitingSegments(
+        u.segs.filter(seg =>
+          seg.end.getTime() > rangeMin.getTime() &&
+          seg.start.getTime() < rangeMax.getTime()
+        )
+      );
 
-      const bars = u.segs
-        .filter(seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime()))
-        .map(seg => {
-          const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
-          const segEnd   = clamp(seg.end.getTime(),   rangeMin.getTime(), rangeMax.getTime());
+      const lanes = buildLanes(segs);
+      const laneCount = Math.max(1, lanes.length);
 
-          const leftPx  = ((segStart - rangeMin.getTime()) / msPerHour) * hourW;
-          const widthPx = Math.max(10, ((segEnd - segStart) / msPerHour) * hourW);
+      //  merged UNIT cell (shown once)
+      const unitCellHtml = `
+        <div class="ganttCell project unitMerged" style="--laneCount:${laneCount}">
+          <div class="title indent">
+            ${escapeHtml(u.unitType)} <span class="meta">(${escapeHtml(u.unitSerial || "-")})</span>
+          </div>
+        </div>
+      `;
 
-          const stClass = stationClass(seg.station);
-          const ongoingClass =
-            seg.status === "completed" ? "status-completed"
-            : seg.status === "on_hold" ? "status-onhold"
-            : "status-running";
+      // right side rows: each lane gets its own PROC/STATUS/TIMELINE row
+      const laneRowsHtml = lanes.map((laneSegs) => {
+        const cur = latestSegment(laneSegs) || null;
+        const procNo = getProcessNo(cur?.processLabel);
+        const st = statusUi(cur?.status);
 
-          return `
-            <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
-                 style="left:${leftPx}px; width:${widthPx}px;"
-                 data-tip="${escapeAttr(
-                  `Process: ${seg.processLabel || "-"}\n` +
-                  `Station: ${seg.station || "-"}\n` +
-                  `Manpower: ${seg.manpower ?? "-"}\n` +
-                  `Start: ${formatDateTime(seg.start)}\n` +
-                  `Stop: ${formatStopText(seg)}\n` +
-                  `Duration: ${formatDuration(elapsedDuration(seg))}` +
-                  (seg.status === "on_hold"
-                    ? `\nHold Reason: ${
-                        seg.holdReason === "others" && seg.remarks
-                          ? seg.remarks
-                          : (normalizeHoldReason(seg.holdReason) || "-")
-                      }` +
-                      (seg.remarks && seg.holdReason !== "others" ? `\nRemarks: ${seg.remarks}` : "")
-                    : "")
-                )}"></div>
-          `;
-        }).join("");
+        const bars = laneSegs.map(seg => {
 
-      return `
-        <div class="ganttRow unitRow">
-          <div class="ganttCell project">
-            <div class="title indent">
-              ${escapeHtml(u.unitType)} <span class="meta">(${escapeHtml(u.unitSerial || "-")})</span>
+        const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
+        const segEnd   = clamp(seg.end.getTime(), rangeMin.getTime(), rangeMax.getTime());
+
+        const leftPx  = ((segStart - rangeMin.getTime()) / 3600000) * hourW;
+        const widthPx = Math.max(10, ((segEnd - segStart) / 3600000) * hourW);
+
+        const isWaiting = seg.phase === "waiting";
+
+        const stClass = isWaiting
+          ? "st-waiting"
+          : stationClass(seg.station);
+
+        const statusCls =
+          isWaiting ? "status-waiting"
+          : seg.status === "completed" ? "status-completed"
+          : seg.status === "on_hold" ? "status-onhold"
+          : "status-running";
+
+        const tipText = tipTextBuilder(seg, seg.start, seg.end, isWaiting ? "waiting" : "process");
+
+        return `
+          <div class="bar ${stClass} ${statusCls}"
+              style="left:${leftPx}px; width:${widthPx}px;"
+              data-tip="${escapeAttr(tipText)}">
+          </div>
+        `;
+
+      }).join("");
+
+        return `
+          <div class="unitLaneRow">
+            <div class="ganttCell procNo">
+              <div style="font-weight:900;">${escapeHtml(procNo)}</div>
+            </div>
+
+            <div class="ganttCell status">
+              <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+            </div>
+
+            <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+              ${bars}
             </div>
           </div>
+        `;
+      }).join("");
 
-          <div class="ganttCell procNo">
-            <div style="font-weight:900;">${escapeHtml(procNo)}</div>
-          </div>
-
-          <div class="ganttCell status">
-            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
-          </div>
-
-          <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
-            ${bars}
+      return `
+        <div class="unitBlock" style="--laneCount:${laneCount}">
+          ${unitCellHtml}
+          <div class="unitLaneRows">
+            ${laneRowsHtml}
           </div>
         </div>
       `;
@@ -716,39 +915,38 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
       const bars = u.segs
         .filter(seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime()))
         .map(seg => {
-          const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
-          const segEnd   = clamp(seg.end.getTime(),   rangeMin.getTime(), rangeMax.getTime());
+  const parts = sliceSegForWaiting(seg);
+
+  return parts
+    .filter(p => !(p.end.getTime() <= rangeMin.getTime() || p.start.getTime() >= rangeMax.getTime()))
+    .map(p => {
+          const sliceStart = new Date(Math.max(p.start.getTime(), rangeMin.getTime()));
+          const sliceEnd   = new Date(Math.min(p.end.getTime(),   rangeMax.getTime()));
+
+          const segStart = clamp(sliceStart.getTime(), rangeMin.getTime(), rangeMax.getTime());
+          const segEnd   = clamp(sliceEnd.getTime(),   rangeMin.getTime(), rangeMax.getTime());
 
           const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
           const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
 
-          const stClass = stationClass(seg.station);
-          const ongoingClass =
-            seg.status === "completed" ? "status-completed"
-            : seg.status === "on_hold" ? "status-onhold"
-            : "status-running";
+          const isWaiting = (p.type === "waiting");
+          const stClass   = isWaiting ? "st-waiting" : stationClass(seg.station);
+          const statusCls = isWaiting ? "status-waiting"
+                          : seg.status === "completed" ? "status-completed"
+                          : seg.status === "on_hold" ? "status-onhold"
+                          : "status-running";
+
+          const tipText = tipTextBuilder(seg, sliceStart, sliceEnd, isWaiting ? "waiting" : "process");
 
           return `
-            <div class="bar ${stClass} ${seg.ongoing ? "ongoing" : ""} ${ongoingClass}"
-                 style="left:${leftPx}px; width:${widthPx}px;"
-                 data-tip="${escapeAttr(
-                  `Process: ${seg.processLabel || "-"}\n` +
-                  `Station: ${seg.station || "-"}\n` +
-                  `Manpower: ${seg.manpower ?? "-"}\n` +
-                  `Start: ${formatDateTime(seg.start)}\n` +
-                  `Stop: ${formatStopText(seg)}\n` +
-                  `Duration: ${formatDuration(elapsedDuration(seg))}` +
-                  (seg.status === "on_hold"
-                    ? `\nHold Reason: ${
-                        seg.holdReason === "others" && seg.remarks
-                          ? seg.remarks
-                          : (normalizeHoldReason(seg.holdReason) || "-")
-                      }` +
-                      (seg.remarks && seg.holdReason !== "others" ? `\nRemarks: ${seg.remarks}` : "")
-                    : "")
-                )}"></div>
+            <div class="bar ${stClass} ${statusCls}"
+                style="left:${leftPx}px; width:${widthPx}px;"
+                data-tip="${escapeAttr(tipText)}"></div>
           `;
-        }).join("");
+        })
+        .join("");
+    })
+    .join("")
 
       return `
         <div class="ganttRow unitRow">
@@ -1101,11 +1299,18 @@ function showTipForBar(barEl){
   const text = barEl.getAttribute("data-tip") || "";
   if (!text) return;
 
-  // status class from bar
   tip.className = "ganttTip show";
-  if (barEl.classList.contains("status-onhold")) tip.classList.add("status-onhold");
-  else if (barEl.classList.contains("status-completed")) tip.classList.add("status-completed");
-  else tip.classList.add("status-running");
+
+  // NEW: waiting bar tooltip style
+  if (barEl.classList.contains("status-waiting")) {
+    tip.classList.add("status-waiting");
+  } else if (barEl.classList.contains("status-onhold")) {
+    tip.classList.add("status-onhold");
+  } else if (barEl.classList.contains("status-completed")) {
+    tip.classList.add("status-completed");
+  } else {
+    tip.classList.add("status-running");
+  }
 
   tip.textContent = text;
 }

@@ -369,6 +369,12 @@ select:focus{
   color:#7f1d1d;
 }
 
+.statusPill.waiting{
+  background:#f3f4f6;
+  border-color:#9ca3af;
+  color:#374151;
+}
+
 
 /* ==================== Gantt: Day/Month Header ==================== */
 .monthHead, .dayHead{
@@ -570,6 +576,64 @@ select:focus{
   background:#fbfdff;
 }
 
+.ganttRow.unitRow .ganttCell.project .title.indent{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+/* ===== Unit merged (UNIT spans multiple process lanes) ===== */
+.unitBlock{
+  display: grid;
+  grid-template-columns: var(--colProject) 1fr;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+
+.unitMerged{
+  /* one tall sticky UNIT cell */
+  height: calc(var(--rowH) * var(--laneCount));
+  align-items: flex-start;
+  padding-top: 16px;
+}
+
+/* right side rows (PROC + STATUS + TIMELINE) */
+.unitLaneRows{
+  display: flex;
+  flex-direction: column;
+}
+
+.unitLaneRow{
+  display: grid;
+  grid-template-columns: var(--colProc) var(--colStatus) 1fr;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+
+/* keep sticky behavior aligned with full gantt */
+.unitLaneRow .ganttCell.procNo{
+  position: sticky;
+  left: var(--colProject);
+  z-index: 11;
+  background: #f8fafc;
+}
+.unitLaneRow .ganttCell.status{
+  position: sticky;
+  left: calc(var(--colProject) + var(--colProc));
+  z-index: 11;
+  background: #f8fafc;
+}
+
+/* remove extra border duplication at the end */
+.unitLaneRows .unitLaneRow:last-child{
+  border-bottom: 0;
+}
+
+.unitLaneRow .ganttCell,
+.unitLaneRow .ganttTimeline{
+  height: var(--rowH);
+}
+
 
 /* Layout container */
 .groupHeaderRow{
@@ -659,6 +723,7 @@ select:focus{
 .bar.st-piping{ background:#166534; border-color:#14532d; color:#fff; } /* dark green */
 .bar.st-fabrication { background:#077c91; border-color:#0b6a7b; color:#fff } /* cyan */
 .bar.st-pneumatic {background:#754960; border-color:#533545; color:#fff  }
+.bar.st-waiting{ background:#cbd5e1 !important; border-color:#94a3b8 !important; box-shadow: none; opacity: .95;}
 
 .swatch.st-pv1{ background:#cfed3a; border-color:#789019; }
 .swatch.st-pv2{ background:#ec4899; border-color:#be185d; }
@@ -708,6 +773,7 @@ select:focus{
 .ganttTip.status-onhold{ background:#d32f2f; }
 .ganttTip.status-completed{ background:#2e7d32; }
 .ganttTip.status-running{ background:#f9a825; color:#111; }
+.ganttTip.status-waiting{ background:#64748b;  /* slate */ color:#fff;}
 
 /* Tooltip colors by status */
 .bar.status-onhold:hover::after{ background: #d32f2f; }     /* red */
