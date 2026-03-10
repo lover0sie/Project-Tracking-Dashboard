@@ -17,6 +17,13 @@ const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 7;
 const END_HOUR = 22;
 
+function getUnitType(r) {
+  if (String(r.qrKind || "").toUpperCase() === "PV") {
+    return r.vesselType || "PV";
+  }
+  return "CHILLER";
+}
+
 function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
 
   const isWaiting = partType === "waiting" || seg.phase === "waiting";
@@ -1075,6 +1082,7 @@ function exportExcelReport(runs) {
     "Project Name",
     "Description",
     "Serial Number",
+    "Type",
     "Material Number",
     "Process",
     "Station",
@@ -1118,6 +1126,7 @@ function exportExcelReport(runs) {
       r.projectName || "",
       r.description || "",
       r.serialNumber || "",
+      getUnitType(r),
       r.materialNumber || "",
       r.processName || "",
       r.station || "",
@@ -1157,7 +1166,7 @@ function exportExcelReport(runs) {
   const summaryHeader = [
     "Station",
     "Process",
-    "Runs",
+    "Frequency",
     "Total Minutes",
     "Total Hours",
     "Total Man-Hours"
@@ -1186,22 +1195,23 @@ function exportExcelReport(runs) {
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
 
   wsRaw["!cols"] = [
-    { wch: 24 }, // Project Name
-    { wch: 22 }, // Description
-    { wch: 16 }, // Serial Number
-    { wch: 16 }, // Material Number
-    { wch: 34 }, // Process
-    { wch: 14 }, // Station
-    { wch: 10 }, // Manpower
-    { wch: 12 }, // Status
-    { wch: 14 }, // Start Date
-    { wch: 14 }, // Start Time
-    { wch: 14 }, // End Date
-    { wch: 14 }, // End Time
-    { wch: 18 }, // Duration (Minutes)
-    { wch: 16 }, // Duration (Hours)
-    { wch: 14 }  // Man-Hours
-  ];
+  { wch: 24 }, // Project Name
+  { wch: 22 }, // Description
+  { wch: 16 }, // Serial Number
+  { wch: 14 }, // Type
+  { wch: 16 }, // Material Number
+  { wch: 34 }, // Process
+  { wch: 14 }, // Station
+  { wch: 10 }, // Manpower
+  { wch: 12 }, // Status
+  { wch: 14 }, // Start Date
+  { wch: 14 }, // Start Time
+  { wch: 14 }, // End Date
+  { wch: 14 }, // End Time
+  { wch: 18 }, // Duration (Minutes)
+  { wch: 16 }, // Duration (Hours)
+  { wch: 14 }  // Man-Hours
+];
 
   wsSummary["!cols"] = [
     { wch: 14 }, // Station
