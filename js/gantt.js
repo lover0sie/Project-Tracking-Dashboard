@@ -1042,31 +1042,55 @@ function escapeAttr(s) {
 }
 
 function exportExcelReport(runs) {
-  // Export two sheets: raw runs for detail and summary for station/process totals.
   if (typeof XLSX === "undefined") {
     alert("XLSX library not loaded. Check the xlsx script tag in index.html.");
     return;
   }
 
-  // ---------- Build RAW sheet ----------
+  function formatExcelDate(date){
+    if (!date) return "";
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  function formatExcelTime(date){
+    if (!date) return "";
+    const d = new Date(date);
+
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const seconds = String(d.getSeconds()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+
+    hours = hours % 12;
+    hours = hours === 0 ? 12 : hours;
+
+    return `${hours}:${minutes}:${seconds} ${ampm}`;
+  }
+
   const rawHeader = [
-    "projectName",
-    "description",
-    "serialNumber",
-    "materialNumber",
-    "process",
-    "station",
-    "manpower",
-    "status",
-    "startAt",
-    "endAt",
-    "duration_minutes",
-    "man_hours"
+    "Project Name",
+    "Description",
+    "Serial Number",
+    "Material Number",
+    "Process",
+    "Station",
+    "Manpower",
+    "Status",
+    "Start Date",
+    "Start Time",
+    "End Date",
+    "End Time",
+    "Duration (Minutes)",
+    "Duration (Hours)",
+    "Man-Hours"
   ];
 
   const rawRows = [rawHeader];
 
-  // Summary accumulator: key = station||process
   const summaryMap = new Map();
 
   for (const r of runs) {
@@ -1075,15 +1099,19 @@ function exportExcelReport(runs) {
     const holdTime = tsOrMsToDate(r.holdAt, r.holdEpochMs);
 
     const status = String(r.status || "").toLowerCase().trim();
+
     const effectiveEnd =
       status === "completed" ? endCompleted
       : status === "on_hold" ? (holdTime || new Date())
-      : new Date(); // running
+      : new Date();
 
     let durationMs = 0;
-    if (start && effectiveEnd) durationMs = Math.max(0, effectiveEnd.getTime() - start.getTime());
+    if (start && effectiveEnd) {
+      durationMs = Math.max(0, effectiveEnd.getTime() - start.getTime());
+    }
 
     const durationMin = minutesFromMs(durationMs);
+    const durationHours = durationMs > 0 ? (durationMs / 3600000) : 0;
     const mh = manHoursFromMs(durationMs, r.manpower);
 
     rawRows.push([
@@ -1094,16 +1122,16 @@ function exportExcelReport(runs) {
       r.processName || "",
       r.station || "",
       r.manpower ?? "",
-      String(r.status || "").replaceAll("_"," ").toUpperCase(),
-      start ? formatDateTime(start) : "",
-      (status === "completed" && endCompleted) ? formatDateTime(endCompleted)
-      : (status === "on_hold" && holdTime) ? formatDateTime(holdTime)
-      : "",
+      String(r.status || "").replaceAll("_", " ").toUpperCase(),
+      start ? formatExcelDate(start) : "",
+      start ? formatExcelTime(start) : "",
+      effectiveEnd ? formatExcelDate(effectiveEnd) : "",
+      effectiveEnd ? formatExcelTime(effectiveEnd) : "",
       durationMin,
+      durationHours.toFixed(2),
       mh.toFixed(2)
     ]);
 
-    // ---------- Build SUMMARY ----------
     const station = r.station || "(No Station)";
     const proc = r.processName || "(No Process)";
     const key = `${station}||${proc}`;
@@ -1114,26 +1142,25 @@ function exportExcelReport(runs) {
         process: proc,
         runs: 0,
         totalMinutes: 0,
-        totalManHours: 0,
-        totalManpowerCounted: 0
+        totalHours: 0,
+        totalManHours: 0
       });
     }
 
     const agg = summaryMap.get(key);
     agg.runs += 1;
     agg.totalMinutes += durationMin;
+    agg.totalHours += durationHours;
     agg.totalManHours += mh;
-    agg.totalManpowerCounted += Number(r.manpower || 0);
   }
 
-  // Convert summaryMap -> rows sorted by station then process
   const summaryHeader = [
-    "station",
-    "process",
-    "runs",
-    "total_minutes",
-    "total_hours",
-    "total_man_hours"
+    "Station",
+    "Process",
+    "Runs",
+    "Total Minutes",
+    "Total Hours",
+    "Total Man-Hours"
   ];
 
   const summaryRows = [summaryHeader];
@@ -1143,51 +1170,52 @@ function exportExcelReport(runs) {
   });
 
   for (const s of summaryArr) {
-    const totalHours = s.totalMinutes / 60;
     summaryRows.push([
       s.station,
       s.process,
       s.runs,
       s.totalMinutes,
-      totalHours.toFixed(2),
+      s.totalHours.toFixed(2),
       s.totalManHours.toFixed(2)
     ]);
   }
 
-  // ---------- Create workbook ----------
   const wb = XLSX.utils.book_new();
 
   const wsRaw = XLSX.utils.aoa_to_sheet(rawRows);
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
 
   wsRaw["!cols"] = [
-    { wch: 18 }, // projectName
-    { wch: 18 }, // description
-    { wch: 14 }, // serialNumber
-    { wch: 14 }, // materialNumber
-    { wch: 22 }, // process
-    { wch: 10 }, // station
-    { wch: 10 }, // manpower
-    { wch: 10 }, // status
-    { wch: 20 }, // startAt
-    { wch: 20 }, // endAt
-    { wch: 16 }, // duration_minutes
-    { wch: 12 }  // man_hours
+    { wch: 24 }, // Project Name
+    { wch: 22 }, // Description
+    { wch: 16 }, // Serial Number
+    { wch: 16 }, // Material Number
+    { wch: 34 }, // Process
+    { wch: 14 }, // Station
+    { wch: 10 }, // Manpower
+    { wch: 12 }, // Status
+    { wch: 14 }, // Start Date
+    { wch: 14 }, // Start Time
+    { wch: 14 }, // End Date
+    { wch: 14 }, // End Time
+    { wch: 18 }, // Duration (Minutes)
+    { wch: 16 }, // Duration (Hours)
+    { wch: 14 }  // Man-Hours
   ];
 
   wsSummary["!cols"] = [
-    { wch: 10 }, // station
-    { wch: 28 }, // process
-    { wch: 8 },  // runs
-    { wch: 14 }, // total_minutes
-    { wch: 12 }, // total_hours
-    { wch: 16 }  // total_man_hours
+    { wch: 14 }, // Station
+    { wch: 34 }, // Process
+    { wch: 10 }, // Runs
+    { wch: 16 }, // Total Minutes
+    { wch: 14 }, // Total Hours
+    { wch: 18 }  // Total Man-Hours
   ];
 
-  XLSX.utils.book_append_sheet(wb, wsRaw, "RawRuns");
+  XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Runs");
   XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
 
-  const filename = `ProcessReport_${new Date().toISOString().slice(0,10)}.xlsx`;
+  const filename = `ProcessReport_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
