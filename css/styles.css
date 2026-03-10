@@ -12,7 +12,7 @@
   --radius:14px;
   --radiusSm:10px;
   --dayW: 120px;
-  --rowH: 80px;
+  --rowH: 52px;
   --colProject: 250px;
   --colProc: 100px;
   --colStatus: 110px;
@@ -191,6 +191,24 @@ select:focus{
   min-width: 100%;
 }
 
+/* ======================= Timebands ============================ */
+
+.timeBand{
+  position:absolute;
+  top:0;
+  bottom:0;
+  pointer-events:none;
+  z-index:1;
+}
+
+.timeBand.band-recess{
+  background: rgba(251, 191, 36, 0.18);
+}
+
+.timeBand.band-offwork{
+  background: rgba(148, 163, 184, 0.20);
+}
+
 /* ==================== Gantt: Sticky Header ==================== */
 .ganttHead{
   /* Pin the header while scrolling so dates and month labels stay visible. */
@@ -243,8 +261,6 @@ select:focus{
   white-space: nowrap;
 }
 
-
-
 .ganttLeftHead.small{
   text-align:center;
 }
@@ -254,6 +270,26 @@ select:focus{
   flex-direction:column;
   width: auto;
   min-width: 0;
+}
+
+.standardBar{
+  top: 12px;
+  height: 14px;
+  background: repeating-linear-gradient(
+    135deg,
+    #cbd5e1 0 6px,
+    #e2e8f0 6px 12px
+  );
+  border: 1px dashed #94a3b8;
+  border-radius: 999px;
+  box-shadow: none;
+  opacity: 1;
+}
+
+
+
+.standardLaneRow .ganttTimeline {
+  min-height: 22px;
 }
 
 /* ==================== Gantt: Sticky Body Columns ==================== */
@@ -374,6 +410,12 @@ select:focus{
   background:#f3f4f6;
   border-color:#9ca3af;
   color:#374151;
+}
+
+.statusPill.standard {
+  background: #eef2f7;
+  color: #51606f;
+  border: 1px solid #cfd7e3;
 }
 
 
@@ -535,7 +577,8 @@ select:focus{
 /* Smaller project header row */
 .ganttRow.groupRow {
   min-height: 52px;
-  background:#f8fafc;
+  background:#f1f5f9;
+  font-weight:600;
   border-top:2px solid #cbd5e1;
   border-bottom:1px solid #e5e7eb;  
   margin-top:10px;       
@@ -546,6 +589,7 @@ select:focus{
   font-size:15px;
   font-weight:800;
   color:#111827;
+  background:#f1f5f9;
 }
 
 .ganttRow.groupRow .title {
@@ -567,6 +611,7 @@ select:focus{
 
 .ganttRow.groupRow .ganttTimeline{
   background-color: #f1f5f9;
+   background:#f1f5f9;
 }
 
 .ganttRow.unitRow{
@@ -592,10 +637,17 @@ select:focus{
 }
 
 .unitMerged{
-  /* one tall sticky UNIT cell */
-  height: calc(var(--rowH) * var(--laneCount));
-  align-items: flex-start;
-  padding-top: 16px;
+  position: sticky;
+  left: 0;
+  z-index: 12;
+  background:#f8fafc;
+  border-right:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  padding:8px 10px;
+  height: auto;
+  min-height: 100%;
 }
 
 /* right side rows (PROC + STATUS + TIMELINE) */
@@ -725,6 +777,8 @@ select:focus{
 .bar.st-fabrication { background:#077c91; border-color:#0b6a7b; color:#fff } /* cyan */
 .bar.st-pneumatic {background:#754960; border-color:#533545; color:#fff  }
 .bar.st-waiting{ background:#cbd5e1 !important; border-color:#94a3b8 !important; box-shadow: none; opacity: .95;}
+.bar.st-holdgap{ background:#ef4444 !important; border-color:#b91c1c !important; box-shadow:none; opacity:.95;
+}
 
 .swatch.st-pv1{ background:#cfed3a; border-color:#789019; }
 .swatch.st-pv2{ background:#ec4899; border-color:#be185d; }
@@ -775,6 +829,9 @@ select:focus{
 .ganttTip.status-completed{ background:#2e7d32; }
 .ganttTip.status-running{ background:#f9a825; color:#111; }
 .ganttTip.status-waiting{ background:#64748b;  /* slate */ color:#fff;}
+.ganttTip.status-holdgap{background:#b91c1c;color:#fff;}
+.ganttTip.status-standard{background:#94a3b8;color:#0f172a;}
+
 
 /* Tooltip colors by status */
 .bar.status-onhold:hover::after{ background: #d32f2f; }     /* red */
@@ -787,7 +844,13 @@ select:focus{
 /* ==================== Responsive Rules ==================== */
 @media (max-width: 720px){
   body{ padding:14px; }
-  .top{ flex-direction: column; align-items: stretch; }
+  .top{
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: white;
+    padding: 10px 0;
+  }
   .actions{ justify-content: flex-start; }
 }
 

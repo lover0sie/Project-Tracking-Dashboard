@@ -1,6 +1,6 @@
 console.log("TREE RENDER CALLED");
 
-import { loadRuns } from "./timeline.js";
+import { loadRuns, loadRunsForDay } from "./timeline.js";
 
 const el = id => document.getElementById(id);
 
@@ -10,6 +10,14 @@ const dayHeadEl = document.getElementById("ganttDayHead");
 
 const UNIT_ORDER = ["EVAPORATOR","CONDENSER","OIL SEPARATOR","ECONOMIZER","CHILLER"];
 
+
+function getMYTodayKey(){
+  return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kuala_Lumpur"
+  }).format(new Date());
+}
+
+
 function escapeHtml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;")
@@ -17,6 +25,23 @@ function escapeHtml(s){
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
+}
+
+function getSelectedDayKey() {
+  const picker = el("dayPicker");
+  return picker?.value || "";
+
+}
+
+function getSelectedMonthKey() {
+  const picker = el("monthPicker");
+  return picker?.value || ""; // YYYT-MM
+}
+
+function filterRunsByMonth(runs, monthKey){
+  if (!monthKey) return runs;
+  return (runs || []).filter(r => String(r.runDate || "").startsWith(monthKey));
+
 }
 
 function statusUi(status){
@@ -80,7 +105,20 @@ function buildTree(runs){
 
 export async function renderTree() {
 
-  const runs = await loadRuns();
+  const mode = el("dateMode")?.value || "daily"
+
+  let runs = [];
+
+  if (mode === "daily") {
+    const dayKey = getSelectedDayKey() || getMYTodayKey();
+    runs = await loadRunsForDay(dayKey);
+  } else {
+    const monthKey = getSelectedMonthKey();
+    const allRuns = await loadRuns();
+    runs = filterRunsByMonth(allRuns, monthKey);
+  }
+
+  console.log("Tree filtered runs:", runs);
 
   // Clear gantt parts
   monthHeadEl.innerHTML = "";

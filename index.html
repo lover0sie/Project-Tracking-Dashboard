@@ -91,19 +91,25 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <!-- View Controller -->
+ 
 <script type="module">
   import { renderTree } from "./js/tree.js";
-  import { renderGanttView } from "./js/gantt.js";
   import { clearCache } from "./js/timeline.js";
+  import { renderGanttView, syncPickers } from "./js/gantt.js";
 
   const btnTree = document.getElementById("btn-tree");
   const btnGantt = document.getElementById("btn-gantt");
   const btnRefresh = document.getElementById("btn-refresh");
 
+  const dayPicker = document.getElementById("dayPicker");
+  const monthPicker = document.getElementById("monthPicker");
+  const dateMode = document.getElementById("dateMode");
+  const btnToday = document.getElementById("btnToday");
+
+  let currentView = "gantt";
+
   function setTreeHeaders() {
     document.getElementById("timelineHead")?.classList.add("hidden");
-
-    // hide entire gantt header row
     document.querySelector(".ganttHead")?.classList.add("hidden");
   }
 
@@ -112,28 +118,58 @@
     document.querySelector(".ganttHead")?.classList.remove("hidden");
   }
 
+  async function renderCurrentView() {
+    syncPickers();
+
+    if (currentView === "tree") {
+      setTreeHeaders();
+      await renderTree();
+    } else {
+      setGanttHeaders();
+      await renderGanttView();
+    }
+  }
+
   // Default view = Gantt
-  setGanttHeaders();
-  renderGanttView();
+  currentView = "gantt";
+  renderCurrentView();
 
   btnTree.addEventListener("click", async () => {
-    setTreeHeaders();
-    await renderTree();
+    currentView = "tree";
+    await renderCurrentView();
   });
 
   btnGantt.addEventListener("click", async () => {
-    setGanttHeaders();
-    await renderGanttView();
+    currentView = "gantt";
+    await renderCurrentView();
   });
 
   btnRefresh.addEventListener("click", async () => {
     clearCache();
-    if (document.getElementById("timelineHead").classList.contains("hidden")) {
-      await renderTree();
-    } else {
-      await renderGanttView();
-    }
+    await renderCurrentView();
   });
+
+  dayPicker?.addEventListener("change",async () => {
+     await renderCurrentView(); 
+  });
+
+  monthPicker?.addEventListener("change",async () => {
+     await renderCurrentView(); 
+  });
+
+  dateMode?.addEventListener("change",async () => {
+     await renderCurrentView(); 
+  });
+
+  btnToday?.addEventListener("click", async () => {
+    const today = new Date();
+    const monthStr = today.toISOString().slice(0, 7);
+
+    if (monthPicker) monthPicker.value = monthStr;
+    await renderCurrentView();
+  });
+
+  
 
 </script>
 </body>

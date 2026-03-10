@@ -1,5 +1,31 @@
 import { loadRuns, clearCache } from "./timeline.js";
 
+// Estimated time in minutes for each process
+const STANDARD_TIME_MIN = {
+  "6 - Hole bevelling": 40,
+  "7 - Connector welding": 35,
+  "8A - Fitting internal plate": 30,
+  "8B - GMAW C&B": 45,
+  "9 - Fitting and welding distribution box": 50,
+  "10 - Tube support, bush fitting, and tube sheet fitting": 60,
+  "11 - Tubesheet welding": 45,
+  "12 - Bracket and attachment welding, copper tube brazing": 55,
+  "13 - Unit side plate and base welding": 40,
+  "14A - Tube slotting": 25,
+  "14B - Tube expansion": 35,
+  "15 - Primer painting": 20,
+  "16 - Pneumatic testing": 30,
+  "17 - Hydrostatic testing": 30,
+  "18, 19 - Primer painting (weld seam) and top coat painting": 45,
+
+  "6, 7 - Hole bevelling and connector welding": 60,
+  "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding": 120,
+  "12 - Bracket and attachment fitting and welding": 40,
+  "19 - Top coat painting": 20,
+
+  "Piping shop": 60
+}
+
 /* DOM */
 const el = (id) => document.getElementById(id);
 
@@ -17,6 +43,132 @@ const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 7;
 const END_HOUR = 22;
 
+function getDailyBreakWindows(baseDate) {
+  const makeRange = (startH, startM, endH, endM) => {
+    const start = new Date(baseDate);
+    start.setHours(startH, startM, 0, 0);
+
+    const end = new Date(baseDate);
+    end.setHours(endH, endM, 0, 0);
+
+    return { start, end };
+  };
+
+  return [
+    makeRange(10, 0, 10, 15),
+    makeRange(12, 0, 12, 30),
+    makeRange(15, 0, 15, 15)
+  ];
+}
+
+function overlapMs(startA, endA, startB, endB) {
+  const start = Math.max(startA.getTime(), startB.getTime());
+  const end = Math.min(endA.getTime(), endB.getTime());
+  return Math.max(0, end - start);
+}
+
+function getBreakOverlapMs(start, end) {
+  if (!start || !end || end <= start) return 0;
+
+  const breaks = getDailyBreakWindows(start);
+  let total = 0;
+
+  for (const b of breaks) {
+    total += overlapMs(start, end, b.start, b.end);
+  }
+
+  return total;
+}
+
+
+function getEffectiveDurationMs(start, end) {
+  if (!start || !end || end <= start) return 0;
+
+  const raw = end.getTime() - start.getTime();
+  const breakMs = getBreakOverlapMs(start, end);
+
+  return Math.max(0, raw - breakMs);
+}
+
+
+function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
+  const bands = [
+    { label: "Recess", startH: 10, startM: 0, endH: 10, endM: 15, cls: "band-recess" }, // recess from 10:00 am to 10:15 am
+    { label: "Lunch",  startH: 12, startM: 0, endH: 12, endM: 30, cls: "band-recess" }, // recess from 12:00 pm to 12:30 pm
+    { label: "Recess", startH: 15, startM: 0, endH: 15, endM: 15, cls: "band-recess" }, // recess from 3:00 pm to 3:15 pm
+    { label: "Off Work", startH: 17, startM: 30, endH: 23, endM: 0, cls: "band-offwork" } // off-work from 05:30 pm to 9:00 pm
+  ];
+
+  return bands.map(b => {
+    const bandStart = new Date(rangeMin);
+    bandStart.setHours(b.startH, b.startM, 0, 0);
+
+    const bandEnd = new Date(rangeMin);
+    bandEnd.setHours(b.endH, b.endM, 0, 0);
+
+    const startMs = Math.max(bandStart.getTime(), rangeMin.getTime());
+    const endMs = Math.min(bandEnd.getTime(), rangeMax.getTime());
+
+    if (endMs <= startMs) return "";
+
+    const leftPx = ((startMs - rangeMin.getTime()) / 3600000) * hourW;
+    const widthPx = ((endMs - startMs) / 3600000) * hourW;
+
+    return `
+      <div class="timeBand ${b.cls}"
+           style="left:${leftPx}px; width:${widthPx}px;"
+           title="${b.label}">
+      </div>
+    `;
+  }).join("");
+}
+
+/* Get the time difference between standard and actual process */
+function getVarianceMinutes(seg) {
+  const std = getStandardMinutes(seg?.processLabel);
+  const actual = Math.round(activeDurationMs(seg) / 60000);
+  if (!std) return null;
+  return actual - std;
+}
+
+function activeDurationMs(seg){
+  const base = Number(seg?.durationMs || 0);
+
+  if (!seg) return 0;
+
+  if (seg.status === "running") {
+    const anchor = seg.resumedAt || seg.start;
+    const extra = anchor ? Math.max(0, Date.now() - anchor.getTime()) : 0;
+    return base + extra;
+  }
+
+  return base;
+}
+
+/* Get the standard time in minutes */
+function getStandardMinutes(processLabel) {
+  return Number(STANDARD_TIME_MIN[processLabel] || 0);
+}
+
+function getStandardEnd(seg) {
+  const stdMin = getStandardMinutes(seg?.processLabel);
+  if (!seg?.start || !stdMin) return null;
+  return new Date(seg.start.getTime() + stdMin * 60000);
+}
+
+/* Build tooltip for the standard time */
+function standardTipText(seg, stdStart, stdEnd) {
+  const stdMin = getStandardMinutes(seg?.processLabel);
+  return (
+    `Standard Time\n` +
+    `Process: ${seg.processLabel || "-"}\n` +
+    `From: ${formatDateTime(stdStart)}\n` +
+    `To: ${formatDateTime(stdEnd)}\n` +
+    `Standard Duration: ${stdMin} min`
+  );
+}
+
+/* Get the unit type based on the qr code */
 function getUnitType(r) {
   if (String(r.qrKind || "").toUpperCase() === "PV") {
     return r.vesselType || "PV";
@@ -24,28 +176,37 @@ function getUnitType(r) {
   return "CHILLER";
 }
 
+/* Function to build the tooltip for daily and monthy timeline */
 function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
-
+  const isHoldGap = partType === "on_hold_gap";
   const isWaiting = partType === "waiting" || seg.phase === "waiting";
 
-  // --- WAITING TOOLTIP ---
+  if (isHoldGap) {
+    return (
+      `Status: ON HOLD\n` +
+      `Process: ${seg.processLabel || "-"}\n` +
+      `From: ${formatDateTime(sliceStart)}\n` +
+      `To: ${formatDateTime(sliceEnd)}\n` +
+      `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}\n` +
+      `Reason: ${
+        seg.holdReason === "others" && seg.remarks
+          ? seg.remarks
+          : (normalizeHoldReason(seg.holdReason) || "-")
+      }`
+    );
+  }
+
   if (isWaiting) {
     return (
-      `Process: WAITING\n` +
+      `WAITING\n` +
       `From: ${formatDateTime(sliceStart)}\n` +
       `To: ${formatDateTime(sliceEnd)}\n` +
       `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}`
     );
   }
 
-  // --- NORMAL PROCESS TOOLTIP ---
   const startedLine =
     `Started: ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
-
-  const resumedLine =
-    seg.resumedAt
-      ? `Resumed: ${seg.resumedByName || "-"} (${seg.resumedByNumber || "-"})`
-      : `Resumed: -`;
 
   const holdLine =
     seg.status === "on_hold"
@@ -58,16 +219,16 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
 
   return (
     `${startedLine}\n` +
-    /* `${resumedLine}\n` + */
     `Process: ${seg.processLabel || "-"}\n` +
     `Manpower: ${seg.manpower ?? "-"}\n` +
     `From: ${formatDateTime(sliceStart)}\n` +
     `To: ${formatDateTime(sliceEnd)}\n` +
-    `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}` +
+    `Duration: ${formatDuration(getEffectiveDurationMs(sliceStart, sliceEnd))}` +
     holdLine
   );
 }
 
+/* Fitting the columns of daily into the screen */
 function fitDailyToScreen(){
   // only in daily mode
   const mode = el("dateMode")?.value || "daily";
@@ -107,50 +268,48 @@ function elapsedDuration(seg){
   return endTime - seg.start.getTime();
 }
 
-function activeDurationMs(seg){
-  const base = Number(seg?.durationMs || 0); // stored accumulated active time
-
-  if (!seg) return 0;
-
-  // If currently running, add time since last resume (or since start if never resumed)
-  if (seg.status === "running") {
-    const anchor = seg.resumedAt || seg.start;
-    const extra = anchor ? Math.max(0, Date.now() - anchor.getTime()) : 0;
-    return base + extra;
-  }
-
-  // on_hold / completed -> durationMs already represents active time until hold/end
-  return base;
-}
-
+/* Create waiting process based on the status */
 function sliceSegForWaiting(seg){
-  // returns parts: active/waiting/active based on holdAt + resumedAt
   const parts = [];
   const s = seg.start;
   const e = seg.end;
   if (!s || !e) return parts;
 
-  const h = seg.holdAt;
-  const r = seg.resumedAt;
-
-  // no hold/resume => one active part
-  if (!h || !r || r.getTime() <= h.getTime()) {
-    parts.push({ type:"process", start:s, end:e });
+  // keep synthetic waiting segments as waiting
+  if (seg.phase === "waiting" || seg.status === "waiting") {
+    parts.push({ type: "waiting", start: s, end: e });
     return parts;
   }
 
-  // active from start -> hold
-  if (h.getTime() > s.getTime()) parts.push({ type:"process", start:s, end:h });
+  const h = seg.holdAt;
+  const r = seg.resumedAt;
 
-  // waiting from hold -> resume
-  parts.push({ type:"waiting", start:h, end:r });
+  // currently on hold, no valid resume after hold
+  if (seg.status === "on_hold" && h && (!r || r.getTime() <= h.getTime())) {
+    if (h.getTime() > s.getTime()) {
+      parts.push({ type:"process", start:s, end:h });
+    }
+    if (e.getTime() > h.getTime()) {
+      parts.push({ type:"on_hold_gap", start:h, end:e });
+    }
+    return parts;
+  }
 
-  // active from resume -> end
-  if (e.getTime() > r.getTime()) parts.push({ type:"process", start:r, end:e });
+  // valid hold -> resume gap
+  if (h && r && r.getTime() > h.getTime()) {
+    if (h.getTime() > s.getTime()) {
+      parts.push({ type:"process", start:s, end:h });
+    }
+    parts.push({ type:"on_hold_gap", start:h, end:r });
+    if (e.getTime() > r.getTime()) {
+      parts.push({ type:"process", start:r, end:e });
+    }
+    return parts;
+  }
 
+  parts.push({ type:"process", start:s, end:e });
   return parts;
 }
-
 
 function getHourW(){
   // Sset this in CSS: :root{ --hourW: 90px; }
@@ -178,7 +337,7 @@ function hourLabel(h){
   return `${twelve}:00 ${isPM ? "PM" : "AM"}`;
 }
 
-
+/* Get the process number to display in the Process No. column */
 function getProcessNo(processLabel){
   if(!processLabel) return "";
 
@@ -190,6 +349,7 @@ function getProcessNo(processLabel){
   return nums.replace(/\s+/g,"");
 }
 
+/* Normalize status */
 function statusUi(status){
   const s = String(status || "").toLowerCase().trim();
   if (s === "completed") return { text: "Completed", cls: "completed" };
@@ -589,50 +749,6 @@ function renderLegendsStationOnly(segments){
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
-function buildSplitBarsHtml({ seg, rangeMin, rangeMax, unitMs, unitW, stationCls, statusCls, tipTextBuilder }) {
-  const parts = [];
-
-  function makeBar(startMs, endMs, extraCls = "") {
-    const a = clamp(startMs, rangeMin.getTime(), rangeMax.getTime());
-    const b = clamp(endMs,   rangeMin.getTime(), rangeMax.getTime());
-    if (b <= a) return "";
-
-    const leftPx  = ((a - rangeMin.getTime()) / unitMs) * unitW;
-    const widthPx = Math.max(8, ((b - a) / unitMs) * unitW);
-
-    return `
-      <div class="bar ${stationCls} ${statusCls} ${extraCls}"
-           style="left:${leftPx}px; width:${widthPx}px;"
-           data-tip="${escapeAttr(tipTextBuilder(seg, new Date(a), new Date(b), extraCls))}">
-      </div>
-    `;
-  }
-
-  const startMs = seg.start?.getTime?.() ?? null;
-  const endMs   = seg.end?.getTime?.() ?? null;
-  if (startMs == null || endMs == null) return "";
-
-  const holdMs   = seg.holdAt?.getTime?.() ?? null;
-  const resumeMs = seg.resumedAt?.getTime?.() ?? null;
-
-  // Only split when we have a proper hold→resume gap in-between
-  const canSplit =
-    holdMs != null &&
-    resumeMs != null &&
-    holdMs > startMs &&
-    resumeMs > holdMs;
-
-  if (canSplit) {
-    parts.push(makeBar(startMs, holdMs, "active"));
-    parts.push(makeBar(holdMs, resumeMs, "waiting"));
-    parts.push(makeBar(resumeMs, endMs, "active"));
-  } else {
-    parts.push(makeBar(startMs, endMs, "active"));
-  }
-
-  return parts.join("");
-}
-
 function withWaitingSegments(segs){
   // Input: process segments only (phase="process")
   // Output: process + synthetic waiting segments inserted between them (per unit)
@@ -784,38 +900,95 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
         const procNo = getProcessNo(cur?.processLabel);
         const st = statusUi(cur?.status);
 
+        const timeBands = buildDailyTimeBands(rangeMin, rangeMax, hourW)
+
+        /* Build bars for standard time */
+        const standardBars = laneSegs
+        .filter(seg => seg.phase !== "waiting")
+        .map(seg => {
+          const stdEnd = getStandardEnd(seg);
+          if (!stdEnd) return "";
+
+          const stdStartMs = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
+          const stdEndMs = clamp(stdEnd.getTime(), rangeMin.getTime(), rangeMax.getTime());
+
+          if (stdEndMs <= stdStartMs) return "";
+
+          const leftPx = ((stdStartMs - rangeMin.getTime()) / 3600000) * hourW;
+          const widthPx = Math.max(8, ((stdEndMs - stdStartMs) / 3600000) * hourW);
+
+          return `
+            <div class="bar standardBar"
+                style="left:${leftPx}px; width:${widthPx}px;"
+                data-tip="${escapeAttr(standardTipText(seg, new Date(stdStartMs), new Date(stdEndMs)))}">
+            </div>
+          `;
+        })
+        .join("");
+
+        /* Build bars for actual time */
         const bars = laneSegs.map(seg => {
+          const parts = sliceSegForWaiting(seg);
 
-        const segStart = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
-        const segEnd   = clamp(seg.end.getTime(), rangeMin.getTime(), rangeMax.getTime());
+          return parts
+            .filter(p => !(p.end.getTime() <= rangeMin.getTime() || p.start.getTime() >= rangeMax.getTime()))
+            .map(p => {
+              const sliceStart = new Date(Math.max(p.start.getTime(), rangeMin.getTime()));
+              const sliceEnd   = new Date(Math.min(p.end.getTime(), rangeMax.getTime()));
 
-        const leftPx  = ((segStart - rangeMin.getTime()) / 3600000) * hourW;
-        const widthPx = Math.max(10, ((segEnd - segStart) / 3600000) * hourW);
+              const leftPx  = ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
+              const widthPx = Math.max(10, ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW);
 
-        const isWaiting = seg.phase === "waiting";
+              const isHoldGap = (p.type === "on_hold_gap");
+              const isWaiting = (p.type === "waiting" || seg.phase === "waiting" || seg.status === "waiting");
 
-        const stClass = isWaiting
-          ? "st-waiting"
-          : stationClass(seg.station);
+              const stClass =
+                isHoldGap ? "st-holdgap" :
+                isWaiting ? "st-waiting" :
+                stationClass(seg.station);
 
-        const statusCls =
-          isWaiting ? "status-waiting"
-          : seg.status === "completed" ? "status-completed"
-          : seg.status === "on_hold" ? "status-onhold"
-          : "status-running";
+              const statusCls =
+                isHoldGap ? "status-holdgap" :
+                isWaiting ? "status-waiting" :
+                seg.status === "completed" ? "status-completed" :
+                seg.status === "on_hold" ? "status-onhold" :
+                "status-running";
 
-        const tipText = tipTextBuilder(seg, seg.start, seg.end, isWaiting ? "waiting" : "process");
+              const tipText = tipTextBuilder(
+                seg,
+                sliceStart,
+                sliceEnd,
+                isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process"
+              );
 
+              return `
+                <div class="bar ${stClass} ${statusCls}"
+                    style="left:${leftPx}px; width:${widthPx}px;"
+                    data-tip="${escapeAttr(tipText)}">
+                </div>
+              `;
+            })
+            .join("");
+        }).join("");
+                
+
+        /* Return two rows - one for standard, and one for actual */
         return `
-          <div class="bar ${stClass} ${statusCls}"
-              style="left:${leftPx}px; width:${widthPx}px;"
-              data-tip="${escapeAttr(tipText)}">
+          <div class="unitLaneRow standardLaneRow">
+            <div class="ganttCell procNo">
+              <div style="font-weight:900;">STD</div>
+            </div>
+
+            <div class="ganttCell status">
+              <span class="statusPill standard">Standard</span>
+            </div>
+
+            <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+              ${timeBands}
+              ${standardBars}
+            </div>
           </div>
-        `;
 
-      }).join("");
-
-        return `
           <div class="unitLaneRow">
             <div class="ganttCell procNo">
               <div style="font-weight:900;">${escapeHtml(procNo)}</div>
@@ -826,6 +999,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
             </div>
 
             <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+              ${timeBands}
               ${bars}
             </div>
           </div>
@@ -976,14 +1150,27 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
           const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
           const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
 
-          const isWaiting = (p.type === "waiting");
-          const stClass   = isWaiting ? "st-waiting" : stationClass(seg.station);
-          const statusCls = isWaiting ? "status-waiting"
-                          : seg.status === "completed" ? "status-completed"
-                          : seg.status === "on_hold" ? "status-onhold"
-                          : "status-running";
+          const isHoldGap = (p.type === "on_hold_gap");
+          const isWaiting = (p.type === "waiting" || seg.phase === "waiting" || seg.status === "waiting");
 
-          const tipText = tipTextBuilder(seg, sliceStart, sliceEnd, isWaiting ? "waiting" : "process");
+          const stClass =
+            isHoldGap ? "st-holdgap" :
+            isWaiting ? "st-waiting" :
+            stationClass(seg.station);
+
+          const statusCls =
+            isHoldGap ? "status-holdgap" :
+            isWaiting ? "status-waiting" :
+            seg.status === "completed" ? "status-completed" :
+            seg.status === "on_hold" ? "status-onhold" :
+            "status-running";
+
+          const tipText = tipTextBuilder(
+            seg,
+            sliceStart,
+            sliceEnd,
+            isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process"
+          );
 
           return `
             <div class="bar ${stClass} ${statusCls}"
@@ -1115,7 +1302,7 @@ function exportExcelReport(runs) {
 
     let durationMs = 0;
     if (start && effectiveEnd) {
-      durationMs = Math.max(0, effectiveEnd.getTime() - start.getTime());
+      durationMs = getEffectiveDurationMs(start, effectiveEnd);;
     }
 
     const durationMin = minutesFromMs(durationMs);
@@ -1314,21 +1501,7 @@ function syncPickers(){
   if (btnToday) btnToday.classList.toggle("hidden", mode !== "month");
 }
 
-syncPickers();
-
-el("dateMode")?.addEventListener("change", () => {
-  syncPickers();
-  render();
-});
-   
-
 /* UI events */
-el("btn-refresh")?.addEventListener("click", async () => {
-  clearCache();
-  await render();
-});
-
-el("dateMode").addEventListener("change", () => render());
 
 el("btn-export").addEventListener("click", async () => {
   // Ensure we have the latest data (so export always includes newest runs)
@@ -1336,26 +1509,11 @@ el("btn-export").addEventListener("click", async () => {
   exportExcelReport(runs);
 });
 
-el("dayPicker")?.addEventListener("change", () => render());
-
-el("monthPicker")?.addEventListener("change", () => render());
-
-el("btnToday")?.addEventListener("click", () => {
-  const today = new Date();
-  const monthStr = today.toISOString().slice(0,7); // YYYY-MM
-  el("monthPicker").value = monthStr;
-  render();
-});
-
-
-
-
 /* Start */
 async function renderGanttView() {
   console.log("GANTT RENDER CALLED");
   await render();
 }
-
 
 /* Tooltip functions */
 
@@ -1371,7 +1529,15 @@ function ensureTip(){
 
 function hideTip(){
   if (!tipEl) return;
-  tipEl.classList.remove("show", "status-onhold", "status-completed", "status-running");
+  tipEl.classList.remove(
+    "show",
+    "status-onhold",
+    "status-completed",
+    "status-running",
+    "status-waiting",
+    "status-holdgap",
+    "status-standard"
+  );
 }
 
 function showTipForBar(barEl){
@@ -1382,13 +1548,22 @@ function showTipForBar(barEl){
   tip.className = "ganttTip show";
 
   // NEW: waiting bar tooltip style
-  if (barEl.classList.contains("status-waiting")) {
+  if (barEl.classList.contains("standardBar")) {
+    tip.classList.add("status-standard");
+  }
+  else if (barEl.classList.contains("status-holdgap")) {
+    tip.classList.add("status-holdgap");
+  }
+  else if (barEl.classList.contains("status-waiting")) {
     tip.classList.add("status-waiting");
-  } else if (barEl.classList.contains("status-onhold")) {
+  }
+  else if (barEl.classList.contains("status-onhold")) {
     tip.classList.add("status-onhold");
-  } else if (barEl.classList.contains("status-completed")) {
+  }
+  else if (barEl.classList.contains("status-completed")) {
     tip.classList.add("status-completed");
-  } else {
+  }
+  else {
     tip.classList.add("status-running");
   }
 
@@ -1441,5 +1616,5 @@ window.addEventListener("resize", () => {
   render();
 });
 
-export { renderGanttView };
+export { renderGanttView, syncPickers };
 bindFloatingTooltip();
