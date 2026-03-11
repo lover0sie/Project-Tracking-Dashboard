@@ -2,28 +2,28 @@ import { loadRuns, clearCache } from "./timeline.js";
 
 // Estimated time in minutes for each process
 const STANDARD_TIME_MIN = {
-  "6 - Hole bevelling": 40,
-  "7 - Connector welding": 35,
-  "8A - Fitting internal plate": 30,
-  "8B - GMAW C&B": 45,
-  "9 - Fitting and welding distribution box": 50,
-  "10 - Tube support, bush fitting, and tube sheet fitting": 60,
-  "11 - Tubesheet welding": 45,
-  "12 - Bracket and attachment welding, copper tube brazing": 55,
-  "13 - Unit side plate and base welding": 40,
-  "14A - Tube slotting": 25,
-  "14B - Tube expansion": 35,
-  "15 - Primer painting": 20,
-  "16 - Pneumatic testing": 30,
-  "17 - Hydrostatic testing": 30,
-  "18, 19 - Primer painting (weld seam) and top coat painting": 45,
+  "6 - Hole bevelling": 80,
+  "7 - Connector welding": 100,
+  "8A - Fitting internal plate": 200,
+  "8B - GMAW C&B": 300,
+  "9 - Fitting and welding distribution box": 250,
+  "10 - Tube support, bush fitting, and tube sheet fitting": 200,
+  "11 - Tubesheet welding": 220,
+  "12 - Bracket and attachment welding, copper tube brazing": 340,
+  "13 - Unit side plate and base welding": 380,
+  "14A - Tube slotting": 100,
+  "14B - Tube expansion": 400,
+  "15 - Primer painting": 180,
+  "16 - Pneumatic testing": 120,
+  "17 - Hydrostatic testing": 300,
+  "18, 19 - Primer painting (weld seam) and top coat painting": 600,
 
-  "6, 7 - Hole bevelling and connector welding": 60,
-  "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding": 120,
-  "12 - Bracket and attachment fitting and welding": 40,
-  "19 - Top coat painting": 20,
+  "6, 7 - Hole bevelling and connector welding": 200,
+  "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding": 500,
+  "12 - Bracket and attachment fitting and welding": 300,
+  "19 - Top coat painting": 400,
 
-  "Piping shop": 60
+  "Piping shop": 300
 }
 
 /* DOM */
@@ -42,6 +42,55 @@ let cachedEvents = [];
 const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 7;
 const END_HOUR = 22;
+
+function buildStandardSlices(seg) {
+  const stdMin = getStandardMinutes(seg?.processLabel);
+  if (!stdMin || !seg?.start) return [];
+
+  let remainingMs = stdMin * 60000;
+  const slices = [];
+
+  const start = seg.start;
+  const hold = seg.holdAt;
+  const resume = seg.resumedAt;
+  const end = seg.end;
+
+  // No hold at all -> one normal standard slice from start
+  if (!hold || hold <= start) {
+    slices.push({
+      start,
+      end: new Date(start.getTime() + remainingMs)
+    });
+    return slices;
+  }
+
+  // First running part: start -> hold
+  const firstRunMs = Math.max(0, hold.getTime() - start.getTime());
+  const firstStdMs = Math.min(firstRunMs, remainingMs);
+
+  if (firstStdMs > 0) {
+    slices.push({
+      start,
+      end: new Date(start.getTime() + firstStdMs)
+    });
+    remainingMs -= firstStdMs;
+  }
+
+  // If resumed later and still has remaining standard, show again from resume
+  if (resume && resume > hold && remainingMs > 0) {
+    slices.push({
+      start: resume,
+      end: new Date(resume.getTime() + remainingMs)
+    });
+  }
+
+  return slices;
+}
+
+function isLateAgainstStandard(seg) {
+  const varianceMs = getVarianceMs(seg);
+  return varianceMs != null && varianceMs > 0;
+}
 
 function getDailyBreakWindows(baseDate) {
   const makeRange = (startH, startM, endH, endM) => {
@@ -70,14 +119,62 @@ function overlapMs(startA, endA, startB, endB) {
 function getBreakOverlapMs(start, end) {
   if (!start || !end || end <= start) return 0;
 
-  const breaks = getDailyBreakWindows(start);
   let total = 0;
 
-  for (const b of breaks) {
-    total += overlapMs(start, end, b.start, b.end);
+  let curDay = new Date(start);
+  curDay.setHours(0,0,0,0);
+
+  const lastDay = new Date(end);
+  lastDay.setHours(0,0,0,0);
+
+  while (curDay <= lastDay) {
+
+    const breaks = getDailyBreakWindows(curDay);
+
+    for (const b of breaks) {
+      total += overlapMs(start, end, b.start, b.end);
+    }
+
+    curDay.setDate(curDay.getDate() + 1);
   }
 
   return total;
+}
+
+function getHoldDurationMs(seg) {
+  if (!seg?.holdAt) return 0;
+
+  const holdMs = seg.holdAt.getTime();
+
+  // resumed after hold
+  if (seg.resumedAt && seg.resumedAt.getTime() > holdMs) {
+    return seg.resumedAt.getTime() - holdMs;
+  }
+
+  // currently still on hold
+  if (seg.status === "on_hold" && seg.end && seg.end.getTime() > holdMs) {
+    return seg.end.getTime() - holdMs;
+  }
+
+  return 0;
+}
+
+function getHoldDurationMsFromRun(r) {
+
+  const hold = tsOrMsToDate(r.holdAt, r.holdEpochMs);
+  const resume = tsOrMsToDate(r.resumedAt, r.resumedEpochMs);
+
+  if (!hold) return 0;
+
+  if (resume && resume > hold) {
+    return resume.getTime() - hold.getTime();
+  }
+
+  if (String(r.status).toLowerCase() === "on_hold") {
+    return Date.now() - hold.getTime();
+  }
+
+  return 0;
 }
 
 
@@ -90,13 +187,23 @@ function getEffectiveDurationMs(start, end) {
   return Math.max(0, raw - breakMs);
 }
 
+function getActualEffectiveDurationMs(seg) {
+  if (!seg?.start || !seg?.end) return 0;
+
+  const elapsedMs = Math.max(0, seg.end.getTime() - seg.start.getTime());
+  const breakMs = getBreakOverlapMs(seg.start, seg.end);
+  const holdMs = getHoldDurationMs(seg);
+
+  return Math.max(0, elapsedMs - breakMs - holdMs);
+}
+
 
 function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
   const bands = [
     { label: "Recess", startH: 10, startM: 0, endH: 10, endM: 15, cls: "band-recess" }, // recess from 10:00 am to 10:15 am
     { label: "Lunch",  startH: 12, startM: 0, endH: 12, endM: 30, cls: "band-recess" }, // recess from 12:00 pm to 12:30 pm
     { label: "Recess", startH: 15, startM: 0, endH: 15, endM: 15, cls: "band-recess" }, // recess from 3:00 pm to 3:15 pm
-    { label: "Off Work", startH: 17, startM: 30, endH: 23, endM: 0, cls: "band-offwork" } // off-work from 05:30 pm to 9:00 pm
+    { label: "Off Work", startH: 17, startM: 30, endH: 21, endM: 0, cls: "band-offwork" } // off-work from 05:30 pm to 9:00 pm
   ];
 
   return bands.map(b => {
@@ -124,11 +231,29 @@ function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
 }
 
 /* Get the time difference between standard and actual process */
-function getVarianceMinutes(seg) {
-  const std = getStandardMinutes(seg?.processLabel);
-  const actual = Math.round(activeDurationMs(seg) / 60000);
-  if (!std) return null;
-  return actual - std;
+function getVarianceMs(seg) {
+  const stdMin = getStandardMinutes(seg?.processLabel);
+  if (!stdMin || !seg?.start || !seg?.end) return null;
+
+  const stdMs = stdMin * 60000;
+  const actualMs = getActualEffectiveDurationMs(seg);
+
+  return actualMs - stdMs;
+}
+
+function formatVariance(ms) {
+  if (ms == null) return "-";
+
+  if (Math.abs(ms) < 1000) return "On Time";
+
+  const absMs = Math.abs(ms);
+  const duration = formatDuration(absMs);
+
+  if (ms > 0) {
+    return `Behind by ${duration}`;
+  } else {
+    return `Ahead by ${duration}`;
+  }
 }
 
 function activeDurationMs(seg){
@@ -159,12 +284,31 @@ function getStandardEnd(seg) {
 /* Build tooltip for the standard time */
 function standardTipText(seg, stdStart, stdEnd) {
   const stdMin = getStandardMinutes(seg?.processLabel);
+  const stdMs = stdMin * 60000;
+
+  const elapsedMs = seg?.start && seg?.end
+    ? Math.max(0, seg.end.getTime() - seg.start.getTime())
+    : 0;
+
+  const breakMs = seg?.start && seg?.end
+    ? getBreakOverlapMs(seg.start, seg.end)
+    : 0;
+
+  const holdMs = getHoldDurationMs(seg);
+  const actualEffectiveMs = getActualEffectiveDurationMs(seg);
+  const varianceMs = getVarianceMs(seg);
+
   return (
     `Standard Time\n` +
     `Process: ${seg.processLabel || "-"}\n` +
+    `Standard Duration: ${formatDuration(stdMs)}\n` +
     `From: ${formatDateTime(stdStart)}\n` +
     `To: ${formatDateTime(stdEnd)}\n` +
-    `Standard Duration: ${stdMin} min`
+    `\nElapsed Time: ${formatDuration(elapsedMs)}\n` +
+    `Recess Time: ${formatDuration(breakMs)}\n` +
+    `On Hold Time: ${formatDuration(holdMs)}\n` +
+    `Effective Time: ${formatDuration(actualEffectiveMs)}\n` +
+    `Variance: ${formatVariance(varianceMs)}`
   );
 }
 
@@ -685,7 +829,7 @@ function unitInfoFromSeg(seg){
   return { unitType: "CHILLER", unitSerial: seg.chillerSerialNumber || seg.serial || "" };
 }
 
-function buildMaterialGroups(segments){
+/* function buildMaterialGroups(segments){
   const groups = new Map();
 
   for (const seg of segments) {
@@ -717,6 +861,51 @@ function buildMaterialGroups(segments){
     if (!g.units.has(unitKey)) {
       g.units.set(unitKey, { unitType, unitSerial, segs: [] });
     }
+    g.units.get(unitKey).segs.push(seg);
+  }
+
+  return groups;
+} */
+
+function buildChillerGroups(segments){
+  const groups = new Map();
+
+  for (const seg of segments) {
+    const groupKey = seg.chillerSerialNumber || "(No Chiller Serial)";
+    const projectName = seg.projectName || "(No Project)";
+    const materialNumber = seg.materialNumber || "(No Material)";
+    const chillerSerialNumber = seg.chillerSerialNumber || "(No Chiller Serial)";
+
+    const { unitType, unitSerial } = unitInfoFromSeg(seg);
+    const unitKey = `${unitType}||${unitSerial}`;
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        chillerSerialNumber,
+        projectName,
+        materialNumber,
+        units: new Map()
+      });
+    }
+
+    const g = groups.get(groupKey);
+
+    if (!g.projectName || g.projectName === "(No Project)") {
+      g.projectName = projectName;
+    }
+
+    if (!g.materialNumber || g.materialNumber === "(No Material)") {
+      g.materialNumber = materialNumber;
+    }
+
+    if (!g.units.has(unitKey)) {
+      g.units.set(unitKey, {
+        unitType,
+        unitSerial,
+        segs: []
+      });
+    }
+
     g.units.get(unitKey).segs.push(seg);
   }
 
@@ -845,10 +1034,15 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
   if (headWrap) headWrap.style.width = totalWidthPx + "px";
 
   // ---- Same grouping as your multi-day gantt ----
-  const groups = buildMaterialGroups(segments);
-  const groupArr = Array.from(groups.values()).sort((a,b) =>
+  /* const groups = buildMaterialGroups(segments); */
+  const groups = buildChillerGroups(segments);
+  /* const groupArr = Array.from(groups.values()).sort((a,b) =>
     (a.projectName || "").localeCompare(b.projectName || "") ||
     (a.materialNumber || "").localeCompare(b.materialNumber || "")
+  ); */
+  const groupArr = Array.from(groups.values()).sort((a,b) =>
+    (a.projectName || "").localeCompare(b.projectName || "") ||
+    (a.chillerSerialNumber || "").localeCompare(b.chillerSerialNumber || "")
   );
 
   bodyEl.innerHTML = groupArr.map(g => {
@@ -859,9 +1053,9 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
           <div class="groupHeaderRow">
             <div class="title">${escapeHtml(g.projectName)}</div>
             <div class="materialRight">
-              <b>${escapeHtml(g.materialNumber || "-")}</b>
+              <b>${escapeHtml(g.chillerSerialNumber|| "-")}</b>
               <span class="divider">|</span>
-              <b>${escapeHtml(g.chillerSerialNumber || "-")}</b>
+              <b>${escapeHtml(g.materialNumber  || "-")}</b>
             </div>
           </div>
         </div>
@@ -906,23 +1100,27 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
         const standardBars = laneSegs
         .filter(seg => seg.phase !== "waiting")
         .map(seg => {
-          const stdEnd = getStandardEnd(seg);
-          if (!stdEnd) return "";
+          const stdSlices = buildStandardSlices(seg);
+          const isLate = isLateAgainstStandard(seg);
 
-          const stdStartMs = clamp(seg.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
-          const stdEndMs = clamp(stdEnd.getTime(), rangeMin.getTime(), rangeMax.getTime());
+          return stdSlices.map(slice => {
+            const stdStartMs = clamp(slice.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
+            const stdEndMs = clamp(slice.end.getTime(), rangeMin.getTime(), rangeMax.getTime());
 
-          if (stdEndMs <= stdStartMs) return "";
+            if (stdEndMs <= stdStartMs) return "";
 
-          const leftPx = ((stdStartMs - rangeMin.getTime()) / 3600000) * hourW;
-          const widthPx = Math.max(8, ((stdEndMs - stdStartMs) / 3600000) * hourW);
+            const leftPx = ((stdStartMs - rangeMin.getTime()) / 3600000) * hourW;
+            const widthPx = Math.max(8, ((stdEndMs - stdStartMs) / 3600000) * hourW);
 
-          return `
-            <div class="bar standardBar"
-                style="left:${leftPx}px; width:${widthPx}px;"
-                data-tip="${escapeAttr(standardTipText(seg, new Date(stdStartMs), new Date(stdEndMs)))}">
-            </div>
-          `;
+            return `
+              <div class="bar standardBar ${isLate ? "standardLate" : ""}"
+                  style="left:${leftPx}px; width:${widthPx}px;"
+                  data-tip="${escapeAttr(
+                    standardTipText(seg, new Date(stdStartMs), new Date(stdEndMs))
+                  )}">
+              </div>
+            `;
+          }).join("");
         })
         .join("");
 
@@ -1098,10 +1296,15 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
   if (headWrap) headWrap.style.width = totalWidthPx + "px";
 
   // ---- Group by material number -> units ----
-  const groups = buildMaterialGroups(segments);
-  const groupArr = Array.from(groups.values()).sort((a,b) =>
+  /* const groups = buildMaterialGroups(segments); */
+  const groups = buildChillerGroups(segments);
+  /* const groupArr = Array.from(groups.values()).sort((a,b) =>
     (a.projectName || "").localeCompare(b.projectName || "") ||
     (a.materialNumber || "").localeCompare(b.materialNumber || "")
+  ); */
+  const groupArr = Array.from(groups.values()).sort((a,b) =>
+    (a.projectName || "").localeCompare(b.projectName || "") ||
+    (a.chillerSerialNumber || "").localeCompare(b.chillerSerialNumber || "")
   );
 
   bodyEl.innerHTML = groupArr.map(g => {
@@ -1113,9 +1316,9 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
           <div class="groupHeaderRow">
             <div class="title">${escapeHtml(g.projectName)}</div>
             <div class="materialRight">
-              <b>${escapeHtml(g.materialNumber || "-")}</b>
+              <b>${escapeHtml(g.chillerSerialNumber  || "-")}</b>
               <span class="divider">|</span>
-              <b>${escapeHtml(g.chillerSerialNumber || "-")}</b>
+              <b>${escapeHtml(g.materialNumber|| "-")}</b>
             </div>
           </div>
         </div>
@@ -1266,23 +1469,27 @@ function exportExcelReport(runs) {
   }
 
   const rawHeader = [
-    "Project Name",
-    "Description",
-    "Serial Number",
-    "Type",
-    "Material Number",
-    "Process",
-    "Station",
-    "Manpower",
-    "Status",
-    "Start Date",
-    "Start Time",
-    "End Date",
-    "End Time",
-    "Duration (Minutes)",
-    "Duration (Hours)",
-    "Man-Hours"
-  ];
+  "Project Name",
+  "Description",
+  "Serial Number",
+  "Type",
+  "Material Number",
+  "Process",
+  "Station",
+  "Manpower",
+  "Status",
+  "Start Date",
+  "Start Time",
+  "End Date",
+  "End Time",
+  "Elapsed Duration (Minutes)",
+  "Break Time (Minutes)",
+  "Effective Duration (Minutes)",
+  "Elapsed Duration (Hours)",
+  "Effective Duration (Hours)",
+  "Elapsed Man-Hours",
+  "Effective Man-Hours"
+];
 
   const rawRows = [rawHeader];
 
@@ -1300,14 +1507,30 @@ function exportExcelReport(runs) {
       : status === "on_hold" ? (holdTime || new Date())
       : new Date();
 
-    let durationMs = 0;
+    let elapsedMs = 0;
+    let breakMs = 0;
+    let holdMs = 0;
+    let effectiveMs = 0;
+
     if (start && effectiveEnd) {
-      durationMs = getEffectiveDurationMs(start, effectiveEnd);;
+      elapsedMs = Math.max(0, effectiveEnd.getTime() - start.getTime());
+      breakMs = getBreakOverlapMs(start, effectiveEnd);
+        if (status === "completed") {
+          holdMs = getHoldDurationMsFromRun(r);
+        }
+        
+      effectiveMs = Math.max(0, elapsedMs - breakMs - holdMs);
     }
 
-    const durationMin = minutesFromMs(durationMs);
-    const durationHours = durationMs > 0 ? (durationMs / 3600000) : 0;
-    const mh = manHoursFromMs(durationMs, r.manpower);
+    const elapsedMin = minutesFromMs(elapsedMs);
+    const breakMin = minutesFromMs(breakMs);
+    const effectiveMin = minutesFromMs(effectiveMs);
+
+    const elapsedHours = elapsedMs > 0 ? (elapsedMs / 3600000) : 0;
+    const effectiveHours = effectiveMs > 0 ? (effectiveMs / 3600000) : 0;
+
+    const elapsedManHours = manHoursFromMs(elapsedMs, r.manpower);
+    const effectiveManHours = manHoursFromMs(effectiveMs, r.manpower);
 
     rawRows.push([
       r.projectName || "",
@@ -1323,9 +1546,13 @@ function exportExcelReport(runs) {
       start ? formatExcelTime(start) : "",
       effectiveEnd ? formatExcelDate(effectiveEnd) : "",
       effectiveEnd ? formatExcelTime(effectiveEnd) : "",
-      durationMin,
-      durationHours.toFixed(2),
-      mh.toFixed(2)
+      elapsedMin,
+      breakMin,
+      effectiveMin,
+      elapsedHours.toFixed(2),
+      effectiveHours.toFixed(2),
+      elapsedManHours.toFixed(2),
+      effectiveManHours.toFixed(2)
     ]);
 
     const station = r.station || "(No Station)";
@@ -1337,26 +1564,38 @@ function exportExcelReport(runs) {
         station,
         process: proc,
         runs: 0,
-        totalMinutes: 0,
-        totalHours: 0,
-        totalManHours: 0
+        totalElapsedMinutes: 0,
+        totalBreakMinutes: 0,
+        totalEffectiveMinutes: 0,
+        totalElapsedHours: 0,
+        totalEffectiveHours: 0,
+        totalElapsedManHours: 0,
+        totalEffectiveManHours: 0
       });
     }
 
     const agg = summaryMap.get(key);
     agg.runs += 1;
-    agg.totalMinutes += durationMin;
-    agg.totalHours += durationHours;
-    agg.totalManHours += mh;
+    agg.totalElapsedMinutes += elapsedMin;
+    agg.totalBreakMinutes += breakMin;
+    agg.totalEffectiveMinutes += effectiveMin;
+    agg.totalElapsedHours += elapsedHours;
+    agg.totalEffectiveHours += effectiveHours;
+    agg.totalElapsedManHours += elapsedManHours;
+    agg.totalEffectiveManHours += effectiveManHours;
   }
 
   const summaryHeader = [
     "Station",
     "Process",
     "Frequency",
-    "Total Minutes",
-    "Total Hours",
-    "Total Man-Hours"
+    "Total Elapsed Minutes",
+    "Total Break Minutes",
+    "Total Effective Minutes",
+    "Total Elapsed Hours",
+    "Total Effective Hours",
+    "Total Elapsed Man-Hours",
+    "Total Effective Man-Hours"
   ];
 
   const summaryRows = [summaryHeader];
@@ -1370,9 +1609,13 @@ function exportExcelReport(runs) {
       s.station,
       s.process,
       s.runs,
-      s.totalMinutes,
-      s.totalHours.toFixed(2),
-      s.totalManHours.toFixed(2)
+      s.totalElapsedMinutes,
+      s.totalBreakMinutes,
+      s.totalEffectiveMinutes,
+      s.totalElapsedHours.toFixed(2),
+      s.totalEffectiveHours.toFixed(2),
+      s.totalElapsedManHours.toFixed(2),
+      s.totalEffectiveManHours.toFixed(2)
     ]);
   }
 
@@ -1382,31 +1625,39 @@ function exportExcelReport(runs) {
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
 
   wsRaw["!cols"] = [
-  { wch: 24 }, // Project Name
-  { wch: 22 }, // Description
-  { wch: 16 }, // Serial Number
-  { wch: 14 }, // Type
-  { wch: 16 }, // Material Number
-  { wch: 34 }, // Process
-  { wch: 14 }, // Station
-  { wch: 10 }, // Manpower
-  { wch: 12 }, // Status
-  { wch: 14 }, // Start Date
-  { wch: 14 }, // Start Time
-  { wch: 14 }, // End Date
-  { wch: 14 }, // End Time
-  { wch: 18 }, // Duration (Minutes)
-  { wch: 16 }, // Duration (Hours)
-  { wch: 14 }  // Man-Hours
-];
+    { wch: 24 }, // Project Name
+    { wch: 22 }, // Description
+    { wch: 16 }, // Serial Number
+    { wch: 14 }, // Type
+    { wch: 16 }, // Material Number
+    { wch: 34 }, // Process
+    { wch: 14 }, // Station
+    { wch: 10 }, // Manpower
+    { wch: 12 }, // Status
+    { wch: 14 }, // Start Date
+    { wch: 14 }, // Start Time
+    { wch: 14 }, // End Date
+    { wch: 14 }, // End Time
+    { wch: 22 }, // Elapsed Duration (Minutes)
+    { wch: 20 }, // Break Time (Minutes)
+    { wch: 24 }, // Effective Duration (Minutes)
+    { wch: 22 }, // Elapsed Duration (Hours)
+    { wch: 24 }, // Effective Duration (Hours)
+    { wch: 20 }, // Elapsed Man-Hours
+    { wch: 22 }  // Effective Man-Hours
+  ];
 
   wsSummary["!cols"] = [
     { wch: 14 }, // Station
     { wch: 34 }, // Process
     { wch: 10 }, // Runs
-    { wch: 16 }, // Total Minutes
-    { wch: 14 }, // Total Hours
-    { wch: 18 }  // Total Man-Hours
+    { wch: 22 }, // Total Elapsed Minutes
+    { wch: 20 }, // Total Break Minutes
+    { wch: 24 }, // Total Effective Minutes
+    { wch: 20 }, // Total Elapsed Hours
+    { wch: 22 }, // Total Effective Hours
+    { wch: 24 }, // Total Elapsed Man-Hours
+    { wch: 26 }  // Total Effective Man-Hours
   ];
 
   XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Runs");

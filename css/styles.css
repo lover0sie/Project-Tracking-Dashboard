@@ -184,6 +184,7 @@ select:focus{
   border-radius: var(--radiusSm);
   overflow:auto;
   background:#fff;
+  max-height: 700px;
 }
 
 .ganttGrid{
@@ -211,12 +212,11 @@ select:focus{
 
 /* ==================== Gantt: Sticky Header ==================== */
 .ganttHead{
-  /* Pin the header while scrolling so dates and month labels stay visible. */
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 50;
   display:grid;
-  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr; /* Project | ProcNo | Status | Timeline */
+  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
   border-bottom:1px solid var(--border);
   background:#fafafa;
 }
@@ -272,9 +272,11 @@ select:focus{
   min-width: 0;
 }
 
+/* ================= Standard Bar Time ==================== */
+
 .standardBar{
-  top: 12px;
-  height: 14px;
+  top: 13px;
+  height: 10px;
   background: repeating-linear-gradient(
     135deg,
     #cbd5e1 0 6px,
@@ -283,13 +285,15 @@ select:focus{
   border: 1px dashed #94a3b8;
   border-radius: 999px;
   box-shadow: none;
-  opacity: 1;
 }
 
-
-
-.standardLaneRow .ganttTimeline {
-  min-height: 22px;
+.standardBar.standardLate{
+  background: repeating-linear-gradient(
+    135deg,
+    #fca5a5 0 6px,
+    #fecaca 6px 12px
+  );
+  border: 1px dashed #dc2626;
 }
 
 /* ==================== Gantt: Sticky Body Columns ==================== */
@@ -312,9 +316,9 @@ select:focus{
 }
 
 /* Make each sticky column offset correctly */
-.ganttCell.project{ left: 0; z-index: 12; justify-content:flex-start; }
-.ganttCell.procNo{ left: var(--colProject); z-index: 11; }
-.ganttCell.status{ left: calc(var(--colProject) + var(--colProc)); z-index: 11; }
+.ganttCell.project{ left: 0; z-index: 20; justify-content:flex-start; }
+.ganttCell.procNo{ left: var(--colProject); z-index: 20; }
+.ganttCell.status{ left: calc(var(--colProject) + var(--colProc)); z-index: 20; }
 
 .ganttCell.procNo,
 .ganttCell.status{
@@ -328,6 +332,20 @@ select:focus{
 
 .ganttCell.project{
   background:#f8fafc;
+}
+
+/* Make the first columns stay visible while scrolling down */
+.ganttCell.project,
+.ganttCell.procNo,
+.ganttCell.status {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: #ffff;
+}
+
+.groupRow .ganttCell.project {
+  background: #f3f4f6;
 }
 
 /* Prevent global .status card styles from affecting the sticky Status column cell. */
@@ -776,7 +794,7 @@ select:focus{
 .bar.st-piping{ background:#166534; border-color:#14532d; color:#fff; } /* dark green */
 .bar.st-fabrication { background:#077c91; border-color:#0b6a7b; color:#fff } /* cyan */
 .bar.st-pneumatic {background:#754960; border-color:#533545; color:#fff  }
-.bar.st-waiting{ background:#cbd5e1 !important; border-color:#94a3b8 !important; box-shadow: none; opacity: .95;}
+.bar.st-waiting{ background:#42484f !important; border-color:#94a3b8 !important; box-shadow: none; opacity: .95;}
 .bar.st-holdgap{ background:#ef4444 !important; border-color:#b91c1c !important; box-shadow:none; opacity:.95;
 }
 
