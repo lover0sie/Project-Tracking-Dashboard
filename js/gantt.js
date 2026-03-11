@@ -200,26 +200,36 @@ function getActualEffectiveDurationMs(seg) {
 
 function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
   const bands = [
-    { label: "Recess", startH: 10, startM: 0, endH: 10, endM: 15, cls: "band-recess" }, // recess from 10:00 am to 10:15 am
-    { label: "Lunch",  startH: 12, startM: 0, endH: 12, endM: 30, cls: "band-recess" }, // recess from 12:00 pm to 12:30 pm
-    { label: "Recess", startH: 15, startM: 0, endH: 15, endM: 15, cls: "band-recess" }, // recess from 3:00 pm to 3:15 pm
-    { label: "Off Work", startH: 17, startM: 30, endH: 21, endM: 0, cls: "band-offwork" } // off-work from 05:30 pm to 9:00 pm
+    { label: "Recess", startH: 10, startM: 0, endH: 10, endM: 15, cls: "band-recess" },
+    { label: "Lunch",  startH: 12, startM: 0, endH: 12, endM: 30, cls: "band-recess" },
+    { label: "Recess", startH: 15, startM: 0, endH: 15, endM: 15, cls: "band-recess" },
+    { label: "Off Work", startH: 17, startM: 30, cls: "band-offwork", extendToChartEnd: true }
   ];
+
+  const chartEndPx = ((END_HOUR - START_HOUR) + 1) * hourW;
 
   return bands.map(b => {
     const bandStart = new Date(rangeMin);
     bandStart.setHours(b.startH, b.startM, 0, 0);
 
-    const bandEnd = new Date(rangeMin);
-    bandEnd.setHours(b.endH, b.endM, 0, 0);
-
     const startMs = Math.max(bandStart.getTime(), rangeMin.getTime());
-    const endMs = Math.min(bandEnd.getTime(), rangeMax.getTime());
-
-    if (endMs <= startMs) return "";
+    if (startMs >= rangeMax.getTime()) return "";
 
     const leftPx = ((startMs - rangeMin.getTime()) / 3600000) * hourW;
-    const widthPx = ((endMs - startMs) / 3600000) * hourW;
+
+    let widthPx = 0;
+
+    if (b.extendToChartEnd) {
+      widthPx = Math.max(0, chartEndPx - leftPx);
+    } else {
+      const bandEnd = new Date(rangeMin);
+      bandEnd.setHours(b.endH, b.endM, 0, 0);
+
+      const endMs = Math.min(bandEnd.getTime(), rangeMax.getTime());
+      if (endMs <= startMs) return "";
+
+      widthPx = ((endMs - startMs) / 3600000) * hourW;
+    }
 
     return `
       <div class="timeBand ${b.cls}"
@@ -302,9 +312,9 @@ function standardTipText(seg, stdStart, stdEnd) {
     `Standard Time\n` +
     `Process: ${seg.processLabel || "-"}\n` +
     `Standard Duration: ${formatDuration(stdMs)}\n` +
-    `From: ${formatDateTime(stdStart)}\n` +
-    `To: ${formatDateTime(stdEnd)}\n` +
-    `\nElapsed Time: ${formatDuration(elapsedMs)}\n` +
+    /*`From: ${formatDateTime(stdStart)}\n` +
+    `To: ${formatDateTime(stdEnd)}\n` + 
+    /* `\nElapsed Time: ${formatDuration(elapsedMs)}\n` + */
     `Recess Time: ${formatDuration(breakMs)}\n` +
     `On Hold Time: ${formatDuration(holdMs)}\n` +
     `Effective Time: ${formatDuration(actualEffectiveMs)}\n` +
@@ -393,10 +403,10 @@ function fitDailyToScreen(){
   const wrapWidth = wrap.clientWidth;
 
   // timeline area width = wrap - left columns
-  const timelineWidth = Math.max(300, wrapWidth - (colProject + colProc + colStatus));
+  const timelineWidth = Math.max(0, wrapWidth - (colProject + colProc + colStatus));
 
-  // compute hour width, clamp so it doesn’t become too tiny/huge
-  const hourW = Math.max(40, Math.min(120, Math.floor(timelineWidth / hoursCount)));
+  // compute hour width from the visible space so the full daily grid fits the viewport
+  const hourW = Math.max(16, Math.floor(timelineWidth / hoursCount));
 
   document.documentElement.style.setProperty("--hourW", hourW + "px");
 }
@@ -470,7 +480,7 @@ function startOfWorkDay(d){
 
 function endOfWorkDay(d){
   const x = new Date(d);
-  x.setHours(END_HOUR, 0, 0, 0);
+  x.setHours(END_HOUR, 0,0,0);
   return x;
 }
 
@@ -1683,6 +1693,14 @@ async function render() {
     renderLegendsStationOnly(segments);
 
     const mode = el("dateMode")?.value || "daily";
+    const wrap = document.querySelector(".ganttWrap");
+    const grid = document.querySelector(".ganttGrid");
+
+    wrap?.classList.toggle("dailyMode", mode === "daily");
+    wrap?.classList.toggle("monthMode", mode === "month");
+
+    grid?.classList.toggle("dailyMode", mode === "daily");
+    grid?.classList.toggle("monthMode", mode === "month");
 
     // DAILY MODE
     if (mode === "daily") {
@@ -1694,16 +1712,15 @@ async function render() {
 
       const rangeMin = startOfWorkDay(dayDate);
       const rangeMax = endOfWorkDay(dayDate);
-      
-      const hourW = getHourW();
-      document.documentElement.style.setProperty("--colW", hourW + "px");
-      document.documentElement.style.setProperty("--minorDiv", "2");
 
       const segsInWindow = segments.filter(s =>
         s.end.getTime() > rangeMin.getTime() && s.start.getTime() < rangeMax.getTime()
       );
 
       fitDailyToScreen();
+      const hourW = getHourW();
+      document.documentElement.style.setProperty("--colW", hourW + "px");
+      document.documentElement.style.setProperty("--minorDiv", "2");
 
       renderGanttDaily(rangeMin, rangeMax, segsInWindow);
       return;
@@ -1728,8 +1745,30 @@ async function render() {
       const rangeMin = startOfDay(monthStart);
       const rangeMax = endOfDay(monthEnd);
 
+      const segsInMonth = segments.filter(s =>
+        s.end.getTime() > rangeMin.getTime() &&
+        s.start.getTime() < rangeMax.getTime()
+      );
+
+      if (!segsInMonth.length) {
+        bodyEl.innerHTML = `
+          <div class="emptyState">
+            No projects found for the selected month.
+          </div>
+        `;
+        monthHeadEl.innerHTML = buildMonthHeader(buildDateRange(rangeMin, rangeMax));
+        dayHeadEl.innerHTML = buildDateRange(rangeMin, rangeMax).map(d => `
+          <div class="dayCol">
+            <div class="d1">${dateKey(d)}</div>
+            <div class="d2">${weekdayName(d)}</div>
+          </div>
+        `).join("");
+        return;
+      }
+
       const days = buildDateRange(rangeMin, rangeMax);
-      renderGantt(days, rangeMin, rangeMax, segments);
+      renderGantt(days, rangeMin, rangeMax, segsInMonth);
+     
       return;
     }
 

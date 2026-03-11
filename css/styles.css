@@ -192,6 +192,35 @@ select:focus{
   min-width: 100%;
 }
 
+/* monthly = allow both scroll directions */
+.ganttWrap.monthMode{
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+/* daily = vertical only */
+.ganttWrap.dailyMode{
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.ganttGrid{
+  width: max-content;
+  min-width: 100%;
+}
+
+/* daily should fit container width */
+.ganttGrid.dailyMode{
+  width: 100%;
+  min-width: 100%;
+}
+
+.ganttWrap.dailyMode .ganttHead,
+.ganttWrap.dailyMode .ganttRow,
+.ganttWrap.dailyMode .unitBlock{
+  max-width: 100%;
+}
+
 /* ======================= Timebands ============================ */
 
 .timeBand{
@@ -200,6 +229,7 @@ select:focus{
   bottom:0;
   pointer-events:none;
   z-index:1;
+  
 }
 
 .timeBand.band-recess{
@@ -207,7 +237,7 @@ select:focus{
 }
 
 .timeBand.band-offwork{
-  background: rgba(148, 163, 184, 0.20);
+  background: rgba(148, 163, 184, 0.25);
 }
 
 /* ==================== Gantt: Sticky Header ==================== */
@@ -270,6 +300,14 @@ select:focus{
   flex-direction:column;
   width: auto;
   min-width: 0;
+}
+
+.emptyState{
+  padding: 24px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 /* ================= Standard Bar Time ==================== */

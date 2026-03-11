@@ -18,8 +18,6 @@
       </div>
 
       <div class="actions">
-        <button id="btn-gantt" class="secondary">Timeline View</button>
-        <button id="btn-tree" class="secondary">Tree View</button>
         <button id="btn-refresh" class="secondary">Refresh</button>
         <a class="btn secondary" href="processes.html">Process Description</a>
         <button id="btn-export">Export Excel File</button>
@@ -97,8 +95,6 @@
   import { clearCache } from "./js/timeline.js";
   import { renderGanttView, syncPickers } from "./js/gantt.js";
 
-  const btnTree = document.getElementById("btn-tree");
-  const btnGantt = document.getElementById("btn-gantt");
   const btnRefresh = document.getElementById("btn-refresh");
 
   const dayPicker = document.getElementById("dayPicker");
@@ -133,16 +129,6 @@
   // Default view = Gantt
   currentView = "gantt";
   renderCurrentView();
-
-  btnTree.addEventListener("click", async () => {
-    currentView = "tree";
-    await renderCurrentView();
-  });
-
-  btnGantt.addEventListener("click", async () => {
-    currentView = "gantt";
-    await renderCurrentView();
-  });
 
   btnRefresh.addEventListener("click", async () => {
     clearCache();
