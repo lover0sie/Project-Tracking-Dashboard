@@ -33,7 +33,18 @@ body{
   color:var(--text);
   background:var(--bg);
 }
-.wrap{ max-width: 1400px; margin:0 auto; }
+.wrap{ 
+  max-width: 1400px; 
+  margin:0 auto; 
+  height: calc(100vh - 40px); /* 40 px is 20 top and 20 bottom */
+  display: flex; 
+  flex-direction: column;
+}
+
+html, body{
+  height: 100%;
+  overflow: hidden;
+}
 
 /* ==================== Page Header ==================== */
 .top{
@@ -131,6 +142,10 @@ button.secondary:hover{ border-color:#cbd5e1; background:#fbfbfb; }
   border-radius:var(--radius);
   padding:14px;
   box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 .toolbar{
@@ -179,12 +194,13 @@ select:focus{
 
 /* ==================== Gantt: Wrapper and Grid ==================== */
 .ganttWrap{
-  /* Keep overflow auto so wide timelines scroll instead of shrinking columns. */
   border:1px solid var(--border);
   border-radius: var(--radiusSm);
   overflow:auto;
   background:#fff;
-  max-height: 700px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 .ganttGrid{
