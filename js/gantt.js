@@ -312,10 +312,10 @@ function standardTipText(seg, stdStart, stdEnd) {
     `Standard Time\n` +
     `Process: ${seg.processLabel || "-"}\n` +
     `Standard Duration: ${formatDuration(stdMs)}\n` +
-    /*`From: ${formatDateTime(stdStart)}\n` +
+    `From: ${formatDateTime(stdStart)}\n` +
     `To: ${formatDateTime(stdEnd)}\n` + 
     /* `\nElapsed Time: ${formatDuration(elapsedMs)}\n` + */
-    `Recess Time: ${formatDuration(breakMs)}\n` +
+    `\nRecess Time: ${formatDuration(breakMs)}\n` +
     `On Hold Time: ${formatDuration(holdMs)}\n` +
     `Effective Time: ${formatDuration(actualEffectiveMs)}\n` +
     `Variance: ${formatVariance(varianceMs)}`
