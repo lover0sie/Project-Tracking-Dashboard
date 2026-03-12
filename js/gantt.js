@@ -309,15 +309,15 @@ function standardTipText(seg, stdStart, stdEnd) {
   const varianceMs = getVarianceMs(seg);
 
   return (
-    `Standard Time\n` +
+    `STANDARD TIME\n` +
     `Process: ${seg.processLabel || "-"}\n` +
     `Standard Duration: ${formatDuration(stdMs)}\n` +
-    `From: ${formatDateTime(stdStart)}\n` +
+    /*`From: ${formatDateTime(stdStart)}\n` +
     `To: ${formatDateTime(stdEnd)}\n` + 
-    /* `\nElapsed Time: ${formatDuration(elapsedMs)}\n` + */
+     `\nElapsed Time: ${formatDuration(elapsedMs)}\n` + 
     `\nRecess Time: ${formatDuration(breakMs)}\n` +
-    `On Hold Time: ${formatDuration(holdMs)}\n` +
-    `Effective Time: ${formatDuration(actualEffectiveMs)}\n` +
+    `On Hold Time: ${formatDuration(holdMs)}\n` + 
+    `Effective Time: ${formatDuration(actualEffectiveMs)}\n` + */
     `Variance: ${formatVariance(varianceMs)}`
   );
 }
@@ -337,7 +337,7 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
 
   if (isHoldGap) {
     return (
-      `Status: ON HOLD\n` +
+      `ON HOLD\n` +
       `Process: ${seg.processLabel || "-"}\n` +
       `From: ${formatDateTime(sliceStart)}\n` +
       `To: ${formatDateTime(sliceEnd)}\n` +
@@ -362,6 +362,19 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
   const startedLine =
     `Started: ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
 
+  const realFrom = seg.start;
+  const realTo = seg.status === "running" ? new Date() : seg.end;
+
+  const elapsedMs =
+    realFrom && realTo ? Math.max(0, realTo.getTime() - realFrom.getTime()) : 0;
+
+  const breakMs =
+    realFrom && realTo ? getBreakOverlapMs(realFrom, realTo) : 0;
+
+  const holdMs = getHoldDurationMs(seg);
+
+  const effectiveMs = Math.max(0, elapsedMs - breakMs - holdMs);
+
   const holdLine =
     seg.status === "on_hold"
       ? `\nHold Reason: ${
@@ -372,15 +385,19 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
       : "";
 
   return (
-    `${startedLine}\n` +
     `Process: ${seg.processLabel || "-"}\n` +
+    `${startedLine}\n` +
     `Manpower: ${seg.manpower ?? "-"}\n` +
-    `From: ${formatDateTime(sliceStart)}\n` +
-    `To: ${formatDateTime(sliceEnd)}\n` +
-    `Duration: ${formatDuration(getEffectiveDurationMs(sliceStart, sliceEnd))}` +
+    `From: ${formatDateTime(realFrom)}\n` +
+    `To: ${formatDateTime(realTo)}\n` +
+    /*`Elapsed Duration: ${formatDuration(elapsedMs)}\n` +
+     `Break Time: ${formatDuration(breakMs)}\n` +
+    `On Hold Time: ${formatDuration(holdMs)}\n` + */
+    `Effective Duration: ${formatDuration(effectiveMs)}` +
     holdLine
   );
 }
+
 
 /* Fitting the columns of daily into the screen */
 function fitDailyToScreen(){
