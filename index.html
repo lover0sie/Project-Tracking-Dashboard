@@ -51,13 +51,23 @@
         </div>
 
         <div class="rightPack">
-          <div class="filters">
+         <div class="filters">
+          <div>
+            <label for="viewMode">View</label>
+            <select id="viewMode">
+              <option value="gantt">Gantt</option>
+              <option value="tree">Tree</option>
+            </select>
+          </div>
+
+          <div>
             <label for="dateMode">Date Range</label>
             <select id="dateMode">
               <option value="daily">Daily</option>
               <option value="month">Monthly</option>
             </select>
           </div>
+        </div>
         </div>
       </div>
 
@@ -96,13 +106,13 @@
   import { renderGanttView, syncPickers } from "./js/gantt.js";
 
   const btnRefresh = document.getElementById("btn-refresh");
-
+  const viewMode = document.getElementById("viewMode");
   const dayPicker = document.getElementById("dayPicker");
   const monthPicker = document.getElementById("monthPicker");
   const dateMode = document.getElementById("dateMode");
   const btnToday = document.getElementById("btnToday");
 
-  let currentView = "gantt";
+  let currentView = viewMode?.value || "gantt";
 
   function setTreeHeaders() {
     document.getElementById("timelineHead")?.classList.add("hidden");
@@ -129,6 +139,11 @@
   // Default view = Gantt
   currentView = "gantt";
   renderCurrentView();
+
+  viewMode?.addEventListener("change", async () => {
+    currentView = viewMode.value;
+    await renderCurrentView();
+  });
 
   btnRefresh.addEventListener("click", async () => {
     clearCache();

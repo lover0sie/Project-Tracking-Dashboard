@@ -8,15 +8,114 @@ const bodyEl = el("ganttBody");
 const monthHeadEl = document.getElementById("ganttMonthHead");
 const dayHeadEl = document.getElementById("ganttDayHead");
 
-const UNIT_ORDER = ["EVAPORATOR","CONDENSER","OIL SEPARATOR","ECONOMIZER","CHILLER"];
+const UNIT_ORDER = ["CHILLER","EVAPORATOR","CONDENSER","OIL SEPARATOR","ECONOMIZER"];
 
+function tsOrMsToDate(ts, ms) {
+  if (ts && typeof ts.toDate === "function") return ts.toDate();
+
+  const n = (typeof ms === "number") ? ms
+          : (typeof ms === "string" && ms.trim() !== "" && !isNaN(ms)) ? Number(ms)
+          : null;
+
+  if (typeof n === "number" && Number.isFinite(n)) return new Date(n);
+  return null;
+}
+
+function normalizeHoldReason(reason){
+  if (!reason) return "";
+
+  const map = {
+    rework: "Rework Required",
+    item_missing: "Item Missing",
+    item_shortage: "Material Shortage",
+    resume_tomorrow: "Resume Next Shift / Tomorrow",
+    others: "Others",
+    browser_closed: "Auto Hold (Browser Closed / Tab Closed)"
+  };
+
+  const key = String(reason).toLowerCase().trim();
+  if (map[key]) return map[key];
+
+  return key
+    .replaceAll("_"," ")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function buildTreeStatusTooltip(run){
+  if (!run) return "";
+
+  const status = String(run.status || "").toLowerCase().trim();
+
+  if (status !== "on_hold") {
+    return `Status: ${status || "-"}`;
+  }
+
+  const holdReason = normalizeHoldReason(run.holdReason) || "-";
+  const remarks = run.remarks || "-";
+
+  return `Status: ON HOLD\nHold Reason: ${holdReason}\nRemarks: ${remarks}`;
+}
+
+function startOfWorkDay(d){
+  const x = new Date(d);
+  x.setHours(7, 0, 0, 0);
+  return x;
+}
+
+function endOfWorkDay(d){
+  const x = new Date(d);
+  x.setHours(22, 0, 0, 0);
+  return x;
+}
+
+function startOfDay(d){
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d){
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function parseDayKeyToDate(dayKey){
+  const [y,m,d] = dayKey.split("-").map(Number);
+  return new Date(y, m-1, d);
+}
+
+function getRunWindow(r){
+  const start = tsOrMsToDate(r.startAt, r.startEpochMs);
+  const endCompleted = tsOrMsToDate(r.endAt, r.endEpochMs);
+  const holdTime = tsOrMsToDate(r.holdAt, r.holdEpochMs);
+
+  const status = String(r.status || "").toLowerCase().trim();
+
+  const end =
+    status === "completed" ? endCompleted :
+    status === "on_hold" ? (holdTime || new Date()) :
+    new Date();
+
+  if (!start || !end) return null;
+  return { start, end };
+}
+
+function filterRunsByRange(runs, rangeMin, rangeMax){
+  return (runs || []).filter(r => {
+    const w = getRunWindow(r);
+    if (!w) return false;
+
+    return w.end.getTime() > rangeMin.getTime() &&
+           w.start.getTime() < rangeMax.getTime();
+  });
+}
 
 function getMYTodayKey(){
   return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Kuala_Lumpur"
+    timeZone: "Asia/Kuala_Lumpur"
   }).format(new Date());
 }
-
 
 function escapeHtml(s){
   return String(s ?? "")
@@ -30,18 +129,16 @@ function escapeHtml(s){
 function getSelectedDayKey() {
   const picker = el("dayPicker");
   return picker?.value || "";
-
 }
 
 function getSelectedMonthKey() {
   const picker = el("monthPicker");
-  return picker?.value || ""; // YYYT-MM
+  return picker?.value || "";
 }
 
 function filterRunsByMonth(runs, monthKey){
   if (!monthKey) return runs;
   return (runs || []).filter(r => String(r.runDate || "").startsWith(monthKey));
-
 }
 
 function statusUi(status){
@@ -52,7 +149,8 @@ function statusUi(status){
 }
 
 function unitSort(a,b){
-  return UNIT_ORDER.indexOf(a.unitType) - UNIT_ORDER.indexOf(b.unitType);
+  return UNIT_ORDER.indexOf(String(a.unitType || "").toUpperCase()) -
+         UNIT_ORDER.indexOf(String(b.unitType || "").toUpperCase());
 }
 
 function latestRun(runs){
@@ -65,88 +163,113 @@ function latestRun(runs){
 function buildTree(runs){
   const map = new Map();
 
-  for(const r of runs){
-    const material = r.materialNumber || "No Material";
+  for (const r of runs) {
+    const projectName = r.projectName || "-";
+    const material = r.materialNumber || "-";
+    const chillerSerial = r.chillerSerialNumber || "";
 
-    if(!map.has(material)){
-      map.set(material,{
-        projectName: r.projectName,
+    // Use chiller serial if available, otherwise fall back to project+material
+    const groupKey = chillerSerial
+      ? `CH::${chillerSerial}`
+      : `PM::${projectName}||${material}`;
+
+    if (!map.has(groupKey)) {
+      map.set(groupKey, {
+        projectName,
         material,
-        chillerSerialNumber: r.chillerSerialNumber,
+        chillerSerialNumber: chillerSerial || "-",
         units: new Map()
       });
     }
 
-    const proj = map.get(material);
+    const proj = map.get(groupKey);
 
-    const unitType = r.qrKind === "PV"
-      ? r.vesselType
-      : "CHILLER";
+    const unitType =
+      String(r.qrKind || "").toUpperCase() === "PV"
+        ? (r.vesselType || "PV")
+        : "CHILLER";
 
-    const unitSerial = r.qrKind === "PV"
-      ? r.pvSerialNumber
-      : r.chillerSerialNumber;
+    const unitSerial =
+      String(r.qrKind || "").toUpperCase() === "PV"
+        ? (r.pvSerialNumber || "-")
+        : (r.chillerSerialNumber || "-");
 
-    const key = unitType + unitSerial;
+    const unitKey = `${unitType}||${unitSerial}`;
 
-    if(!proj.units.has(key)){
-      proj.units.set(key,{
+    if (!proj.units.has(unitKey)) {
+      proj.units.set(unitKey, {
         unitType,
         unitSerial,
-        runs:[]
+        runs: []
       });
     }
 
-    proj.units.get(key).runs.push(r);
+    proj.units.get(unitKey).runs.push(r);
   }
 
   return map;
 }
 
 export async function renderTree() {
+  const mode = el("dateMode")?.value || "daily";
 
-  const mode = el("dateMode")?.value || "daily"
-
+  let allRuns = await loadRuns();
   let runs = [];
 
   if (mode === "daily") {
     const dayKey = getSelectedDayKey() || getMYTodayKey();
-    runs = await loadRunsForDay(dayKey);
+    const dayDate = parseDayKeyToDate(dayKey);
+
+    const rangeMin = startOfWorkDay(dayDate);
+    const rangeMax = endOfWorkDay(dayDate);
+
+    runs = filterRunsByRange(allRuns, rangeMin, rangeMax);
+
   } else {
     const monthKey = getSelectedMonthKey();
-    const allRuns = await loadRuns();
-    runs = filterRunsByMonth(allRuns, monthKey);
+
+    if (!monthKey) {
+      runs = [];
+    } else {
+      const [yy, mm] = monthKey.split("-").map(Number);
+      const rangeMin = startOfDay(new Date(yy, mm - 1, 1));
+      const rangeMax = endOfDay(new Date(yy, mm, 0));
+
+      runs = filterRunsByRange(allRuns, rangeMin, rangeMax);
+    }
   }
 
-  console.log("Tree filtered runs:", runs);
+  /* console.log("Tree filtered runs:", runs); */
 
-  // Clear gantt parts
   monthHeadEl.innerHTML = "";
   dayHeadEl.innerHTML = "";
   document.getElementById("legendStations").innerHTML = "";
 
   const tree = buildTree(runs);
-  const projects = Array.from(tree.values());
+  const projects = Array.from(tree.values()).sort((a, b) =>
+    (a.projectName || "").localeCompare(b.projectName || "") ||
+    (a.chillerSerialNumber || "").localeCompare(b.chillerSerialNumber || "")
+  );
 
   bodyEl.innerHTML = projects.map(p => {
-
     const units = Array.from(p.units.values()).sort(unitSort);
 
     return `
       <div class="treeCard">
-
         <div class="treeCardHeader">
           <div class="treeProject">
             ${escapeHtml(p.projectName || "-")}
           </div>
           <div class="treeMaterial">
+            Chiller Serial: <b>${escapeHtml(p.chillerSerialNumber || "-")}</b>
+          </div>
+          <div class="treeChiller">
             Material No: <b>${escapeHtml(p.material || "-")}</b>
           </div>
         </div>
 
         <div class="treeUnits">
           ${units.map(u => {
-
             const last = latestRun(u.runs);
             const st = statusUi(last?.status);
             const proc = last?.processName || "-";
@@ -155,27 +278,23 @@ export async function renderTree() {
               <div class="treeUnitCard">
                 <div class="unitLeft">
                   <div class="unitType">${escapeHtml(u.unitType)}</div>
-                  <div class="unitSerial">
-                    ${escapeHtml(u.unitSerial || "-")}
-                  </div>
+                  <div class="unitSerial">${escapeHtml(u.unitSerial || "-")}</div>
                 </div>
 
-               <div class="unitRight">
-                    <div class="unitProgress">
-                        ${escapeHtml(proc)}
-                    </div>
-                    <span class="statusPill ${st.cls}">
-                        ${escapeHtml(st.text)}
-                    </span>
+                <div class="unitRight">
+                  <div class="unitProgress">${escapeHtml(proc)}</div>
+                  <span
+                    class="statusPill ${st.cls}"
+                    data-tip="${escapeHtml(buildTreeStatusTooltip(last))}"
+                    >
+                    ${escapeHtml(st.text)}
+                  </span>
                 </div>
               </div>
             `;
-
           }).join("")}
         </div>
-
       </div>
     `;
-
   }).join("");
 }

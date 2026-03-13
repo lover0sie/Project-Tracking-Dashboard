@@ -903,10 +903,14 @@ function buildChillerGroups(segments){
   const groups = new Map();
 
   for (const seg of segments) {
-    const groupKey = seg.chillerSerialNumber || "(No Chiller Serial)";
     const projectName = seg.projectName || "(No Project)";
     const materialNumber = seg.materialNumber || "(No Material)";
-    const chillerSerialNumber = seg.chillerSerialNumber || "(No Chiller Serial)";
+    const chillerSerialNumber = seg.chillerSerialNumber || "";
+
+    const groupKey = chillerSerialNumber
+    ? `CH::${chillerSerialNumber}`
+    : `PM::${projectName}||${materialNumber}`;
+
 
     const { unitType, unitSerial } = unitInfoFromSeg(seg);
     const unitKey = `${unitType}||${unitSerial}`;
@@ -1859,20 +1863,19 @@ function showTipForBar(barEl){
 
   tip.className = "ganttTip show";
 
-  // NEW: waiting bar tooltip style
   if (barEl.classList.contains("standardBar")) {
     tip.classList.add("status-standard");
   }
   else if (barEl.classList.contains("status-holdgap")) {
     tip.classList.add("status-holdgap");
   }
-  else if (barEl.classList.contains("status-waiting")) {
+  else if (barEl.classList.contains("status-waiting") || barEl.classList.contains("waiting")) {
     tip.classList.add("status-waiting");
   }
-  else if (barEl.classList.contains("status-onhold")) {
+  else if (barEl.classList.contains("status-onhold") || barEl.classList.contains("onhold")) {
     tip.classList.add("status-onhold");
   }
-  else if (barEl.classList.contains("status-completed")) {
+  else if (barEl.classList.contains("status-completed") || barEl.classList.contains("completed")) {
     tip.classList.add("status-completed");
   }
   else {
@@ -1901,11 +1904,10 @@ function positionTip(clientX, clientY){
 }
 
 function bindFloatingTooltip(){
-  // Use event delegation so it works after re-render
   document.addEventListener("mouseover", (e) => {
-    const bar = e.target.closest?.(".bar[data-tip]");
-    if (!bar) return;
-    showTipForBar(bar);
+    const tipTarget = e.target.closest?.(".bar[data-tip], .statusPill[data-tip]");
+    if (!tipTarget) return;
+    showTipForBar(tipTarget);
   });
 
   document.addEventListener("mousemove", (e) => {
@@ -1914,12 +1916,11 @@ function bindFloatingTooltip(){
   });
 
   document.addEventListener("mouseout", (e) => {
-    const bar = e.target.closest?.(".bar[data-tip]");
-    if (!bar) return;
+    const tipTarget = e.target.closest?.(".bar[data-tip], .statusPill[data-tip]");
+    if (!tipTarget) return;
     hideTip();
   });
 
-  // Hide on scroll (optional, prevents laggy tooltip)
   document.addEventListener("scroll", () => hideTip(), true);
 }
 
