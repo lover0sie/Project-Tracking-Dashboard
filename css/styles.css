@@ -462,6 +462,7 @@ select:focus{
   background:#fff7cc;
   border-color:#f59e0b;
   color:#92400e;
+  font-size:12px;
 }
 
 /* COMPLETED */
@@ -853,10 +854,16 @@ select:focus{
 
 /* Chiller */
 .bar.st-wc1 { background:#b004b0; border-color: #9c049c; color: #fff} 
+.bar.st-wc2 { background:#fd9722; border-color: #7e490c;}
+.bar.st-ac { background:#08d888; border-color: #078554;}
+.bar.st-insulationab { background:#ed5a70; border-color: #820316;}
+.bar.st-insulationg { background:#1e4b53; border-color: #132e32;}
+.bar.st-packing { background:#5229b9; border-color: #251351;}
+.bar.st-mig { background:#c24179; border-color: #712647;}
 
 /* Misc */
-.bar.st-waiting{ background:#42484f !important; border-color:#94a3b8 !important; box-shadow: none; opacity: .95;}
-.bar.st-holdgap{ background:#f50505 !important; border-color:#b91c1c !important; box-shadow:none; opacity:.95;}
+.bar.st-waiting{ background:#42484f; border-color:#94a3b8; }
+.bar.st-holdgap{ background:#f50505; border-color:#b91c1c;}
 
 /* LEGEND swatch colors */
 .swatch.st-pv1{ background:#cfed3a; border-color:#789019; }
@@ -865,13 +872,26 @@ select:focus{
 .swatch.st-piping{ background:#166534; border-color:#14532d; }
 .swatch.st-fabrication {background:#077c91; border-color:#0b6a7b;}
 .swatch.st-pneumatic {background:#754960; border-color:#533545; }
+
 .swatch.st-wc1 {background:#b004b0; border-color: #9c049c;}
+.swatch.st-wc2 { background:#fd9722; border-color: #7e490c;}
+.swatch.st-ac { background:#08d888; border-color: #078554;}
+.swatch.st-insulationab { background:#ed5a70; border-color: #820316;}
+.swatch.st-insulationg { background:#1e4b53; border-color: #132e32;}
+.swatch.st-packing { background:#5229b9; border-color: #251351;}
+.swatch.st-mig { background:#c24179; border-color: #712647;}
 
 
 
 /* ongoing highlight */
 .bar.ongoing{
   outline: 3px solid #f59e0b;
+}
+
+.bar.st-waiting,
+.bar.st-holdgap {
+  top: 18px;
+  height: 28px;
 }
 
 /* ==================== Bar Tooltip ==================== */
@@ -952,6 +972,13 @@ select:focus{
 .ganttTip.st-pneumatic { background:#754960; color:#fff; }
 
 .ganttTip.st-wc1 { background:#b004b0; color: #ffff;}
+.ganttTip.st-wc2 { background:#fd9722; color: #000000;}
+.ganttTip.st-ac { background:#08d888; color: #000000;}
+.ganttTip.st-insulationab { background:#ed5a70; color: #ffff;}
+.ganttTip.st-insulationg { background:#1e4b53; color: #ffff;}
+.ganttTip.st-packing { background:#5229b9; color: #ffff;}
+.ganttTip.st-mig { background:#c24179; color: #ffff;}
+
 
 
 /* Optional: make yellow tooltip text darker for readability */

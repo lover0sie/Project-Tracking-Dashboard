@@ -1,6 +1,7 @@
 console.log("TREE RENDER CALLED");
 
 import { loadRuns, loadRunsForDay } from "./timeline.js";
+import {formatDateTime} from "./gantt.js"
 
 const el = id => document.getElementById(id);
 
@@ -41,19 +42,74 @@ function normalizeHoldReason(reason){
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
+// Build the tooltip for tree status
 function buildTreeStatusTooltip(run){
   if (!run) return "";
 
   const status = String(run.status || "").toLowerCase().trim();
 
-  if (status !== "on_hold") {
-    return `Status: ${status || "-"}`;
+  // RUNNING
+  if (status === "running") {
+    return `
+      <div class="tipTitle">RUNNING</div>
+      <div class="tipRow"><span class="tipLabel">Station:</span> ${run.station || "-"}</div>
+      <div class="tipRow"><span class="tipLabel">Started By:</span> ${run.startedByName || "-"} (${run.startedByNumber || "-"})</div>
+      <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${run.resumedByName || "-"} (${run.resumedByNumber || "-"})</div>
+      <div class="tipRow"><span class="tipLabel">Manpower:</span> ${run.manpower ?? "-"}</div>
+    `;
   }
 
-  const holdReason = normalizeHoldReason(run.holdReason) || "-";
-  const remarks = run.remarks || "-";
+  // COMPLETED
+  if (status === "completed") {
+    return `
+      <div class="tipTitle">COMPLETED</div>
+      <div class="tipRow"><span class="tipLabel">Station:</span> ${run.station || "-"}</div>
+      <div class="tipRow"><span class="tipLabel">Started By:</span> ${run.startedByName || "-"} (${run.startedByNumber || "-"})</div>
+      <div class="tipRow"><span class="tipLabel">Completed At:</span> ${formatDateTime(tsOrMsToDate(run.endAt, run.endEpochMs))}</div>
+      <div class="tipRow"><span class="tipLabel">Manpower:</span> ${run.manpower ?? "-"}</div>
+    `;
+  }
 
-  return `Status: ON HOLD\nHold Reason: ${holdReason}\nRemarks: ${remarks}`;
+  // ON HOLD
+  if (status === "on_hold") {
+    let holdReason = "";
+    let remarks = "";
+    let holdAt = null;
+
+    // NEW array format
+    if (Array.isArray(run.holds) && run.holds.length) {
+      const latest = run.holds[run.holds.length - 1];
+      holdReason = latest?.holdReason || "";
+      remarks = latest?.remarks || "";
+      holdAt = typeof latest?.holdAtEpochMs === "number"
+        ? new Date(latest.holdAtEpochMs)
+        : null;
+    } else {
+      // OLD single format
+      holdReason = run.holdReason || "";
+      remarks = run.remarks || "";
+      holdAt = tsOrMsToDate(run.holdAt, run.holdEpochMs);
+    }
+
+    const displayReason =
+      holdReason === "others" && remarks
+        ? remarks
+        : (normalizeHoldReason(holdReason) || "-");
+
+    return `
+      <div class="tipTitle">ON HOLD</div>
+      <div class="tipRow"><span class="tipLabel">Process:</span> ${run.processName || "-"}</div>
+      <div class="tipRow"><span class="tipLabel">Station:</span> ${run.station || "-"}</div>
+      <div class="tipRow"><span class="tipLabel">Hold At:</span> ${formatDateTime(holdAt)}</div>
+      <div class="tipRow"><span class="tipLabel">Reason:</span> ${displayReason}</div>
+      <div class="tipRow"><span class="tipLabel">Remark:</span> ${remarks || "-"}</div>
+    `;
+  }
+
+  return `
+    <div class="tipTitle">STATUS</div>
+    <div class="tipRow"><span class="tipLabel">Status:</span> ${status || "-"}</div>
+  `;
 }
 
 function startOfWorkDay(d){

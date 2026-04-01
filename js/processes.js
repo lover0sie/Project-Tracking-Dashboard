@@ -5,11 +5,12 @@ const el = (id) => document.getElementById(id);
 // Keep this map as the single source for station -> ordered process steps.
 // Vessel -> processes
 const PROCESS_BY_PV = {
-  "EVAPORATOR": [
+   "EVAPORATOR": [
     "6 - Hole bevelling",
     "7 - Connector welding",
-    "8A - Fitting internal plate",
-    "8B - GMAW C&B",
+    "8A - Internal plate assembly",
+    "8B - Fitting internal plate",
+    "8C - GMAW C&B",
     "9 - Fitting and welding distribution box",
     "10 - Tube support, bush fitting, and tube sheet fitting",
     "11 - Tubesheet welding",
@@ -26,8 +27,9 @@ const PROCESS_BY_PV = {
    "CONDENSER": [
     "6 - Hole bevelling",
     "7 - Connector welding",
-    "8A - Fitting internal plate",
-    "8B - GMAW C&B",
+    "8A - Internal plate assembly",
+    "8B - Fitting internal plate",
+    "8C - GMAW C&B",
     "9 - Fitting and welding distribution box",
     "10 - Tube support, bush fitting, and tube sheet fitting",
     "11 - Tubesheet welding",
@@ -61,12 +63,28 @@ const PROCESS_BY_PV = {
 }
 
 // CHILLER -> processes
-const PROCESS_BY_CHILLER = {
+export const PROCESS_BY_CHILLER = {
   "AIR-COOLED": [
-    "Piping shop"
+    "Piping shop",
+    "Insulation 1",
+    "Insulation 2",
+    "Major components assembly",
+    "Steel pipe welding",
+    "Copper pipe brazing",
+    "Control box and wiring",
+    "Piping insulation",
+    "Packing"
   ],
   "WATER-COOLED": [
-    "Piping shop"
+    "Piping shop",
+    "Insulation 1",
+    "Insulation 2",
+    "Major components assembly",
+    "Steel pipe welding",
+    "Copper pipe brazing",
+    "Control box and wiring",
+    "Piping insulation",
+    "Packing"
   ]
 };
 

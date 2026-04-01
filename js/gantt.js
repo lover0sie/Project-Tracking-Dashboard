@@ -275,19 +275,105 @@ function formatVariance(ms) {
   }
 }
 
-function activeDurationMs(seg){
-  const base = Number(seg?.durationMs || 0);
+/* Inject waiting into slice (renderGanttDaily) */
+function injectWaitingIntoLane(laneSegs) {
+  const out = [];
+  if (!Array.isArray(laneSegs) || !laneSegs.length) return out;
 
-  if (!seg) return 0;
+  const sorted = [...laneSegs].sort((a, b) => a.start - b.start);
 
-  if (seg.status === "running") {
-    const anchor = seg.resumedAt || seg.start;
-    const extra = anchor ? Math.max(0, Date.now() - anchor.getTime()) : 0;
-    return base + extra;
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i];
+    out.push(cur);
+
+    const next = sorted[i + 1];
+    if (!next) continue;
+
+    const gapStart = cur.end;
+    const gapEnd = next.start;
+
+    if (
+      gapStart &&
+      gapEnd &&
+      gapEnd.getTime() > gapStart.getTime()
+    ) {
+      out.push({
+        phase: "waiting",
+        status: "waiting",
+        start: gapStart,
+        end: gapEnd,
+        station: cur.station,
+        processLabel: "Waiting",
+        projectName: cur.projectName,
+        materialNumber: cur.materialNumber,
+        description: cur.description,
+        serial: cur.serial,
+        qrKind: cur.qrKind,
+        chillerSerialNumber: cur.chillerSerialNumber,
+        pvSerialNumber: cur.pvSerialNumber,
+        vesselType: cur.vesselType,
+        coolingType: cur.coolingType
+      });
+    }
   }
 
-  return base;
+  return out;
 }
+
+/* Inject waiting into slice (renderGantt) */
+function injectWaitingIntoUnitSegs(segs) {
+  if (!Array.isArray(segs) || !segs.length) return [];
+
+  const sorted = [...segs].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const out = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i];
+    out.push(cur);
+
+    const next = sorted[i + 1];
+    if (!next) continue;
+
+    const gapStart = cur.end;
+    const gapEnd = next.start;
+
+    if (!gapStart || !gapEnd) continue;
+    if (gapEnd.getTime() <= gapStart.getTime()) continue;
+
+    out.push({
+      phase: "waiting",
+      status: "waiting",
+      start: gapStart,
+      end: gapEnd,
+
+      serial: cur.serial,
+      station: cur.station,
+      projectName: cur.projectName,
+      materialNumber: cur.materialNumber,
+      description: cur.description,
+      processLabel: "Waiting",
+
+      qrKind: cur.qrKind || "",
+      chillerSerialNumber: cur.chillerSerialNumber || "",
+      pvSerialNumber: cur.pvSerialNumber || "",
+      vesselType: cur.vesselType || "",
+      coolingType: cur.coolingType || "",
+
+      employeeName: "",
+      employeeNumber: "",
+      resumedByName: "",
+      resumedByNumber: "",
+      manpower: 0,
+      remarks: "",
+      holdWindows: [],
+      ongoing: false,
+      durationMs: Math.max(0, gapEnd.getTime() - gapStart.getTime())
+    });
+  }
+
+  return out;
+}
+
 
 /* Get the standard time in minutes */
 function getStandardMinutes(processLabel) {
@@ -428,16 +514,6 @@ function fitDailyToScreen(){
   document.documentElement.style.setProperty("--hourW", hourW + "px");
 }
 
-function elapsedDuration(seg){
-  if(!seg?.start) return 0;
-
-  const endTime =
-    seg.status === "running"
-      ? Date.now()
-      : seg.end?.getTime();
-
-  return endTime - seg.start.getTime();
-}
 
 /* Create waiting process based on the status */
 function sliceSegForWaiting(seg) {
@@ -446,30 +522,18 @@ function sliceSegForWaiting(seg) {
   const e = seg.end;
   if (!s || !e) return parts;
 
-  // keep synthetic waiting segments as waiting
-  if (seg.phase === "waiting" || seg.status === "waiting") {
-    parts.push({ type: "waiting", start: s, end: e });
-    return parts;
-  }
-
-  const windows = Array.isArray(seg.holdWindows) ? seg.holdWindows : [];
-
-  // no holds at all
-  if (!windows.length) {
-    parts.push({ type: "process", start: s, end: e });
-    return parts;
-  }
-
   let cursor = s;
 
-  for (const w of windows) {
+  const holdWindows = Array.isArray(seg.holdWindows) ? seg.holdWindows : [];
+
+  for (const w of holdWindows) {
     if (!w?.start || !w?.end) continue;
 
     const holdStart = w.start;
     const holdEnd = w.end;
 
-    // process part before hold
-    if (holdStart.getTime() > cursor.getTime()) {
+    // process before hold
+    if (holdStart > cursor) {
       parts.push({
         type: "process",
         start: cursor,
@@ -477,25 +541,20 @@ function sliceSegForWaiting(seg) {
       });
     }
 
-    // hold part
-    if (holdEnd.getTime() > holdStart.getTime()) {
-      parts.push({
-        type: "on_hold_gap",
-        start: holdStart,
-        end: holdEnd,
-        holdReason: w.holdReason || "",
-        remarks: w.remarks || ""
-      });
-    }
+    // HOLD
+    parts.push({
+      type: "on_hold_gap",
+      start: holdStart,
+      end: holdEnd,
+      holdReason: w.holdReason || "",
+      remarks: w.remarks || ""
+    });
 
-    // continue after this hold
-    if (holdEnd.getTime() > cursor.getTime()) {
-      cursor = holdEnd;
-    }
+    cursor = holdEnd;
   }
 
-  // remaining process after last hold
-  if (e.getTime() > cursor.getTime()) {
+  // remaining process
+  if (e > cursor) {
     parts.push({
       type: "process",
       start: cursor,
@@ -701,7 +760,7 @@ function buildHoldWindowsFromRun(r, segEnd) {
   return windows;
 }
 
-function formatDateTime(d){
+export function formatDateTime(d){
   if(!d) return "-";
 
   const day = String(d.getDate()).padStart(2,"0");
@@ -740,7 +799,14 @@ function stationClass(station) {
   if (s.includes("pipingshop") || s.includes("piping")) return "st-piping"; // Piping Shop
   if (s.includes("fabrication")) return "st-fabrication";
   if (s.includes ("pneumatic")) return "st-pneumatic"; // Pneumatic + Paint booth + Hydro
-  if (s.includes ("wc1")) return "st-wc1";
+  if (s.includes ("wc1")) return "st-wc1"; // WC Line 1
+  if (s.includes ("wc2")) return "st-wc2"; // WC Line 2
+  if (s.includes ("ac")) return "st-ac"; // AC Line
+  if (s.includes ("insulationab")) return "st-insulation1"; // Insulation AB 
+  if (s.includes ("insulationg")) return "st-insulation2"; // Insulation G
+  if (s.includes ("packing")) return "st-packing"; // Packing
+  if (s.includes ("migwelding")) return "st-mig"; // Packing
+
   return "st-pv1"; // default
 }
 
@@ -856,14 +922,6 @@ function parseDayKeyToDate(dayKey){
   // dayKey = YYYY-MM-DD
   const [y,m,d] = dayKey.split("-").map(Number);
   return new Date(y, m-1, d);
-}
-
-function fmtDailyHeader(dayKey){
-  const d = parseDayKeyToDate(dayKey);
-  const label = new Intl.DateTimeFormat("en-GB", {
-    timeZone: TZ, weekday:"long", day:"2-digit", month:"2-digit", year:"numeric"
-  }).format(d);
-  return `${label} (07:00–22:00)`;
 }
 
 function buildSegmentsFromRuns(runs) {
@@ -1061,45 +1119,6 @@ function renderLegendsStationOnly(segments){
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
-function withWaitingSegments(segs){
-  // Input: process segments only (phase="process")
-  // Output: process + synthetic waiting segments inserted between them (per unit)
-  const out = [];
-
-  const items = segs
-    .filter(s => s && s.start && s.end)
-    .slice()
-    .sort((a,b) => a.start.getTime() - b.start.getTime());
-
-  for (let i = 0; i < items.length; i++) {
-    const cur = items[i];
-    out.push(cur);
-
-    const next = items[i + 1];
-    if (!next) continue;
-
-    // waiting between cur.end -> next.start
-    const a = cur.end.getTime();
-    const b = next.start.getTime();
-
-    if (b > a) {
-      out.push({
-        ...cur,                     // inherit unit/project fields
-        phase: "waiting",
-        processLabel: "WAITING",    // so process parsing doesn’t show ",,,,"
-        status: "waiting",
-        station: "",                // not a station color
-        manpower: 0,
-        start: new Date(a),
-        end: new Date(b),
-        ongoing: false
-      });
-    }
-  }
-
-  return out;
-}
-
 function buildLanes(segs){
   // Sort by start time
   const sorted = segs.slice().sort((a,b) => a.start - b.start);
@@ -1192,14 +1211,13 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
     );
 
    const unitRows = units.map(u => {
-      const segs = withWaitingSegments(
-        u.segs.filter(seg =>
+      const segs = u.segs.filter(seg =>
           seg.end.getTime() > rangeMin.getTime() &&
           seg.start.getTime() < rangeMax.getTime()
-        )
-      );
+        );
+      
 
-      const lanes = buildLanes(segs);
+      const lanes = buildLanes(segs).map(injectWaitingIntoLane);
       const laneCount = Math.max(1, lanes.length);
 
       //  merged UNIT cell (shown once)
@@ -1456,60 +1474,66 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
     );
 
     const unitRows = units.map(u => {
-      const cur = latestSegment(u.segs) || null;
+      const visibleSegs = u.segs.filter(
+        seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime())
+      );
+
+      const segsWithWaiting = injectWaitingIntoUnitSegs(visibleSegs);
+
+      const cur = latestSegment(visibleSegs) || null;
       const procNo = getProcessNo(cur?.processLabel);
       const st = statusUi(cur?.status);
 
-      const bars = u.segs
+      const bars = segsWithWaiting
         .filter(seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime()))
         .map(seg => {
-  const parts = sliceSegForWaiting(seg);
+          const parts = sliceSegForWaiting(seg);
 
-  return parts
-    .filter(p => !(p.end.getTime() <= rangeMin.getTime() || p.start.getTime() >= rangeMax.getTime()))
-    .map(p => {
-          const sliceStart = new Date(Math.max(p.start.getTime(), rangeMin.getTime()));
-          const sliceEnd   = new Date(Math.min(p.end.getTime(),   rangeMax.getTime()));
+          return parts
+            .filter(p => !(p.end.getTime() <= rangeMin.getTime() || p.start.getTime() >= rangeMax.getTime()))
+            .map(p => {
+                  const sliceStart = new Date(Math.max(p.start.getTime(), rangeMin.getTime()));
+                  const sliceEnd   = new Date(Math.min(p.end.getTime(),   rangeMax.getTime()));
 
-          const segStart = clamp(sliceStart.getTime(), rangeMin.getTime(), rangeMax.getTime());
-          const segEnd   = clamp(sliceEnd.getTime(),   rangeMin.getTime(), rangeMax.getTime());
+                  const segStart = clamp(sliceStart.getTime(), rangeMin.getTime(), rangeMax.getTime());
+                  const segEnd   = clamp(sliceEnd.getTime(),   rangeMin.getTime(), rangeMax.getTime());
 
-          const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
-          const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
+                  const leftPx  = ((segStart - rangeMin.getTime()) / msPerDay) * dayW;
+                  const widthPx = Math.max(10, ((segEnd - segStart) / msPerDay) * dayW);
 
-          const isHoldGap = (p.type === "on_hold_gap");
-          const isWaiting = (p.type === "waiting" || seg.phase === "waiting" || seg.status === "waiting");
+                  const isHoldGap = (p.type === "on_hold_gap");
+                  const isWaiting = (p.type === "waiting" || seg.phase === "waiting" || seg.status === "waiting");
 
-          const stClass =
-            isHoldGap ? "st-holdgap" :
-            isWaiting ? "st-waiting" :
-            stationClass(seg.station);
+                  const stClass =
+                    isHoldGap ? "st-holdgap" :
+                    isWaiting ? "st-waiting" :
+                    stationClass(seg.station);
 
-          const statusCls =
-            isHoldGap ? "status-holdgap" :
-            isWaiting ? "status-waiting" :
-            seg.status === "completed" ? "status-completed" :
-            seg.status === "on_hold" ? "status-onhold" :
-            "status-running";
+                  const statusCls =
+                    isHoldGap ? "status-holdgap" :
+                    isWaiting ? "status-waiting" :
+                    seg.status === "completed" ? "status-completed" :
+                    seg.status === "on_hold" ? "status-onhold" :
+                    "status-running";
 
-          
-          const tipText = tipTextBuilder(
-            seg,
-            sliceStart,
-            sliceEnd,
-            isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process",
-            p
-          );
+                  
+                  const tipText = tipTextBuilder(
+                    seg,
+                    sliceStart,
+                    sliceEnd,
+                    isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process",
+                    p
+                  );
 
-          return `
-            <div class="bar ${stClass} ${statusCls}"
-                style="left:${leftPx}px; width:${widthPx}px;"
-                data-tip="${escapeAttr(tipText)}"></div>
-          `;
-        })
-        .join("");
-    })
-    .join("")
+                  return `
+                    <div class="bar ${stClass} ${statusCls}"
+                        style="left:${leftPx}px; width:${widthPx}px;"
+                        data-tip="${escapeAttr(tipText)}"></div>
+                  `;
+                })
+                .join("");
+            })
+            .join("")
 
       return `
         <div class="ganttRow unitRow">
@@ -1946,8 +1970,15 @@ function hideTip(){
     "st-subassy",
     "st-piping",
     "st-fabrication",
+    "st-pneumatic",
     "st-wc1",
-    "st-pneumatic"
+    "st-wc2",
+    "st-ac",
+    "st-insulationab",
+    "st-insulationg",
+    "st-packing",
+    "st-mig"
+
   );
 }
 
@@ -1992,8 +2023,14 @@ function showTipForBar(barEl){
     else if (barEl.classList.contains("st-subassy")) tip.classList.add("st-subassy");
     else if (barEl.classList.contains("st-piping")) tip.classList.add("st-piping");
     else if (barEl.classList.contains("st-fabrication")) tip.classList.add("st-fabrication");
-    else if (barEl.classList.contains("st-wc1")) tip.classList.add("st-wc1");
     else if (barEl.classList.contains("st-pneumatic")) tip.classList.add("st-pneumatic");
+    else if (barEl.classList.contains("st-wc1")) tip.classList.add("st-wc1");
+    else if (barEl.classList.contains("st-wc2")) tip.classList.add("st-wc2");
+    else if (barEl.classList.contains("st-ac")) tip.classList.add("st-ac");
+    else if (barEl.classList.contains("st-insulationab")) tip.classList.add("st-insulationab");
+    else if (barEl.classList.contains("st-insulationg")) tip.classList.add("st-insulationg");
+    else if (barEl.classList.contains("st-ipacking")) tip.classList.add("st-packing");
+    else if (barEl.classList.contains("st-mig")) tip.classList.add("st-mig");
   }
 
   tip.innerHTML = html;
