@@ -842,22 +842,32 @@ select:focus{
 }
 
 /* Station colors (Process) */
-.bar.st-pv1{ background:#cfed3a; border-color:#789019; color:#fff; }  /* purple */
-.bar.st-pv2{ background:#ec4899; border-color:#be185d; color:#fff; }  /* pink */
-.bar.st-subassy{ background:#1d4ed8; border-color:#1e40af; color:#fff; } /* dark blue */
-.bar.st-piping{ background:#166534; border-color:#14532d; color:#fff; } /* dark green */
-.bar.st-fabrication { background:#077c91; border-color:#0b6a7b; color:#fff } /* cyan */
-.bar.st-pneumatic {background:#754960; border-color:#533545; color:#fff  }
-.bar.st-waiting{ background:#42484f !important; border-color:#94a3b8 !important; box-shadow: none; opacity: .95;}
-.bar.st-holdgap{ background:#ef4444 !important; border-color:#b91c1c !important; box-shadow:none; opacity:.95;
-}
 
+/* PV */
+.bar.st-pv1{ background:#cfed3a; border-color:#789019; color:#fff; }  
+.bar.st-pv2{ background:#ec4899; border-color:#be185d; color:#fff; }  
+.bar.st-subassy{ background:#1d4ed8; border-color:#1e40af; color:#fff; } 
+.bar.st-piping{ background:#166534; border-color:#14532d; color:#fff; } 
+.bar.st-fabrication { background:#077c91; border-color:#0b6a7b; color:#fff } 
+.bar.st-pneumatic {background:#754960; border-color:#533545; color:#fff  }
+
+/* Chiller */
+.bar.st-wc1 { background:#b004b0; border-color: #9c049c; color: #fff} 
+
+/* Misc */
+.bar.st-waiting{ background:#42484f !important; border-color:#94a3b8 !important; box-shadow: none; opacity: .95;}
+.bar.st-holdgap{ background:#f50505 !important; border-color:#b91c1c !important; box-shadow:none; opacity:.95;}
+
+/* LEGEND swatch colors */
 .swatch.st-pv1{ background:#cfed3a; border-color:#789019; }
 .swatch.st-pv2{ background:#ec4899; border-color:#be185d; }
 .swatch.st-subassy{ background:#1d4ed8; border-color:#1e40af; }
 .swatch.st-piping{ background:#166534; border-color:#14532d; }
 .swatch.st-fabrication {background:#077c91; border-color:#0b6a7b;}
 .swatch.st-pneumatic {background:#754960; border-color:#533545; }
+.swatch.st-wc1 {background:#b004b0; border-color: #9c049c;}
+
+
 
 /* ongoing highlight */
 .bar.ongoing{
@@ -879,16 +889,17 @@ select:focus{
   white-space: pre-line;
   background: #111827;
   color: #fff;
-  padding: 10px 10px;
+  padding: 5px 6px;
   border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 400;
   box-shadow: 0 16px 32px rgba(0,0,0,0.22);
   pointer-events: none;
   z-index: 99999; /* above sticky header */
   opacity: 0;
   transform: translateY(-6px);
   transition: opacity .08s ease, transform .08s ease;
+  line-height: 10px;
 }
 
 .ganttTip.show{
@@ -896,19 +907,52 @@ select:focus{
   transform: translateY(0);
 }
 
-/* optional: status colors */
-.ganttTip.status-onhold{ background:#d32f2f; }
-.ganttTip.status-completed{ background:#2e7d32; }
-.ganttTip.status-running{ background:#f9a825; color:#111; }
+.ganttTip .tipTitle {
+  font-weight: 700;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+.ganttTip .tipRow {
+  margin: 0.5px 0;
+}
+
+.ganttTip .tipLabel {
+  font-weight: 600;
+}
+
+.tipDivider {
+  height: 1px;
+  margin: 1px 0;
+  background: rgba(255,255,255,0.3);
+}
+
+/* status colors */
 .ganttTip.status-waiting{ background:#64748b;  /* slate */ color:#fff;}
 .ganttTip.status-holdgap{background:#b91c1c;color:#fff;}
 .ganttTip.status-standard{background:#94a3b8;color:#0f172a;}
+.ganttTip.status-running { background:#f9a825; color:#111827; }
+.ganttTip.status-completed { background:#2e7d32; color:#fff; }
+.ganttTip.status-onhold { background:#d32f2f; color:#fff; }
 
 
 /* Tooltip colors by status */
 .bar.status-onhold:hover::after{ background: #d32f2f; }     /* red */
 .bar.status-completed:hover::after{ background: #2e7d32; }  /* green */
 .bar.status-running:hover::after{ background: #f9a825; }    /* yellow */
+
+/* PROCESS tooltip by station */
+.ganttTip.st-pv1 { background:#cfed3a; color:#000000; }
+.ganttTip.st-pv2 { background:#ec4899; color:#fff; }
+.ganttTip.st-subassy { background:#1d4ed8; color:#fff; }
+.ganttTip.st-piping { background:#166534; color:#fff; }
+.ganttTip.st-fabrication {background:#077c91; color: #fff;}
+.ganttTip.st-pneumatic { background:#754960; color:#fff; }
+
+.ganttTip.st-wc1 { background:#b004b0; color: #ffff;}
+
 
 /* Optional: make yellow tooltip text darker for readability */
 .bar.status-running:hover::after{ color: #111; }

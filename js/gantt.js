@@ -23,7 +23,8 @@ const STANDARD_TIME_MIN = {
   "12 - Bracket and attachment fitting and welding": 300,
   "19 - Top coat painting": 400,
 
-  "Piping shop": 300
+  "Piping shop": 300,
+  "Insulation 1": 400
 }
 
 /* DOM */
@@ -188,13 +189,21 @@ function getEffectiveDurationMs(start, end) {
 }
 
 function getActualEffectiveDurationMs(seg) {
-  if (!seg?.start || !seg?.end) return 0;
+  const parts = sliceSegForWaiting(seg);
 
-  const elapsedMs = Math.max(0, seg.end.getTime() - seg.start.getTime());
-  const breakMs = getBreakOverlapMs(seg.start, seg.end);
-  const holdMs = getHoldDurationMs(seg);
+  let total = 0;
 
-  return Math.max(0, elapsedMs - breakMs - holdMs);
+  for (const p of parts) {
+    if (p.type !== "process") continue;
+    if (!p.start || !p.end || p.end <= p.start) continue;
+
+    const elapsed = p.end.getTime() - p.start.getTime();
+    const breakMs = getBreakOverlapMs(p.start, p.end);
+
+    total += Math.max(0, elapsed - breakMs);
+  }
+
+  return total;
 }
 
 
@@ -296,30 +305,25 @@ function standardTipText(seg, stdStart, stdEnd) {
   const stdMin = getStandardMinutes(seg?.processLabel);
   const stdMs = stdMin * 60000;
 
-  const elapsedMs = seg?.start && seg?.end
-    ? Math.max(0, seg.end.getTime() - seg.start.getTime())
-    : 0;
+  const actualEffectiveMs = getActualEffectiveDurationMs(seg);
+  const varianceMs = getVarianceMs(seg);
+
+  const holdMs = getHoldDurationMs(seg);
 
   const breakMs = seg?.start && seg?.end
     ? getBreakOverlapMs(seg.start, seg.end)
     : 0;
 
-  const holdMs = getHoldDurationMs(seg);
-  const actualEffectiveMs = getActualEffectiveDurationMs(seg);
-  const varianceMs = getVarianceMs(seg);
-
-  return (
-    `STANDARD TIME\n` +
-    `Process: ${seg.processLabel || "-"}\n` +
-    `Standard Duration: ${formatDuration(stdMs)}\n` +
-    /*`From: ${formatDateTime(stdStart)}\n` +
-    `To: ${formatDateTime(stdEnd)}\n` + 
-     `\nElapsed Time: ${formatDuration(elapsedMs)}\n` + 
-    `\nRecess Time: ${formatDuration(breakMs)}\n` +
-    `On Hold Time: ${formatDuration(holdMs)}\n` + 
-    `Effective Time: ${formatDuration(actualEffectiveMs)}\n` + */
-    `Variance: ${formatVariance(varianceMs)}`
-  );
+  return `
+    <div class="tipTitle">STANDARD TIME</div>
+    <div class="tipRow"><span class="tipLabel">Process:</span> ${seg.processLabel || "-"}</div>
+    <div class="tipRow"><span class="tipLabel">Standard Duration:</span> ${formatDuration(stdMs)}</div>
+    <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${formatDuration(actualEffectiveMs)}</div>
+    <div class="tipRow"><span class="tipLabel">Variance:</span> ${formatVariance(varianceMs)}</div>
+    <div class="tipDivider"></div>
+    <div class="tipRow"><span class="tipLabel">On Hold:</span> ${formatDuration(holdMs)}</div>
+    <div class="tipRow"><span class="tipLabel">Break:</span> ${formatDuration(breakMs)}</div>
+  `;
 }
 
 /* Get the unit type based on the qr code */
@@ -331,72 +335,68 @@ function getUnitType(r) {
 }
 
 /* Function to build the tooltip for daily and monthy timeline */
-function tipTextBuilder(seg, sliceStart, sliceEnd, partType) {
+function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
   const isHoldGap = partType === "on_hold_gap";
   const isWaiting = partType === "waiting" || seg.phase === "waiting";
 
   if (isHoldGap) {
-    return (
-      `ON HOLD\n` +
-      `Process: ${seg.processLabel || "-"}\n` +
-      `From: ${formatDateTime(sliceStart)}\n` +
-      `To: ${formatDateTime(sliceEnd)}\n` +
-      `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}\n` +
-      `Reason: ${
-        seg.holdReason === "others" && seg.remarks
-          ? seg.remarks
-          : (normalizeHoldReason(seg.holdReason) || "-")
-      }`
-    );
+    const holdReason = part?.holdReason || seg.holdReason || "";
+    const remarks = part?.remarks || seg.remarks || "";
+    const sliceDurationMs = Math.max(0, sliceEnd.getTime() - sliceStart.getTime());
+
+    return `
+      <div class="tipTitle">ON HOLD</div>
+      <div class="tipRow"><span class="tipLabel">Process:</span> ${seg.processLabel || "-"}</div>
+      <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(sliceStart)}</div>
+      <div class="tipRow"><span class="tipLabel">End:</span> ${formatDateTime(sliceEnd)}</div>
+      <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(sliceDurationMs)}</div>
+      <div class="tipRow"><span class="tipLabel">Reason:</span> ${
+        holdReason === "others" && remarks
+          ? "Others"
+          : (normalizeHoldReason(holdReason) || "-")
+      }</div>
+      <div class="tipRow"><span class="tipLabel">Remark:</span> ${remarks || "-"}</div>
+    `;
   }
 
   if (isWaiting) {
-    return (
-      `WAITING\n` +
-      `From: ${formatDateTime(sliceStart)}\n` +
-      `To: ${formatDateTime(sliceEnd)}\n` +
-      `Duration: ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}`
-    );
+    return `
+      <div class="tipTitle">WAITING</div>
+      <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(sliceStart)}</div>
+      <div class="tipRow"><span class="tipLabel">End:</span> ${formatDateTime(sliceEnd)}</div>
+      <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}</div>
+    `;
   }
 
-  const startedLine =
-    `Started: ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})`;
+  // PROCESS slice
+  const realFrom = sliceStart;
+  const realTo = sliceEnd;
 
-  const realFrom = seg.start;
-  const realTo = seg.status === "running" ? new Date() : seg.end;
-
-  const elapsedMs =
+  const sliceDurationMs =
     realFrom && realTo ? Math.max(0, realTo.getTime() - realFrom.getTime()) : 0;
 
-  const breakMs =
+  const sliceBreakMs =
     realFrom && realTo ? getBreakOverlapMs(realFrom, realTo) : 0;
 
-  const holdMs = getHoldDurationMs(seg);
+  const sliceEffectiveMs = Math.max(0, sliceDurationMs - sliceBreakMs);
 
-  const effectiveMs = Math.max(0, elapsedMs - breakMs - holdMs);
+  const totalEffectiveMs = getActualEffectiveDurationMs(seg);
 
-  const holdLine =
-    seg.status === "on_hold"
-      ? `\nHold Reason: ${
-          seg.holdReason === "others" && seg.remarks
-            ? seg.remarks
-            : (normalizeHoldReason(seg.holdReason) || "-")
-        }`
-      : "";
-
-  return (
-    `Process: ${seg.processLabel || "-"}\n` +
-    `${startedLine}\n` +
-    `Manpower: ${seg.manpower ?? "-"}\n` +
-    `From: ${formatDateTime(realFrom)}\n` +
-    `To: ${formatDateTime(realTo)}\n` +
-    /*`Elapsed Duration: ${formatDuration(elapsedMs)}\n` +
-     `Break Time: ${formatDuration(breakMs)}\n` +
-    `On Hold Time: ${formatDuration(holdMs)}\n` + */
-    `Effective Duration: ${formatDuration(effectiveMs)}` +
-    holdLine
-  );
+  return `
+    <div class="tipTitle">${seg.processLabel || "PROCESS"}</div>
+    <div class="tipRow"><span class="tipLabel">Station:</span> ${seg.station || "-"}</div>
+    <div class="tipRow"><span class="tipLabel">Started By:</span> ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})</div>
+    <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${seg.resumedByName || "-"} (${seg.resumedByNumber || "-"})</div>
+    <div class="tipRow"><span class="tipLabel">Manpower:</span> ${seg.manpower ?? "-"}</div>
+    <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(realFrom)}</div>
+    <div class="tipRow"><span class="tipLabel">End:</span> ${formatDateTime(realTo)}</div>
+    <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${formatDuration(sliceEffectiveMs)}</div>
+    <div class="tipRow"><span class="tipLabel">Total Effective Duration:</span> ${formatDuration(totalEffectiveMs)}</div>
+  `;
 }
+
+/* div class  not used */
+/* <div class="tipRow"><span class="tipLabel">Slice Duration:</span> ${formatDuration(sliceDurationMs)}</div> */
 
 
 /* Fitting the columns of daily into the screen */
@@ -440,7 +440,7 @@ function elapsedDuration(seg){
 }
 
 /* Create waiting process based on the status */
-function sliceSegForWaiting(seg){
+function sliceSegForWaiting(seg) {
   const parts = [];
   const s = seg.start;
   const e = seg.end;
@@ -452,33 +452,57 @@ function sliceSegForWaiting(seg){
     return parts;
   }
 
-  const h = seg.holdAt;
-  const r = seg.resumedAt;
+  const windows = Array.isArray(seg.holdWindows) ? seg.holdWindows : [];
 
-  // currently on hold, no valid resume after hold
-  if (seg.status === "on_hold" && h && (!r || r.getTime() <= h.getTime())) {
-    if (h.getTime() > s.getTime()) {
-      parts.push({ type:"process", start:s, end:h });
-    }
-    if (e.getTime() > h.getTime()) {
-      parts.push({ type:"on_hold_gap", start:h, end:e });
-    }
+  // no holds at all
+  if (!windows.length) {
+    parts.push({ type: "process", start: s, end: e });
     return parts;
   }
 
-  // valid hold -> resume gap
-  if (h && r && r.getTime() > h.getTime()) {
-    if (h.getTime() > s.getTime()) {
-      parts.push({ type:"process", start:s, end:h });
+  let cursor = s;
+
+  for (const w of windows) {
+    if (!w?.start || !w?.end) continue;
+
+    const holdStart = w.start;
+    const holdEnd = w.end;
+
+    // process part before hold
+    if (holdStart.getTime() > cursor.getTime()) {
+      parts.push({
+        type: "process",
+        start: cursor,
+        end: holdStart
+      });
     }
-    parts.push({ type:"on_hold_gap", start:h, end:r });
-    if (e.getTime() > r.getTime()) {
-      parts.push({ type:"process", start:r, end:e });
+
+    // hold part
+    if (holdEnd.getTime() > holdStart.getTime()) {
+      parts.push({
+        type: "on_hold_gap",
+        start: holdStart,
+        end: holdEnd,
+        holdReason: w.holdReason || "",
+        remarks: w.remarks || ""
+      });
     }
-    return parts;
+
+    // continue after this hold
+    if (holdEnd.getTime() > cursor.getTime()) {
+      cursor = holdEnd;
+    }
   }
 
-  parts.push({ type:"process", start:s, end:e });
+  // remaining process after last hold
+  if (e.getTime() > cursor.getTime()) {
+    parts.push({
+      type: "process",
+      start: cursor,
+      end: e
+    });
+  }
+
   return parts;
 }
 
@@ -582,6 +606,101 @@ function tsOrMsToDate(ts, ms) {
   return null;
 }
 
+/* =========================
+   NEW: HOLD WINDOWS BUILDER (ACCOMMODATE BOTH OLD DATA VER AND NEW DATA VER)
+========================= */
+function buildHoldWindowsFromRun(r, segEnd) {
+
+  // create empty result
+  const windows = [];
+
+  // check if using new array data
+  const holdsArr = Array.isArray(r?.holds) ? r.holds : [];
+  const resumesArr = Array.isArray(r?.resumes) ? r.resumes : [];
+
+  
+ // if the array holdsArr contains value, then use new system
+  if (holdsArr.length) {
+
+    // convert to usable data
+    const holds = holdsArr
+      .map(h => ({
+        holdAt: new Date(h.holdAtEpochMs),
+        holdReason: h.holdReason || "",
+        remarks: h.remarks || ""
+      }))
+      .sort((a, b) => a.holdAt - b.holdAt);
+
+    // convert to usable data
+    const resumes = resumesArr
+      .map(x => ({
+        resumedAt: new Date(x.resumedAtEpochMs)
+      }))
+      .sort((a, b) => a.resumedAt - b.resumedAt);
+
+    let resumeIdx = 0;
+
+    for (const h of holds) {
+      while (
+        resumeIdx < resumes.length &&
+        resumes[resumeIdx].resumedAt <= h.holdAt
+      ) {
+        resumeIdx++;
+      }
+
+      // pick matching resume
+      const matchedResume =
+        resumeIdx < resumes.length ? resumes[resumeIdx] : null;
+
+        // decide when hold ends
+      const holdEnd =
+        matchedResume?.resumedAt ||
+        (String(r.status || "").toLowerCase() === "on_hold" ? segEnd : null);
+
+      if (!holdEnd || holdEnd <= h.holdAt) continue;
+
+      // add new hold
+      windows.push({
+        start: h.holdAt,
+        end: holdEnd,
+        holdReason: h.holdReason,
+        remarks: h.remarks
+      });
+
+      // move to next resume
+      if (matchedResume) resumeIdx++;
+    }
+
+    return windows;
+  }
+
+  // else, use the old system
+  const holdAt = r.holdEpochMs
+    ? new Date(r.holdEpochMs)
+    : (r.holdAt?.toDate?.() || null);
+
+  const resumedAt = r.resumedEpochMs
+    ? new Date(r.resumedEpochMs)
+    : (r.resumedAt?.toDate?.() || null);
+
+  if (holdAt) {
+    const end =
+      resumedAt ||
+      (String(r.status || "").toLowerCase() === "on_hold" ? segEnd : null);
+
+    if (end && end > holdAt) {
+      windows.push({
+        start: holdAt,
+        end,
+        holdReason: r.holdReason || "",
+        remarks: r.remarks || ""
+      });
+    }
+  }
+
+  return windows;
+}
+
 function formatDateTime(d){
   if(!d) return "-";
 
@@ -621,6 +740,7 @@ function stationClass(station) {
   if (s.includes("pipingshop") || s.includes("piping")) return "st-piping"; // Piping Shop
   if (s.includes("fabrication")) return "st-fabrication";
   if (s.includes ("pneumatic")) return "st-pneumatic"; // Pneumatic + Paint booth + Hydro
+  if (s.includes ("wc1")) return "st-wc1";
   return "st-pv1"; // default
 }
 
@@ -784,6 +904,8 @@ function buildSegmentsFromRuns(runs) {
         ? r.durationMs
         : (start && end ? (end.getTime() - start.getTime()) : 0);
 
+    const holdWindows = buildHoldWindowsFromRun(r, end);
+
     segments.push({
       serial,
       projectName: r.projectName || "(No Project)",
@@ -793,7 +915,6 @@ function buildSegmentsFromRuns(runs) {
       phase: "process",
       processLabel: r.processName || "-",
       manpower: Number(r.manpower ?? 0) || 0,
-      remarks: r.remarks || "",
       employeeName: r.startedByName || "",
       employeeNumber: r.startedByNumber || "",
       resumedByName: r.resumedByName || "",
@@ -802,8 +923,10 @@ function buildSegmentsFromRuns(runs) {
       end,
       status,
       holdReason: r.holdReason || "",
+      remarks: r.remarks || "",
+      /* holdReason: r.holdReason || "",
       holdAt: holdTime || null,
-      resumedAt: resumed || null,
+      resumedAt: resumed || null, */
 
       qrKind: r.qrKind || "",
       chillerSerialNumber: r.chillerSerialNumber || "",
@@ -812,7 +935,8 @@ function buildSegmentsFromRuns(runs) {
       coolingType: r.coolingType || "",
 
       ongoing: (status === "running"),   // only running gets ongoing styling
-      durationMs: Math.max(0, durationMs)
+      durationMs: Math.max(0, durationMs),
+      holdWindows
     });
   }
 
@@ -861,43 +985,6 @@ function unitInfoFromSeg(seg){
   return { unitType: "CHILLER", unitSerial: seg.chillerSerialNumber || seg.serial || "" };
 }
 
-/* function buildMaterialGroups(segments){
-  const groups = new Map();
-
-  for (const seg of segments) {
-    const materialNumber = seg.materialNumber || "(No Material)";
-    const projectName = seg.projectName || "(No Project)";
-    const chillerSerialNumber = seg.chillerSerialNumber || "(No Serial Num)";
-
-    const { unitType, unitSerial } = unitInfoFromSeg(seg);
-    const unitKey = `${unitType}||${unitSerial}`;
-
-    if (!groups.has(materialNumber)) {
-      groups.set(materialNumber, {
-        materialNumber,
-        projectName,
-        chillerSerialNumber,     // ✅ store it here
-        units: new Map()
-      });
-    }
-
-    const g = groups.get(materialNumber);
-
-    if (!g.projectName || g.projectName === "(No Project)") g.projectName = projectName;
-
-    //  keep the first non-empty chiller serial number
-    if (!g.chillerSerialNumber || g.chillerSerialNumber === "(No Serial Num)") {
-      g.chillerSerialNumber = chillerSerialNumber;
-    }
-
-    if (!g.units.has(unitKey)) {
-      g.units.set(unitKey, { unitType, unitSerial, segs: [] });
-    }
-    g.units.get(unitKey).segs.push(seg);
-  }
-
-  return groups;
-} */
 
 function buildChillerGroups(segments){
   const groups = new Map();
@@ -1192,7 +1279,8 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
                 seg,
                 sliceStart,
                 sliceEnd,
-                isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process"
+                isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process",
+                p
               );
 
               return `
@@ -1404,11 +1492,13 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
             seg.status === "on_hold" ? "status-onhold" :
             "status-running";
 
+          
           const tipText = tipTextBuilder(
             seg,
             sliceStart,
             sliceEnd,
-            isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process"
+            isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process",
+            p
           );
 
           return `
@@ -1843,25 +1933,48 @@ function ensureTip(){
   return tipEl;
 }
 
+/* Update here to hide tip if there are more stations */
 function hideTip(){
   if (!tipEl) return;
   tipEl.classList.remove(
     "show",
-    "status-onhold",
-    "status-completed",
-    "status-running",
     "status-waiting",
     "status-holdgap",
-    "status-standard"
+    "status-standard",
+    "st-pv1",
+    "st-pv2",
+    "st-subassy",
+    "st-piping",
+    "st-fabrication",
+    "st-wc1",
+    "st-pneumatic"
   );
 }
 
 function showTipForBar(barEl){
   const tip = ensureTip();
-  const text = barEl.getAttribute("data-tip") || "";
-  if (!text) return;
+  const html = barEl.getAttribute("data-tip") || "";
+  if (!html) return;
 
   tip.className = "ganttTip show";
+
+  // FIRST: handle status pills (Tree View)
+  if (barEl.classList.contains("statusPill")) {
+    if (barEl.classList.contains("running")) {
+      tip.classList.add("status-running");
+    }
+    else if (barEl.classList.contains("completed")) {
+      tip.classList.add("status-completed");
+    }
+    else if (barEl.classList.contains("on_hold") || barEl.classList.contains("onhold")) {
+      tip.classList.add("status-onhold");
+    }
+
+    tip.innerHTML = html;
+    return; //  IMPORTANT: stop here
+  }
+
+  // GANTT LOGIC BELOW
 
   if (barEl.classList.contains("standardBar")) {
     tip.classList.add("status-standard");
@@ -1872,17 +1985,18 @@ function showTipForBar(barEl){
   else if (barEl.classList.contains("status-waiting") || barEl.classList.contains("waiting")) {
     tip.classList.add("status-waiting");
   }
-  else if (barEl.classList.contains("status-onhold") || barEl.classList.contains("onhold")) {
-    tip.classList.add("status-onhold");
-  }
-  else if (barEl.classList.contains("status-completed") || barEl.classList.contains("completed")) {
-    tip.classList.add("status-completed");
-  }
   else {
-    tip.classList.add("status-running");
+    // station-based color
+    if (barEl.classList.contains("st-pv1")) tip.classList.add("st-pv1");
+    else if (barEl.classList.contains("st-pv2")) tip.classList.add("st-pv2");
+    else if (barEl.classList.contains("st-subassy")) tip.classList.add("st-subassy");
+    else if (barEl.classList.contains("st-piping")) tip.classList.add("st-piping");
+    else if (barEl.classList.contains("st-fabrication")) tip.classList.add("st-fabrication");
+    else if (barEl.classList.contains("st-wc1")) tip.classList.add("st-wc1");
+    else if (barEl.classList.contains("st-pneumatic")) tip.classList.add("st-pneumatic");
   }
 
-  tip.textContent = text;
+  tip.innerHTML = html;
 }
 
 function positionTip(clientX, clientY){
