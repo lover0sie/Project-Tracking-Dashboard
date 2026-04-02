@@ -35,6 +35,7 @@ const STANDARD_TIME_MIN = {
   
 }
 
+
 /* DOM */
 const el = (id) => document.getElementById(id);
 

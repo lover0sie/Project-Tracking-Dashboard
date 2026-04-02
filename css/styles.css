@@ -1664,3 +1664,67 @@ select:focus{
   gap: 12px;
   flex-wrap: wrap;
 }
+
+/* versioning styling */
+
+#version-popup {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+}
+
+.version-card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  width: 320px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.version-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.version-text {
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+#btn-update-now {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* wrapping in the processes. html */
+
+.processWrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* scroll area */
+.processContainer {
+  max-height: 500px;   /* adjust height */
+  overflow-y: auto;
+}
+
+/* optional: nicer scrollbar */
+.processContainer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.processContainer::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}

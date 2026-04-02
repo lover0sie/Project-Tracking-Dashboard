@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Processes</title>
+  <title>Process Description</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 
@@ -12,8 +12,8 @@
     <!-- Mirror dashboard structure here so both pages feel consistent. -->
     <header class="top">
       <div>
-        <h2>Processes</h2>
-        <div class="sub">Generated from Firestore <b>processRuns</b></div>
+        <h2>Process Description</h2>
+        <div class="sub">Data extracted from <b>Firestore</b></div>
       </div>
 
       <div class="actions">
@@ -24,16 +24,20 @@
     <section class="card">
         <!-- Use this selector to switch which station's process steps are shown. -->
         <div class="toolbar">
-            <div class="hint">Select a station to see its process list.</div>
+            <div class="hint">Select a unit type to see its process list.</div>
 
             <div class="filters">
-            <label for="stationPick">Station</label>
+            <label for="stationPick">Unit Type</label>
             <select id="stationPick"></select>
             </div>
-        </div>
+          </div>
 
-        <!-- Let JavaScript inject the process list HTML into this block. -->
-        <div id="processList"></div>
+        <div class="processWrap">
+          <div class="processContainer">
+              <!-- Let JavaScript inject the process list HTML into this block. -->
+              <div id="processList"></div>
+          </div>
+        </div>
     </section>
 
   </div>
