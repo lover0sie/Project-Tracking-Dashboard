@@ -26,15 +26,26 @@
 
 
     <section class="card">
-      <!-- Use this toolbar to hold usage hints, legend output, and date-range controls. -->
       <div class="toolbar ganttTopBar">
-        <div class="leftPack">
-          <div class="hint">Legend:</div>
-          <div id="legendStations" class="legendRow"></div>
+        <!-- Row 1: Legend -->
+        <div class="legendTopRow">
+          <div class="legendBlock">
+            <div class="legendInlineSection">
+              <div class="hint">STATIONS:</div>
+              <div id="legendStations" class="legendRow"></div>
+            </div>
+
+            <div class="legendInlineDivider"></div>
+
+            <div class="legendInlineSection statusSection">
+              <div class="hint">STATUS:</div>
+              <div id="legendStatus" class="legendRow"></div>
+            </div>
+          </div>
         </div>
 
-        <div class="midPack">
-          <!-- your existing pickerSlot -->
+        <!-- Row 2: Controls -->
+        <div class="controlsRow">
           <div class="pickerSlot">
             <div id="daySlot" class="pickerGroup">
               <div class="pickerLabel">Day</div>
@@ -48,33 +59,29 @@
 
             <button id="btnToday" class="secondary hidden">Today</button>
           </div>
-        </div>
 
-        <div class="rightPack">
-         <div class="filters">
-          <div>
-            <label for="viewMode">View</label>
-            <select id="viewMode">
-              <option value="gantt">Gantt</option>
-              <option value="tree">Tree</option>
-            </select>
-          </div>
+          <div class="filters">
+            <div>
+              <label for="viewMode">View</label>
+              <select id="viewMode">
+                <option value="gantt">Gantt</option>
+                <option value="tree">Tree</option>
+              </select>
+            </div>
 
-          <div>
-            <label for="dateMode">Date Range</label>
-            <select id="dateMode">
-              <option value="daily">Daily</option>
-              <option value="month">Monthly</option>
-            </select>
+            <div>
+              <label for="dateMode">Date Range</label>
+              <select id="dateMode">
+                <option value="daily">Daily</option>
+                <option value="month">Monthly</option>
+              </select>
+            </div>
           </div>
-        </div>
         </div>
       </div>
 
       <div class="ganttWrap">
-        <!-- Header (sticky) -->
-        
-        <div class = "ganttGrid">
+        <div class="ganttGrid">
           <div class="ganttHead">
             <div class="ganttLeftHead">Unit</div>
             <div class="ganttLeftHead small">Process No.</div>
@@ -85,8 +92,7 @@
               <div id="ganttDayHead" class="ganttDayHead"></div>
             </div>
           </div>
-        
-            <!-- Body -->
+
           <div id="ganttBody"></div>
         </div>
       </div>
@@ -103,7 +109,7 @@
 <script type="module">
   import { renderTree } from "./js/tree.js";
   import { clearCache } from "./js/timeline.js";
-  import { renderGanttView, syncPickers } from "./js/gantt.js";
+  import { renderGanttView, syncPickers, stopGanttLiveRefresh } from "./js/gantt.js";
 
   const btnRefresh = document.getElementById("btn-refresh");
   const viewMode = document.getElementById("viewMode");
@@ -128,11 +134,12 @@
     syncPickers();
 
     if (currentView === "tree") {
+      stopGanttLiveRefresh();   // stop timer when leaving gantt
       setTreeHeaders();
       await renderTree();
     } else {
       setGanttHeaders();
-      await renderGanttView();
+      await renderGanttView();  // gantt.js already starts timer after render
     }
   }
 
@@ -146,20 +153,21 @@
   });
 
   btnRefresh.addEventListener("click", async () => {
+    stopGanttLiveRefresh();     // avoid old timer during refresh
     clearCache();
     await renderCurrentView();
   });
 
-  dayPicker?.addEventListener("change",async () => {
-     await renderCurrentView(); 
+  dayPicker?.addEventListener("change", async () => {
+    await renderCurrentView();
   });
 
-  monthPicker?.addEventListener("change",async () => {
-     await renderCurrentView(); 
+  monthPicker?.addEventListener("change", async () => {
+    await renderCurrentView();
   });
 
-  dateMode?.addEventListener("change",async () => {
-     await renderCurrentView(); 
+  dateMode?.addEventListener("change", async () => {
+    await renderCurrentView();
   });
 
   btnToday?.addEventListener("click", async () => {
@@ -170,8 +178,10 @@
     await renderCurrentView();
   });
 
-  
-
+  window.addEventListener("beforeunload", () => {
+    stopGanttLiveRefresh();
+  });
 </script>
+
 </body>
 </html>

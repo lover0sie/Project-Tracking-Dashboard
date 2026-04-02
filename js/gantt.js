@@ -24,7 +24,15 @@ const STANDARD_TIME_MIN = {
   "19 - Top coat painting": 400,
 
   "Piping shop": 300,
-  "Insulation 1": 400
+  "A - Insulation 1": 480,
+  "B - Insulation 2": 480,
+  "C - Major components assembly": 600,
+  "D - Steel pipe welding": 300,
+  "E - Copper pipe brazing": 350,
+  "F - Control box and wiring": 240,
+  "G - Piping insulation": 500,
+  "H - Packing": 360
+  
 }
 
 /* DOM */
@@ -50,38 +58,52 @@ function buildStandardSlices(seg) {
 
   let remainingMs = stdMin * 60000;
   const slices = [];
+  let cursor = seg.start;
 
-  const start = seg.start;
-  const hold = seg.holdAt;
-  const resume = seg.resumedAt;
-  const end = seg.end;
+  const holdWindows = buildHoldWindowsFromRun(seg, new Date())
+    .filter(w => w?.start && w?.end && w.end > w.start)
+    .sort((a, b) => a.start - b.start);
 
-  // No hold at all -> one normal standard slice from start
-  if (!hold || hold <= start) {
-    slices.push({
-      start,
-      end: new Date(start.getTime() + remainingMs)
-    });
-    return slices;
+  if (!holdWindows.length) {
+    return [{
+      start: seg.start,
+      end: new Date(seg.start.getTime() + remainingMs)
+    }];
   }
 
-  // First running part: start -> hold
-  const firstRunMs = Math.max(0, hold.getTime() - start.getTime());
-  const firstStdMs = Math.min(firstRunMs, remainingMs);
+  for (const w of holdWindows) {
+    if (remainingMs <= 0) break;
 
-  if (firstStdMs > 0) {
-    slices.push({
-      start,
-      end: new Date(start.getTime() + firstStdMs)
-    });
-    remainingMs -= firstStdMs;
+    const holdStart = w.start;
+    const holdEnd = w.end;
+
+    if (!(holdStart instanceof Date) || isNaN(holdStart.getTime())) continue;
+    if (!(holdEnd instanceof Date) || isNaN(holdEnd.getTime())) continue;
+
+    if (holdEnd <= cursor) continue;
+
+    if (holdStart > cursor) {
+      const runMs = holdStart.getTime() - cursor.getTime();
+      const usedMs = Math.min(runMs, remainingMs);
+
+      if (usedMs > 0) {
+        slices.push({
+          start: cursor,
+          end: new Date(cursor.getTime() + usedMs)
+        });
+        remainingMs -= usedMs;
+      }
+    }
+
+    if (holdEnd > cursor) {
+      cursor = holdEnd;
+    }
   }
 
-  // If resumed later and still has remaining standard, show again from resume
-  if (resume && resume > hold && remainingMs > 0) {
+  if (remainingMs > 0) {
     slices.push({
-      start: resume,
-      end: new Date(resume.getTime() + remainingMs)
+      start: cursor,
+      end: new Date(cursor.getTime() + remainingMs)
     });
   }
 
@@ -142,24 +164,7 @@ function getBreakOverlapMs(start, end) {
   return total;
 }
 
-function getHoldDurationMs(seg) {
-  if (!seg?.holdAt) return 0;
-
-  const holdMs = seg.holdAt.getTime();
-
-  // resumed after hold
-  if (seg.resumedAt && seg.resumedAt.getTime() > holdMs) {
-    return seg.resumedAt.getTime() - holdMs;
-  }
-
-  // currently still on hold
-  if (seg.status === "on_hold" && seg.end && seg.end.getTime() > holdMs) {
-    return seg.end.getTime() - holdMs;
-  }
-
-  return 0;
-}
-
+// Legacy function since currently using buildHoldWindowsFromRun
 function getHoldDurationMsFromRun(r) {
 
   const hold = tsOrMsToDate(r.holdAt, r.holdEpochMs);
@@ -176,6 +181,22 @@ function getHoldDurationMsFromRun(r) {
   }
 
   return 0;
+}
+
+let ganttLiveTimer = null;
+
+function startGanttLiveRefresh() {
+  stopGanttLiveRefresh();
+  ganttLiveTimer = setInterval(() => {
+    renderGanttView();
+  }, 60000); // every 1 minute
+}
+
+export function stopGanttLiveRefresh() {
+  if (ganttLiveTimer) {
+    clearInterval(ganttLiveTimer);
+    ganttLiveTimer = null;
+  }
 }
 
 
@@ -252,12 +273,12 @@ function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
 /* Get the time difference between standard and actual process */
 function getVarianceMs(seg) {
   const stdMin = getStandardMinutes(seg?.processLabel);
-  if (!stdMin || !seg?.start || !seg?.end) return null;
+  if (!stdMin || !seg?.start) return null;
 
   const stdMs = stdMin * 60000;
-  const actualMs = getActualEffectiveDurationMs(seg);
+  const actualEffectiveMs = getActualEffectiveDurationMs(seg);
 
-  return actualMs - stdMs;
+  return actualEffectiveMs - stdMs;
 }
 
 function formatVariance(ms) {
@@ -375,43 +396,6 @@ function injectWaitingIntoUnitSegs(segs) {
 }
 
 
-/* Get the standard time in minutes */
-function getStandardMinutes(processLabel) {
-  return Number(STANDARD_TIME_MIN[processLabel] || 0);
-}
-
-function getStandardEnd(seg) {
-  const stdMin = getStandardMinutes(seg?.processLabel);
-  if (!seg?.start || !stdMin) return null;
-  return new Date(seg.start.getTime() + stdMin * 60000);
-}
-
-/* Build tooltip for the standard time */
-function standardTipText(seg, stdStart, stdEnd) {
-  const stdMin = getStandardMinutes(seg?.processLabel);
-  const stdMs = stdMin * 60000;
-
-  const actualEffectiveMs = getActualEffectiveDurationMs(seg);
-  const varianceMs = getVarianceMs(seg);
-
-  const holdMs = getHoldDurationMs(seg);
-
-  const breakMs = seg?.start && seg?.end
-    ? getBreakOverlapMs(seg.start, seg.end)
-    : 0;
-
-  return `
-    <div class="tipTitle">STANDARD TIME</div>
-    <div class="tipRow"><span class="tipLabel">Process:</span> ${seg.processLabel || "-"}</div>
-    <div class="tipRow"><span class="tipLabel">Standard Duration:</span> ${formatDuration(stdMs)}</div>
-    <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${formatDuration(actualEffectiveMs)}</div>
-    <div class="tipRow"><span class="tipLabel">Variance:</span> ${formatVariance(varianceMs)}</div>
-    <div class="tipDivider"></div>
-    <div class="tipRow"><span class="tipLabel">On Hold:</span> ${formatDuration(holdMs)}</div>
-    <div class="tipRow"><span class="tipLabel">Break:</span> ${formatDuration(breakMs)}</div>
-  `;
-}
-
 /* Get the unit type based on the qr code */
 function getUnitType(r) {
   if (String(r.qrKind || "").toUpperCase() === "PV") {
@@ -420,22 +404,46 @@ function getUnitType(r) {
   return "CHILLER";
 }
 
+function getCurrentHoldDurationMs(run) {
+  const windows = buildHoldWindowsFromRun(run, new Date());
+  const openWindow = windows.find(w => w.isOpen);
+  if (!openWindow) return 0;
+  return Math.max(0, openWindow.end.getTime() - openWindow.start.getTime());
+}
+
+function getTotalHoldDurationMs(seg) {
+  const windows = buildHoldWindowsFromRun(seg, new Date());
+  return windows.reduce((sum, w) => {
+    return sum + Math.max(0, w.end.getTime() - w.start.getTime());
+  }, 0);
+}
+
 /* Function to build the tooltip for daily and monthy timeline */
 function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
   const isHoldGap = partType === "on_hold_gap";
   const isWaiting = partType === "waiting" || seg.phase === "waiting";
 
+
+  // HOLD slice
   if (isHoldGap) {
     const holdReason = part?.holdReason || seg.holdReason || "";
     const remarks = part?.remarks || seg.remarks || "";
     const sliceDurationMs = Math.max(0, sliceEnd.getTime() - sliceStart.getTime());
 
+    const holdMs = part?.isOpen
+      ? getCurrentHoldDurationMs(seg)
+      : sliceDurationMs;
+
+    const endText = part?.isOpen
+      ? `Now (${formatDateTime(new Date())})`
+      : formatDateTime(sliceEnd);
+
     return `
       <div class="tipTitle">ON HOLD</div>
       <div class="tipRow"><span class="tipLabel">Process:</span> ${seg.processLabel || "-"}</div>
       <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(sliceStart)}</div>
-      <div class="tipRow"><span class="tipLabel">End:</span> ${formatDateTime(sliceEnd)}</div>
-      <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(sliceDurationMs)}</div>
+      <div class="tipRow"><span class="tipLabel">End:</span> ${endText}</div>
+      <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(holdMs)}</div>
       <div class="tipRow"><span class="tipLabel">Reason:</span> ${
         holdReason === "others" && remarks
           ? "Others"
@@ -445,6 +453,7 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
     `;
   }
 
+  // WAITING slice
   if (isWaiting) {
     return `
       <div class="tipTitle">WAITING</div>
@@ -468,6 +477,14 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
 
   const totalEffectiveMs = getActualEffectiveDurationMs(seg);
 
+  const isRunningNow =
+  String(seg.status || "").toLowerCase() === "running" &&
+  seg.end instanceof Date;
+
+  const endText = isRunningNow
+    ? `Now (${formatDateTime(new Date())})`
+    : formatDateTime(realTo);
+
   return `
     <div class="tipTitle">${seg.processLabel || "PROCESS"}</div>
     <div class="tipRow"><span class="tipLabel">Station:</span> ${seg.station || "-"}</div>
@@ -475,7 +492,7 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
     <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${seg.resumedByName || "-"} (${seg.resumedByNumber || "-"})</div>
     <div class="tipRow"><span class="tipLabel">Manpower:</span> ${seg.manpower ?? "-"}</div>
     <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(realFrom)}</div>
-    <div class="tipRow"><span class="tipLabel">End:</span> ${formatDateTime(realTo)}</div>
+    <div class="tipRow"><span class="tipLabel">End:</span> ${endText}</div>
     <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${formatDuration(sliceEffectiveMs)}</div>
     <div class="tipRow"><span class="tipLabel">Total Effective Duration:</span> ${formatDuration(totalEffectiveMs)}</div>
   `;
@@ -483,6 +500,39 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
 
 /* div class  not used */
 /* <div class="tipRow"><span class="tipLabel">Slice Duration:</span> ${formatDuration(sliceDurationMs)}</div> */
+
+/* Get the standard time in minutes */
+function getStandardMinutes(processLabel) {
+  return Number(STANDARD_TIME_MIN[processLabel] || 0);
+}
+
+
+/* Build tooltip for the standard time */
+function standardTipText(seg, stdStart, stdEnd) {
+  const stdMin = getStandardMinutes(seg?.processLabel);
+  const stdMs = stdMin * 60000;
+
+  const actualEffectiveMs = getActualEffectiveDurationMs(seg);
+  const varianceMs = getVarianceMs(seg);
+
+  const holdMs = buildHoldWindowsFromRun(seg, new Date())
+  .reduce((sum, w) => sum + Math.max(0, w.end.getTime() - w.start.getTime()), 0);
+  
+  const breakMs = seg?.start && seg?.end
+    ? getBreakOverlapMs(seg.start, seg.end)
+    : 0;
+
+  return `
+    <div class="tipTitle">STANDARD TIME</div>
+    <div class="tipRow"><span class="tipLabel">Process:</span> ${seg.processLabel || "-"}</div>
+    <div class="tipRow"><span class="tipLabel">Standard Duration:</span> ${formatDuration(stdMs)}</div>
+    <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${formatDuration(actualEffectiveMs)}</div>
+    <div class="tipRow"><span class="tipLabel">Variance:</span> ${formatVariance(varianceMs)}</div>
+    <div class="tipDivider"></div>
+    <div class="tipRow"><span class="tipLabel">On Hold:</span> ${formatDuration(holdMs)}</div>
+    <div class="tipRow"><span class="tipLabel">Break:</span> ${formatDuration(breakMs)}</div>
+  `;
+}
 
 
 /* Fitting the columns of daily into the screen */
@@ -515,24 +565,39 @@ function fitDailyToScreen(){
 }
 
 
-/* Create waiting process based on the status */
+/* Create waiting and on hold process based on the status */
 function sliceSegForWaiting(seg) {
   const parts = [];
   const s = seg.start;
   const e = seg.end;
   if (!s || !e) return parts;
 
+  if (seg.phase === "waiting" || seg.status === "waiting") {
+    parts.push({ type: "waiting", start: s, end: e });
+    return parts;
+  }
+
+  const windows = Array.isArray(seg.holdWindows) ? seg.holdWindows : [];
+
+  if (!windows.length) {
+    parts.push({ type: "process", start: s, end: e });
+    return parts;
+  }
+
   let cursor = s;
 
-  const holdWindows = Array.isArray(seg.holdWindows) ? seg.holdWindows : [];
+  for (const w of windows) {
+    const holdStart = w.start instanceof Date ? w.start : new Date(w.start);
 
-  for (const w of holdWindows) {
-    if (!w?.start || !w?.end) continue;
+    // KEY FIX:
+    const holdEnd = w.isOpen
+      ? new Date()
+      : (w.end instanceof Date ? w.end : new Date(w.end));
 
-    const holdStart = w.start;
-    const holdEnd = w.end;
+    if (!(holdStart instanceof Date) || isNaN(holdStart)) continue;
+    if (!(holdEnd instanceof Date) || isNaN(holdEnd)) continue;
+    if (holdEnd <= holdStart) continue;
 
-    // process before hold
     if (holdStart > cursor) {
       parts.push({
         type: "process",
@@ -541,20 +606,19 @@ function sliceSegForWaiting(seg) {
       });
     }
 
-    // HOLD
     parts.push({
       type: "on_hold_gap",
       start: holdStart,
       end: holdEnd,
       holdReason: w.holdReason || "",
-      remarks: w.remarks || ""
+      remarks: w.remarks || "",
+      isOpen: !!w.isOpen
     });
 
     cursor = holdEnd;
   }
 
-  // remaining process
-  if (e > cursor) {
+  if (cursor < e) {
     parts.push({
       type: "process",
       start: cursor,
@@ -666,35 +730,59 @@ function tsOrMsToDate(ts, ms) {
 }
 
 /* =========================
-   NEW: HOLD WINDOWS BUILDER (ACCOMMODATE BOTH OLD DATA VER AND NEW DATA VER)
+   HOLD WINDOWS BUILDER
+   supports:
+   - old data version (single hold/resume fields)
+   - new data version (holds[] / resumes[])
+   - active on_hold without resume yet
 ========================= */
-function buildHoldWindowsFromRun(r, segEnd) {
-
-  // create empty result
+function buildHoldWindowsFromRun(r, segEnd = new Date()) {
   const windows = [];
+  const status = String(r?.status || "").toLowerCase().trim();
+  const effectiveEnd = segEnd instanceof Date ? segEnd : new Date(segEnd);
 
-  // check if using new array data
+  const toDateSafe = (v) => {
+    if (!v) return null;
+    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+    if (typeof v === "number") {
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof v?.toDate === "function") {
+      const d = v.toDate();
+      return d instanceof Date && !isNaN(d.getTime()) ? d : null;
+    }
+    return null;
+  };
+
+  // =========================
+  // NEW SYSTEM: holds[] / resumes[]
+  // =========================
   const holdsArr = Array.isArray(r?.holds) ? r.holds : [];
   const resumesArr = Array.isArray(r?.resumes) ? r.resumes : [];
 
-  
- // if the array holdsArr contains value, then use new system
-  if (holdsArr.length) {
-
-    // convert to usable data
+  if (holdsArr.length > 0) {
     const holds = holdsArr
-      .map(h => ({
-        holdAt: new Date(h.holdAtEpochMs),
-        holdReason: h.holdReason || "",
-        remarks: h.remarks || ""
+      .map((h) => ({
+        holdAt:
+          toDateSafe(h?.holdAtEpochMs) ||
+          toDateSafe(h?.holdEpochMs) ||
+          toDateSafe(h?.holdAt),
+        holdReason: h?.holdReason || "",
+        remarks: h?.remarks || ""
       }))
+      .filter((h) => h.holdAt)
       .sort((a, b) => a.holdAt - b.holdAt);
 
-    // convert to usable data
     const resumes = resumesArr
-      .map(x => ({
-        resumedAt: new Date(x.resumedAtEpochMs)
+      .map((x) => ({
+        resumedAt:
+          toDateSafe(x?.resumedAtEpochMs) ||
+          toDateSafe(x?.resumeEpochMs) ||
+          toDateSafe(x?.resumedAt) ||
+          toDateSafe(x?.resumeAt)
       }))
+      .filter((x) => x.resumedAt)
       .sort((a, b) => a.resumedAt - b.resumedAt);
 
     let resumeIdx = 0;
@@ -707,52 +795,54 @@ function buildHoldWindowsFromRun(r, segEnd) {
         resumeIdx++;
       }
 
-      // pick matching resume
       const matchedResume =
         resumeIdx < resumes.length ? resumes[resumeIdx] : null;
 
-        // decide when hold ends
       const holdEnd =
         matchedResume?.resumedAt ||
-        (String(r.status || "").toLowerCase() === "on_hold" ? segEnd : null);
+        (status === "on_hold" ? effectiveEnd : null);
 
       if (!holdEnd || holdEnd <= h.holdAt) continue;
 
-      // add new hold
       windows.push({
         start: h.holdAt,
         end: holdEnd,
         holdReason: h.holdReason,
-        remarks: h.remarks
+        remarks: h.remarks,
+        isOpen: !matchedResume && status === "on_hold"
       });
 
-      // move to next resume
       if (matchedResume) resumeIdx++;
     }
 
     return windows;
   }
 
-  // else, use the old system
-  const holdAt = r.holdEpochMs
-    ? new Date(r.holdEpochMs)
-    : (r.holdAt?.toDate?.() || null);
+  // =========================
+  // OLD SYSTEM: single hold/resume fields
+  // =========================
+  const holdAt =
+    toDateSafe(r?.holdEpochMs) ||
+    toDateSafe(r?.holdAt);
 
-  const resumedAt = r.resumedEpochMs
-    ? new Date(r.resumedEpochMs)
-    : (r.resumedAt?.toDate?.() || null);
+  const resumedAt =
+    toDateSafe(r?.resumedEpochMs) ||
+    toDateSafe(r?.resumeEpochMs) ||
+    toDateSafe(r?.resumedAt) ||
+    toDateSafe(r?.resumeAt);
 
   if (holdAt) {
     const end =
       resumedAt ||
-      (String(r.status || "").toLowerCase() === "on_hold" ? segEnd : null);
+      (status === "on_hold" ? effectiveEnd : null);
 
     if (end && end > holdAt) {
       windows.push({
         start: holdAt,
         end,
-        holdReason: r.holdReason || "",
-        remarks: r.remarks || ""
+        holdReason: r?.holdReason || "",
+        remarks: r?.remarks || "",
+        isOpen: !resumedAt && status === "on_hold"
       });
     }
   }
@@ -982,9 +1072,13 @@ function buildSegmentsFromRuns(runs) {
       status,
       holdReason: r.holdReason || "",
       remarks: r.remarks || "",
-      /* holdReason: r.holdReason || "",
+
       holdAt: holdTime || null,
-      resumedAt: resumed || null, */
+      resumedAt: resumed || null,
+      holdEpochMs: r.holdEpochMs ?? null,
+      resumedEpochMs: r.resumedEpochMs ?? null,
+      holds: Array.isArray(r.holds) ? r.holds : [],
+      resumes: Array.isArray(r.resumes) ? r.resumes : [],
 
       qrKind: r.qrKind || "",
       chillerSerialNumber: r.chillerSerialNumber || "",
@@ -992,7 +1086,7 @@ function buildSegmentsFromRuns(runs) {
       vesselType: r.vesselType || "",
       coolingType: r.coolingType || "",
 
-      ongoing: (status === "running"),   // only running gets ongoing styling
+      ongoing: (status === "running" || status === "on_hold"),
       durationMs: Math.max(0, durationMs),
       holdWindows
     });
@@ -1114,6 +1208,30 @@ function renderLegendsStationOnly(segments){
       ${escapeHtml(st)}
     </span>`
   ).join("");
+}
+
+function renderLegendStatus() {
+  const stEl = document.getElementById("legendStatus");
+  if (!stEl) return;
+
+  stEl.innerHTML = `
+    <span class="legItem">
+      <span class="swatch swatch-process"></span>
+      Process
+    </span>
+    <span class="legItem">
+      <span class="swatch swatch-standard"></span>
+      Standard
+    </span>
+    <span class="legItem">
+      <span class="swatch swatch-waiting"></span>
+      Waiting
+    </span>
+    <span class="legItem">
+      <span class="swatch swatch-hold"></span>
+      On Hold
+    </span>
+  `;
 }
 
 /* Position bars by time */
@@ -1831,6 +1949,7 @@ async function render() {
     // Build segments FIRST (so both daily + monthly can use it)
     const { segments } = buildSegmentsFromRuns(runs);
     renderLegendsStationOnly(segments);
+    renderLegendStatus();
 
     const mode = el("dateMode")?.value || "daily";
     const wrap = document.querySelector(".ganttWrap");
@@ -1917,7 +2036,7 @@ async function render() {
   }
 }
 
-function syncPickers(){
+export function syncPickers(){
   const mode = el("dateMode")?.value || "daily";
 
   const daySlot = el("daySlot");
@@ -1940,12 +2059,24 @@ el("btn-export").addEventListener("click", async () => {
 });
 
 /* Start */
-async function renderGanttView() {
+export async function renderGanttView() {
   console.log("GANTT RENDER CALLED");
   await render();
+
+  startGanttLiveRefresh();
 }
 
 /* Tooltip functions */
+
+function clearBarHover() {
+  document.querySelectorAll(".bar-hover").forEach(el => {
+    el.classList.remove("bar-hover");
+  });
+
+  document.querySelectorAll(".bar-dim").forEach(el => {
+    el.classList.remove("bar-dim");
+  });
+}
 
 let tipEl = null;
 
@@ -1980,6 +2111,10 @@ function hideTip(){
     "st-mig"
 
   );
+
+  const tip = document.querySelector(".ganttTip");
+  if (tip) tip.classList.remove("show");
+  clearBarHover();
 }
 
 function showTipForBar(barEl){
@@ -1988,6 +2123,15 @@ function showTipForBar(barEl){
   if (!html) return;
 
   tip.className = "ganttTip show";
+
+  clearBarHover();
+
+  barEl.classList.add("bar-hover");
+
+  const row = barEl.closest(".ganttRow");
+  row?.querySelectorAll(".bar").forEach(el => {
+    if (el !== barEl) el.classList.add("bar-dim");
+  });
 
   // FIRST: handle status pills (Tree View)
   if (barEl.classList.contains("statusPill")) {
@@ -2080,5 +2224,6 @@ window.addEventListener("resize", () => {
   render();
 });
 
-export { renderGanttView, syncPickers };
+
+
 bindFloatingTooltip();
