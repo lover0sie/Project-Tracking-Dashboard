@@ -18,9 +18,10 @@
       </div>
 
       <div class="actions">
-        <button id="btn-refresh" class="secondary">Refresh</button>
-        <a class="btn secondary" href="processes.html">Process Description</a>
-        <button id="btn-export">Export Excel File</button>
+          <button id="btn-refresh" class="secondary">Refresh</button>
+          <a class="btn secondary" href="processes.html">Process Description</a>
+          <a class="btn secondary" href="station.html">Station View</a>
+          <button id="btn-export">Export Excel File</button>
       </div>
     </header>
 
@@ -83,7 +84,7 @@
       <div class="ganttWrap">
         <div class="ganttGrid">
           <div class="ganttHead">
-            <div class="ganttLeftHead">Unit</div>
+            <div class="ganttLeftHead">Station / Unit</div>
             <div class="ganttLeftHead small">Process No.</div>
             <div class="ganttLeftHead small">Status</div>
 
@@ -109,7 +110,7 @@
 <script type="module">
   import { renderTree } from "./js/tree.js";
   import { clearCache } from "./js/timeline.js";
-  import { renderGanttView, syncPickers, stopGanttLiveRefresh } from "./js/gantt.js";
+  import { renderGanttView, syncPickers, stopGanttLiveRefresh, updateGanttLeftHeaders } from "./js/gantt.js";
   import { startVersionCheck } from "./js/version-check.js";
 
   const btnRefresh = document.getElementById("btn-refresh");
@@ -133,16 +134,17 @@
 
   async function renderCurrentView() {
     syncPickers();
+    updateGanttLeftHeaders();
 
     if (currentView === "tree") {
-      stopGanttLiveRefresh();   // stop timer when leaving gantt
+      stopGanttLiveRefresh();
       setTreeHeaders();
       await renderTree();
     } else {
       setGanttHeaders();
-      await renderGanttView();  // gantt.js already starts timer after render
+      await renderGanttView();
     }
-  }
+  } 
 
   // Default view = Gantt
   currentView = "gantt";

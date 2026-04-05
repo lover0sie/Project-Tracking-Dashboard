@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Station View Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body class="station-page">
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h2>Station View Dashboard</h2>
+        <div class="sub">Station segregation view <b>Firestore</b></div>
+      </div>
+
+      <div class="actions">
+        <a class="btn secondary" href="index.html">Back to Dashboard</a>
+        <button id="btn-refresh" class="secondary">Refresh</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="toolbar ganttTopBar">
+        <div class="legendTopRow">
+          <div class="legendBlock">
+            <div class="legendInlineSection">
+              <div class="hint">STATIONS:</div>
+              <div id="legendStations" class="legendRow"></div>
+            </div>
+
+            <div class="legendInlineDivider"></div>
+
+            <div class="legendTopRow">
+                <div class="legendBlock">
+                    <div class="legendInlineSection">
+                    <div class="hint">STATIONS:</div>
+                    <div id="legendStations" class="legendRow"></div>
+                    </div>
+                </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controlsRow">
+          <div class="pickerSlot">
+            <div id="daySlot" class="pickerGroup">
+              <div class="pickerLabel">Day</div>
+              <input type="date" id="dayPicker" class="pickerInput" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ganttWrap stationMode">
+        <div class="ganttGrid stationMode">
+          <div class="ganttHead">
+            <div class="ganttLeftHead">Station</div>
+            <div class="ganttLeftHead small">Process Used</div>
+            <div class="ganttLeftHead small">Overall Status</div>
+
+            <div class="ganttTimelineHead">
+              <div id="ganttMonthHead" class="ganttMonthHead"></div>
+              <div id="ganttDayHead" class="ganttDayHead"></div>
+            </div>
+          </div>
+
+          <div id="ganttBody"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script type="module">
+    import { clearCache } from "./js/timeline.js";
+    import { renderStationOnlyView, stopGanttLiveRefresh } from "./js/gantt.js";
+    import { startVersionCheck } from "./js/version-check.js";
+
+    const btnRefresh = document.getElementById("btn-refresh");
+    const dayPicker = document.getElementById("dayPicker");
+
+    async function renderPage() {
+      await renderStationOnlyView();
+    }
+
+    renderPage();
+    startVersionCheck();
+
+    btnRefresh?.addEventListener("click", async () => {
+      stopGanttLiveRefresh();
+      clearCache();
+      await renderPage();
+    });
+
+    dayPicker?.addEventListener("change", async () => {
+      await renderPage();
+    });
+
+    window.addEventListener("beforeunload", () => {
+      stopGanttLiveRefresh();
+    });
+  </script>
+</body>
+</html>

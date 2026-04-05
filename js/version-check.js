@@ -1,4 +1,6 @@
-const APP_VERSION = "2026-04-02-01";
+/* App versioning checking */
+
+const APP_VERSION = "2026-04-03-01"; /* Update here */
 let versionTimer = null;
 
 async function checkVersion() {

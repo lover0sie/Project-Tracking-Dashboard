@@ -641,7 +641,7 @@ select:focus{
   min-width: 100%;
 }
 
-/* allow the right-side timeline column to expand properly */
+/* Allow the right-side timeline column to expand properly */
 .ganttHead > * , .ganttRow > * {
   min-width: 0;
 }
@@ -842,7 +842,7 @@ select:focus{
 }
 
 
-/* Hovered bar */
+/* ==================== Hovered bars ==================== */
 .bar.bar-hover {
   z-index: 20;
   opacity: 1;
@@ -984,7 +984,7 @@ select:focus{
   opacity: 0.35;
 }
 
-/* Station colors (Process) */
+/* ==================== Station Colors ==================== */
 
 /* PV */
 .bar.st-pv1{ background:#cfed3a; border-color:#789019; color:#fff; }  
@@ -1003,7 +1003,7 @@ select:focus{
 .bar.st-packing { background:#5229b9; border-color: #251351;}
 .bar.st-mig { background:#c24179; border-color: #712647;}
 
-/* Misc */
+/* ==================== Process Colors ==================== */
 .bar.st-waiting {
   background: repeating-linear-gradient(
     135deg,
@@ -1022,25 +1022,7 @@ select:focus{
   border-color: #b91c1c;
 }
 
-/* LEGEND swatch colors */
-.swatch.st-pv1{ background:#cfed3a; border-color:#789019; }
-.swatch.st-pv2{ background:#ec4899; border-color:#be185d; }
-.swatch.st-subassy{ background:#1d4ed8; border-color:#1e40af; }
-.swatch.st-piping{ background:#166534; border-color:#14532d; }
-.swatch.st-fabrication {background:#077c91; border-color:#0b6a7b;}
-.swatch.st-pneumatic {background:#754960; border-color:#533545; }
-
-.swatch.st-wc1 {background:#b004b0; border-color: #9c049c;}
-.swatch.st-wc2 { background:#fd9722; border-color: #7e490c;}
-.swatch.st-ac { background:#08d888; border-color: #078554;}
-.swatch.st-insulationab { background:#ed5a70; border-color: #820316;}
-.swatch.st-insulationg { background:#1e4b53; border-color: #132e32;}
-.swatch.st-packing { background:#5229b9; border-color: #251351;}
-.swatch.st-mig { background:#c24179; border-color: #712647;}
-
-
-
-/* ongoing highlight */
+/* Ongoing Highlight */
 .bar.ongoing{
   outline: 3px solid #f59e0b;
 }
@@ -1050,6 +1032,24 @@ select:focus{
   top: 18px;
   height: 28px;
 }
+
+/* ==================== Legend Swatch Colors ==================== */
+/* PV */
+.swatch.st-pv1{ background:#cfed3a; border-color:#789019; }
+.swatch.st-pv2{ background:#ec4899; border-color:#be185d; }
+.swatch.st-subassy{ background:#1d4ed8; border-color:#1e40af; }
+.swatch.st-piping{ background:#166534; border-color:#14532d; }
+.swatch.st-fabrication {background:#077c91; border-color:#0b6a7b;}
+.swatch.st-pneumatic {background:#754960; border-color:#533545; }
+
+/* Chiller */
+.swatch.st-wc1 {background:#b004b0; border-color: #9c049c;}
+.swatch.st-wc2 { background:#fd9722; border-color: #7e490c;}
+.swatch.st-ac { background:#08d888; border-color: #078554;}
+.swatch.st-insulationab { background:#ed5a70; border-color: #820316;}
+.swatch.st-insulationg { background:#1e4b53; border-color: #132e32;}
+.swatch.st-packing { background:#5229b9; border-color: #251351;}
+.swatch.st-mig { background:#c24179; border-color: #712647;}
 
 /* ==================== Bar Tooltip ==================== */
 
@@ -1106,7 +1106,8 @@ select:focus{
   background: rgba(255,255,255,0.3);
 }
 
-/* status colors */
+/* ==================== Tooltip Colors ==================== */
+/* Status colors */
 .ganttTip.status-waiting{ background:#64748b;  /* slate */ color:#fff;}
 .ganttTip.status-holdgap{background:#b91c1c;color:#fff;}
 .ganttTip.status-standard{background:#94a3b8;color:#0f172a;}
@@ -1116,9 +1117,10 @@ select:focus{
 
 
 /* Tooltip colors by status */
-.bar.status-onhold:hover::after{ background: #d32f2f; }     /* red */
-.bar.status-completed:hover::after{ background: #2e7d32; }  /* green */
-.bar.status-running:hover::after{ background: #f9a825; }    /* yellow */
+.bar.status-onhold:hover::after{ background: #d32f2f; }     
+.bar.status-completed:hover::after{ background: #2e7d32; }  
+.bar.status-running:hover::after{ background: #f9a825; }    
+
 
 /* PROCESS tooltip by station */
 .ganttTip.st-pv1 { background:#cfed3a; color:#000000; }
@@ -1136,10 +1138,6 @@ select:focus{
 .ganttTip.st-packing { background:#5229b9; color: #ffff;}
 .ganttTip.st-mig { background:#c24179; color: #ffff;}
 
-
-
-/* Optional: make yellow tooltip text darker for readability */
-.bar.status-running:hover::after{ color: #111; }
 
 /* ==================== Responsive Rules ==================== */
 @media (max-width: 720px){
@@ -1587,7 +1585,7 @@ select:focus{
   background: linear-gradient(#fff, #fbfbfb);
 }
 
-/* === Bar At Top ============ */
+/* ================ Bar At Top ============ */
 
 .ganttTopBar {
   display: flex;
@@ -1665,7 +1663,7 @@ select:focus{
   flex-wrap: wrap;
 }
 
-/* versioning styling */
+/* ================ Versioning Styling ============ */
 
 #version-popup {
   position: fixed;
@@ -1705,7 +1703,7 @@ select:focus{
   cursor: pointer;
 }
 
-/* wrapping in the processes. html */
+/* =============== Process Description Page  ============ */
 
 .processWrap {
   border: 1px solid #e5e7eb;
@@ -1728,3 +1726,89 @@ select:focus{
   background: #cbd5e1;
   border-radius: 999px;
 }
+
+/* ================ Gantt Chart for Station View ============ */
+
+/* ================= Station View: one lane per station ================= */
+
+.ganttWrap.stationMode .ganttGrid{
+  width: 100%;
+  min-width: 100%;
+}
+
+.stationRow{
+  display:grid;
+  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
+  border-bottom:1px solid var(--border);
+  background:#fff;
+}
+
+.stationRow:nth-child(even){
+  background:#fbfdff;
+}
+
+.stationRow .ganttCell,
+.stationRow .ganttTimeline{
+  height: 66px;
+}
+
+.stationRow .ganttCell.project{
+  left: 0;
+  z-index: 20;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.stationRow .ganttCell.procNo{
+  left: var(--colProject);
+  z-index: 20;
+}
+
+.stationRow .ganttCell.status{
+  left: calc(var(--colProject) + var(--colProc));
+  z-index: 20;
+}
+
+.stationTimeline{
+  position: relative;
+}
+
+.stationTimeline .bar{
+  top: 18px;
+  height: 30px;
+}
+
+.stationCell .title{
+  font-size:13px;
+  font-weight:800;
+  color:#111827;
+  line-height:1.2;
+}
+
+.stationCell .meta{
+  margin-top:2px;
+  font-size:12px;
+  color:#6b7280;
+}
+
+.stationProcCell{
+  font-size:12px;
+  font-weight:700;
+  text-align:center;
+}
+
+.stationStatusCell{
+  text-align:center;
+}
+
+.stationGroup {
+  display: block;
+}
+
+.stationMerged {
+  display: flex;
+  align-items: center;
+  font-weight: 800;
+  border-bottom: 1px solid #d7dbe3;
+}
+

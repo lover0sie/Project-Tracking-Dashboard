@@ -1,3 +1,5 @@
+/* For tree view */
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import {
   getFirestore,
@@ -30,10 +32,7 @@ export function clearCache() {
   cachedRunsByDay.clear();
 }
 
-
-/**
- * Existing behavior (loads everything). Keep it if you still need it elsewhere.
- */
+/* Existing behavior (loads everything). */
 export async function loadRuns(force = false) {
   if (!force && cachedRunsAll.length) return cachedRunsAll;
 
@@ -45,10 +44,9 @@ export async function loadRuns(force = false) {
   return runs;
 }
 
-/**
- * NEW: load only one day (recommended for your daily gantt 07:00–22:00 view)
- * dayKey format: "YYYY-MM-DD" (Malaysia date)
- */
+/* NEW: load only one day (recommended for daily gantt 07:00–22:00 view) */
+/* dayKey format: "YYYY-MM-DD" (Malaysia date) */
+ 
 export async function loadRunsForDay(dayKey, force = false) {
   if (!dayKey) return [];
   if (!force && cachedRunsByDay.has(dayKey)) return cachedRunsByDay.get(dayKey);
@@ -67,10 +65,9 @@ export async function loadRunsForDay(dayKey, force = false) {
   return runs;
 }
 
-/**
- * Optional helper: get runs that overlap your gantt window for a day.
- * This is useful if you want to ignore night runs quickly before rendering.
- */
+
+ /* Optional helper: get runs that overlap gantt window for a day. */
+
 export function filterRunsOverlappingWindow(runs, windowStartMs, windowEndMs) {
   return (runs || []).filter(r => {
     const s = typeof r.startEpochMs === "number" ? r.startEpochMs : null;
