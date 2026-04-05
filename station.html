@@ -47,6 +47,12 @@
               <input type="date" id="dayPicker" class="pickerInput" />
             </div>
           </div>
+
+          <div class="toolbar">
+            <div class="hint">STATION:</div>
+            <select id="stationBalancePicker"></select>
+        </div>
+
         </div>
       </div>
 
@@ -64,12 +70,22 @@
           </div>
 
           <div id="ganttBody"></div>
+
         </div>
-      </div>
+    </div>
+    </section>
+
+    <section class="card hidden" id="lineBalanceSection">
+
+        <div class="lineBalancePanel">
+            <div class="hint">LINE BALANCE (MONTHLY)</div>
+            <canvas id="stationLineBalanceChart"></canvas>
+        </div>
     </section>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script type="module">
     import { clearCache } from "./js/timeline.js";

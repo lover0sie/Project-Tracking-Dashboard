@@ -1366,6 +1366,8 @@ select:focus{
   border-color: #b91c1c;
 }
 
+
+
 /* ================= TREE CARD VIEW =================*/
 
 .treeCard{
@@ -1789,12 +1791,12 @@ select:focus{
   display: block;
 }
 
-.stationProcRow{
+.stationProcRow {
   display: grid;
-  grid-template-columns: var(--colProc) var(--colStatus) 1fr;
-  min-height: 66px;
-  border-bottom: 1px solid var(--border);
+  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
+  align-items: stretch;
 }
+
 
 .stationProcRow:last-child{
   border-bottom: none;
@@ -1818,3 +1820,60 @@ select:focus{
   font-weight: 800;
   border-bottom: 1px solid #d7dbe3;
 }
+
+.stationGroup {
+  display: block;
+}
+
+
+.stationMerged {
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  border-right: 1px solid #d9d9d9;
+}
+
+.stationProcRow .stationMerged {
+  grid-row: span var(--rowCount);
+  min-height: 100%;
+}
+
+/* ============== Line Balance Graph Charts ================= */
+.stationLineBalanceWrap {
+  width: 100%;
+  height: 220px;
+  margin: 10px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.stationLineBalanceCanvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.lineBalancePanel {
+  width: 100%;
+  height: 320px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+#stationLineBalanceChart {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+

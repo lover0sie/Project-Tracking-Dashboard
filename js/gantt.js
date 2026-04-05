@@ -60,6 +60,20 @@ const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 8;
 const END_HOUR = 21;
 
+let stationLineBalanceChart = null;
+let lastStationLineBalanceSegments = [];
+let lastStationLineBalanceData = [];
+
+let zoomLevel = 0.8;
+
+function toSafeId(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function getHourW(){
   // Sset this in CSS: :root{ --hourW: 90px; }
   const v = getComputedStyle(document.documentElement).getPropertyValue("--hourW").trim();
@@ -366,15 +380,6 @@ function getStationProcessList(stationSegs) {
   }
 
   return Array.from(nums).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-}
-
-function getStationStatus(stationSegs) {
-  const statuses = stationSegs.map(s => String(s.status || "").toLowerCase().trim());
-
-  if (statuses.some(s => s === "running")) return { text: "Running", cls: "running" };
-  if (statuses.some(s => s === "on_hold")) return { text: "On Hold", cls: "onhold" };
-  if (statuses.some(s => s === "waiting")) return { text: "Waiting", cls: "waiting" };
-  return { text: "Completed", cls: "completed" };
 }
 
 /**
@@ -724,8 +729,6 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
   `;
 }
 
-
-
 /* Build tooltip for the standard time */
 function standardTipText(seg, stdStart, stdEnd) {
   const stdMin = getStandardMinutes(seg?.processLabel);
@@ -864,6 +867,26 @@ function getProcessNo(segOrLabel) {
 
   const parts = processLabel.split(" - ");
   return parts[0]?.trim() || processLabel;
+}
+
+/* Get the full process name */
+function getFullProcessLabelFromSegs(processNo, segs) {
+  // Try get from actual segment first (most accurate)
+  const seg = segs.find(s => s.processLabel);
+
+  if (seg && seg.processLabel) {
+    return seg.processLabel;
+  }
+
+  // fallback → use STANDARD_TIME_MIN keys
+  for (const key in STANDARD_TIME_MIN) {
+    if (key.startsWith(processNo)) {
+      return key;
+    }
+  }
+
+  // fallback fallback
+  return processNo;
 }
 
 /* Get the latest segment */
@@ -1006,7 +1029,6 @@ function buildHoldWindowsFromRun(r, segEnd = new Date()) {
 
   return windows;
 }
-
 
 
 
@@ -1185,8 +1207,6 @@ function buildSegmentsFromRuns(runs) {
   return { segments, issues };
 }
 
-
-
 const UNIT_ORDER = ["CHILLER", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
 
 function unitRank(unitType){
@@ -1264,14 +1284,6 @@ function renderLegendStatus() {
 
   stEl.innerHTML = `
     <span class="legItem">
-      <span class="swatch swatch-process"></span>
-      Process
-    </span>
-    <span class="legItem">
-      <span class="swatch swatch-standard"></span>
-      Standard
-    </span>
-    <span class="legItem">
       <span class="swatch swatch-waiting"></span>
       Waiting
     </span>
@@ -1283,62 +1295,260 @@ function renderLegendStatus() {
 }
 
 /* =========================
-   STATION VIEW HELPERS
+   LINE BALANCE HELPERS
 ========================= */
 
-function getStationLegendLabel(seg) {
-  const qrKind = String(seg?.qrKind || "").toUpperCase().trim();
-
-  if (qrKind === "PV") {
-    return String(seg?.vesselType || "PV").trim() || "PV";
-  }
-
-  // default to chiller-side label
-  return String(seg?.coolingType || "CHILLER").trim() || "CHILLER";
-}
-
-function buildStationLegend(segments) {
-  const stationMap = new Map();
-  const typeMap = new Map();
-
-  for (const seg of segments) {
-    const station = String(seg?.station || "UNKNOWN").trim() || "UNKNOWN";
-    const typeLabel = getStationLegendLabel(seg);
-
-    if (!stationMap.has(station)) {
-      stationMap.set(station, stationClass(station));
-    }
-
-    if (!typeMap.has(typeLabel)) {
-      typeMap.set(typeLabel, true);
+function getStandardMinutesFromProcessNo(processNo) {
+  for (const key in STANDARD_TIME_MIN) {
+    if (key.startsWith(processNo)) {
+      return STANDARD_TIME_MIN[key];
     }
   }
-
-  const stationHtml = [...stationMap.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([station, cls]) => `
-      <div class="legendItem">
-        <span class="swatch ${cls}"></span>
-        <span>${station}</span>
-      </div>
-    `)
-    .join("");
-
-  const typeHtml = [...typeMap.keys()]
-    .sort((a, b) => a.localeCompare(b))
-    .map(type => `
-      <div class="legendItem">
-        <span class="typePill">${type}</span>
-      </div>
-    `)
-    .join("");
-
-  const legendStationsEl = el("legendStations");
-  const legendStatusEl = el("legendStatus");
-
-  if (legendStationsEl) legendStationsEl.innerHTML = stationHtml;
-  if (legendStatusEl) legendStatusEl.innerHTML = typeHtml;
+  return 0;
 }
+
+/* Function to build the Line Balance Graph */
+
+/* For future use 
+function getCycleTimePlaceholderByStation(station) {
+  const map = {
+    "Pneumatic": 250,
+    "Piping Shop": 300,
+    "Fabrication": 400
+  };
+  return map[station] || 250;
+}
+
+function getTaktTimePlaceholderByStation(station) {
+  const map = {
+    "Pneumatic": 200,
+    "Piping Shop": 220,
+    "Fabrication": 300
+  };
+  return map[station] || 200;
+} */
+
+function getMonthRangeFromDate(date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+  start.setHours(0,0,0,0);
+  end.setHours(23,59,59,999);
+
+  return { start, end };
+}
+
+
+
+function buildStationLineBalanceData(station, segments) {
+  if (!station) {
+    return {
+      labels: [],
+      actual: [],
+      standard: [],
+      cycle: [],
+      takt: [],
+      fullLabels: []
+    };
+  }
+
+  const stationSegs = segments.filter(s =>
+    String(s.station || "").trim() === String(station).trim()
+  );
+
+  const processMap = new Map();
+
+  for (const seg of stationSegs) {
+    const processNo = getProcessNo(seg);
+
+    if (!processMap.has(processNo)) {
+      processMap.set(processNo, []);
+    }
+
+    processMap.get(processNo).push(seg);
+  }
+
+  const rows = [];
+
+  for (const [processNo, segs] of processMap.entries()) {
+    let totalActualMin = 0;
+
+    for (const seg of segs) {
+      totalActualMin += getProcessActualDurationMinutes(seg);
+    }
+
+    const standardPerUnit = getStandardMinutesFromProcessNo(processNo);
+    const numberOfRuns = segs.length;
+
+    const standardMin = standardPerUnit * numberOfRuns;
+
+    const fullLabel = getFullProcessLabelFromSegs(processNo, segs);
+
+    rows.push({
+      processNo,
+      fullLabel,
+      actual: Math.round(totalActualMin),
+      standard: Math.round(standardMin)
+    });
+  }
+
+  rows.sort((a, b) =>
+    a.processNo.localeCompare(b.processNo, undefined, { numeric: true })
+  );
+
+  // placeholder values
+  const cyclePlaceholder = 20000;
+  const taktPlaceholder = 10500;
+
+  /* For future varying cycle and takt time 
+  const cyclePlaceholder = getCycleTimePlaceholderByStation(station);
+  const taktPlaceholder = getTaktTimePlaceholderByStation(station); */
+
+  return {
+    labels: rows.map(r => r.processNo),
+    fullLabels: rows.map(r=> r.fullLabel),
+    actual: rows.map(r => r.actual),
+    standard: rows.map(r => r.standard),
+    cycle: rows.map(() => cyclePlaceholder),
+    takt: rows.map(() => taktPlaceholder),
+  };
+}
+
+function renderStationLineBalanceChart(data) {
+  const canvas = el("stationLineBalanceChart");
+  if (!canvas) return;
+
+  if (typeof Chart === "undefined") {
+    console.warn("Chart.js is not loaded.");
+    return;
+  }
+
+  if (stationLineBalanceChart) {
+    stationLineBalanceChart.destroy();
+    stationLineBalanceChart = null;
+  }
+
+  stationLineBalanceChart = new Chart(canvas, {
+    data: {
+      labels: data.labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Actual Time",
+          data: data.actual,
+          backgroundColor: "#60a5fa",
+          borderColor: "#60a5fa",
+          borderWidth: 1,
+          order: 3
+        },
+        {
+          type: "bar",
+          label: "Standard Time",
+          data: data.standard,
+          backgroundColor: "#ff8000",
+          borderColor: "#ff8000",
+          borderWidth: 1,
+          order: 3
+        },
+        {
+          type: "line",
+          label: "Cycle Time",
+          data: data.cycle,
+          borderColor: "#000000",
+          backgroundColor: "#000000",
+          borderWidth: 2,
+          tension: 0,
+          pointRadius: 3,
+          pointHoverRadius: 4,
+          fill: false,
+          order: 1
+        },
+        {
+          type: "line",
+          label: "Takt Time",
+          data: data.takt,
+          borderColor: "#ef4444",
+          backgroundColor: "#ef4444",
+          borderWidth: 2,
+          borderDash: [6, 6],
+          tension: 0,
+          pointRadius: 0,
+          fill: false,
+          order: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: "top"
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              const idx = items?.[0]?.dataIndex ?? 0;
+              return data.fullLabels?.[idx] || items?.[0]?.label || "";
+            },
+            label(ctx) {
+              return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} min`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Process No."
+          }
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Duration (minutes)"
+          }
+        }
+      }
+    }
+  });
+}
+
+function refreshStationLineBalancePanel(segments) {
+  const section = el("lineBalanceSection");
+  const picker = el("stationBalancePicker");
+
+  if (!section || !picker) return;
+
+  if (!segments.length) {
+    section.classList.add("hidden");
+
+    if (stationLineBalanceChart) {
+      stationLineBalanceChart.destroy();
+      stationLineBalanceChart = null;
+    }
+
+    lastStationLineBalanceSegments = [];
+    return;
+  }
+
+  section.classList.remove("hidden");
+
+  const selectedStation = picker.value;
+  const data = buildStationLineBalanceData(selectedStation, segments);
+
+  renderStationLineBalanceChart(data);
+  lastStationLineBalanceSegments = segments;
+}
+
+/* ========== Building Station View =============== */
 
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
@@ -1371,20 +1581,6 @@ function buildLanes(segs){
   }
 
   return lanes.map(l => l.segs);
-}
-
-function getSegTypeLabel(seg) {
-  const qrKind = String(seg?.qrKind || "").toUpperCase().trim();
-
-  if (qrKind === "PV") {
-    return String(seg?.vesselType || "").trim() || "PV";
-  }
-
-  if (qrKind === "CHILLER") {
-    return String(seg?.coolingType || "").trim() || "CHILLER";
-  }
-
-  return String(seg?.coolingType || seg?.vesselType || "-").trim() || "-";
 }
 
 function groupStationByProcess(segments) {
@@ -1424,20 +1620,37 @@ function groupStationByProcess(segments) {
 export async function renderStationOnlyView() {
   try {
     const runs = await loadRuns();
+    const lineBalanceSection = el("lineBalanceSection");
+    const dayPicker = el("dayPicker");
+    const stationPicker = el("stationBalancePicker");
+
     if (!runs.length) {
       bodyEl.innerHTML = "";
       monthHeadEl.innerHTML = "";
       dayHeadEl.innerHTML = "";
+
+      if (lineBalanceSection) lineBalanceSection.classList.add("hidden");
+
+      if (stationLineBalanceChart) {
+        stationLineBalanceChart.destroy();
+        stationLineBalanceChart = null;
+      }
+
+      lastStationLineBalanceSegments = [];
       return;
     }
 
     const { segments } = buildSegmentsFromRuns(runs);
 
-    const picker = el("dayPicker");
-    const todayKey = getMYTodayKey();
-    if (picker && !picker.value) picker.value = todayKey;
+    renderLegendStatus();
+    renderStationLegend(segments);
 
-    const dayDate = parseDayKeyToDate(picker?.value || todayKey);
+    const todayKey = getMYTodayKey();
+    if (dayPicker && !dayPicker.value) {
+      dayPicker.value = todayKey;
+    }
+
+    const dayDate = parseDayKeyToDate(dayPicker?.value || todayKey);
     const rangeMin = startOfWorkDay(dayDate);
     const rangeMax = endOfWorkDay(dayDate);
 
@@ -1451,7 +1664,65 @@ export async function renderStationOnlyView() {
     document.documentElement.style.setProperty("--colW", hourW + "px");
     document.documentElement.style.setProperty("--minorDiv", "2");
 
-    renderGanttStation(rangeMin, rangeMax, segsInWindow);
+    if (!segsInWindow.length) {
+      bodyEl.innerHTML = `
+        <div class="emptyState">
+          No projects found for the selected day.
+        </div>
+      `;
+      dayHeadEl.innerHTML = buildHourHeader();
+      monthHeadEl.innerHTML = "";
+      renderStationLegend([]);
+
+      if (lineBalanceSection) lineBalanceSection.classList.add("hidden");
+
+      if (stationLineBalanceChart) {
+        stationLineBalanceChart.destroy();
+        stationLineBalanceChart = null;
+      }
+
+      lastStationLineBalanceSegments = [];
+      return;
+    }
+
+    const stations = getStationOptionsFromSegments(segsInWindow);
+
+    if (stationPicker) {
+      const previousStation = stationPicker.value;
+
+      stationPicker.innerHTML = stations.map(station => `
+        <option value="${escapeHtml(station)}">${escapeHtml(station)}</option>
+      `).join("");
+
+      if (stations.includes(previousStation)) {
+        stationPicker.value = previousStation;
+      } else if (stations.length) {
+        stationPicker.value = stations[0];
+      }
+    }
+
+    const selectedStation = stationPicker?.value || "";
+    const filteredSegs = selectedStation
+      ? segsInWindow.filter(s => String(s.station || "").trim() === selectedStation)
+      : segsInWindow;
+
+    renderGanttStation(rangeMin, rangeMax, filteredSegs);
+
+    //  MONTHLY SEGMENTS
+    const { start: monthStart, end: monthEnd } = getMonthRangeFromDate(dayDate);
+
+    const segsInMonth = segments.filter(s =>
+      s.end.getTime() > monthStart.getTime() &&
+      s.start.getTime() < monthEnd.getTime()
+    );
+
+    // filter by selected station
+    const filteredMonthlySegs = selectedStation
+      ? segsInMonth.filter(s => String(s.station || "").trim() === selectedStation)
+      : segsInMonth;
+    
+    refreshStationLineBalancePanel(filteredMonthlySegs);
+
   } catch (err) {
     console.error(err);
   }
@@ -1567,8 +1838,100 @@ function drawNowLine(rangeMin, rangeMax, hourW) {
   });
 }
 
+function getProcessActualDurationMinutes(seg) {
+  if (!seg) return 0;
+
+  // ignore synthetic waiting
+  if (seg.phase === "waiting" || seg.status === "waiting") return 0;
+
+  const parts = sliceSegForWaiting(seg);
+  let totalMs = 0;
+
+  for (const p of parts) {
+    if (p.type !== "process") continue;
+    if (!p.start || !p.end || p.end <= p.start) continue;
+
+    totalMs += Math.max(0, p.end.getTime() - p.start.getTime());
+  }
+
+  return totalMs / 60000;
+}
+
+function getStationOptionsFromSegments(segments) {
+  return Array.from(
+    new Set(
+      segments.map(seg => String(seg?.station || "UNKNOWN").trim() || "UNKNOWN")
+    )
+  ).sort((a, b) => a.localeCompare(b));
+}
+
+const stationLineCharts = new Map();
+
+
+/* Old function to make data into single lane based on station */
+function renderSingleStationLineBalanceChart(data) {
+  const canvas = el("stationLineBalanceChart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  if (stationLineBalanceChart) {
+    stationLineBalanceChart.destroy();
+    stationLineBalanceChart = null;
+  }
+
+  stationLineBalanceChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: data.labels,
+      datasets: [
+        {
+          label: `${data.station} Duration`,
+          data: data.durations,
+          tension: 0.25,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              const idx = items?.[0]?.dataIndex ?? 0;
+              return data.fullLabels[idx] || items?.[0]?.label || "";
+            },
+            label(ctx) {
+              return `Duration: ${ctx.parsed.y} min`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Process"
+          }
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Duration (min)"
+          }
+        }
+      }
+    }
+  });
+}
+
 /* Render Gantt Chart according to station - use existing template */
 function renderGanttStation(rangeMin, rangeMax, segments) {
+  console.log("renderGanttStation called", segments?.length);
   if (!bodyEl || !dayHeadEl || !monthHeadEl) return;
 
   const hourW = getHourW();
@@ -1594,120 +1957,121 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
   const timeBandsHtml = buildDailyTimeBands(rangeMin, rangeMax, hourW);
 
   const stationBlocks = Array.from(grouped.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([station, procMap]) => {
-      const stationCls = stationClass(station);
+  .sort((a, b) => a[0].localeCompare(b[0]))
+  .map(([station, procMap]) => {
+    const stationCls = stationClass(station);
+    const procEntries = Array.from(procMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 
-      const procRows = Array.from(procMap.entries())
-        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
-        .map(([processNo, segs]) => {
-          const sortedSegs = [...segs].sort(
-            (a, b) => a.start.getTime() - b.start.getTime()
-          );
+    const rowCount = procEntries.length;
 
-          /* Add waiting after sorting */
-          const segsWithWaiting = injectWaitingIntoLane(sortedSegs, rangeMin, rangeMax);
+    const procRows = procEntries.map(([processNo, segs], idx) => {
+      const sortedSegs = [...segs].sort(
+        (a, b) => a.start.getTime() - b.start.getTime()
+      );
 
-          /* Render bars */
-          const cur = latestSegment(sortedSegs) || null;
-          const st = statusUi(
-            cur?.status || (cur?.phase === "waiting" ? "waiting" : "")
-          );
+      const segsWithWaiting = injectWaitingIntoLane(sortedSegs, rangeMin, rangeMax);
 
-          const bars = segsWithWaiting.map(seg => {
-            return sliceSegForWaiting(seg)
-              .filter(p => !(
-                p.end.getTime() <= rangeMin.getTime() ||
-                p.start.getTime() >= rangeMax.getTime()
-              ))
-              .map(p => {
-                const sliceStart = new Date(
-                  Math.max(p.start.getTime(), rangeMin.getTime())
-                );
-                const sliceEnd = new Date(
-                  Math.min(p.end.getTime(), rangeMax.getTime())
-                );
+      const cur = latestSegment(sortedSegs) || null;
+      const st = statusUi(
+        cur?.status || (cur?.phase === "waiting" ? "waiting" : "")
+      );
 
-                const leftPx =
-                  ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
+      const bars = segsWithWaiting.map(seg => {
+        return sliceSegForWaiting(seg)
+          .filter(p => !(
+            p.end.getTime() <= rangeMin.getTime() ||
+            p.start.getTime() >= rangeMax.getTime()
+          ))
+          .map(p => {
+            const sliceStart = new Date(
+              Math.max(p.start.getTime(), rangeMin.getTime())
+            );
+            const sliceEnd = new Date(
+              Math.min(p.end.getTime(), rangeMax.getTime())
+            );
 
-                const widthPx = Math.max(
-                  10,
-                  ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW
-                );
+            const leftPx =
+              ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
 
-                const isHoldGap = p.type === "on_hold_gap";
-                const isWaiting =
-                  p.type === "waiting" ||
-                  seg.phase === "waiting" ||
-                  seg.status === "waiting";
+            const widthPx = Math.max(
+              10,
+              ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW
+            );
 
-                let tipText;
-                if (isWaiting) {
-                  tipText = waitingTipTextBuilder(sliceStart, sliceEnd);
-                } else {
-                  tipText = stationTipTextBuilder(
-                    seg,
-                    sliceStart,
-                    sliceEnd,
-                    isHoldGap ? "on_hold_gap" : "process",
-                    p
-                  );
-                }
+            const isHoldGap = p.type === "on_hold_gap";
+            const isWaiting =
+              p.type === "waiting" ||
+              seg.phase === "waiting" ||
+              seg.status === "waiting";
 
-                const barStationCls =
-                  isHoldGap ? "st-holdgap" :
-                  isWaiting ? "st-waiting" :
-                  stationCls;
+            let tipText;
+            if (isWaiting) {
+              tipText = waitingTipTextBuilder(sliceStart, sliceEnd);
+            } else {
+              tipText = stationTipTextBuilder(
+                seg,
+                sliceStart,
+                sliceEnd,
+                isHoldGap ? "on_hold_gap" : "process",
+                p
+              );
+            }
 
-                const statusCls =
-                  isHoldGap ? "status-holdgap" :
-                  isWaiting ? "status-waiting" :
-                  seg.status === "completed" ? "status-completed" :
-                  seg.status === "on_hold" ? "status-onhold" :
-                  "status-running";
+            const barStationCls =
+              isHoldGap ? "st-holdgap" :
+              isWaiting ? "st-waiting" :
+              stationCls;
 
-                return `
-                  <div class="bar ${barStationCls} ${statusCls}"
-                       style="left:${leftPx}px; width:${widthPx}px;"
-                       data-tip="${escapeAttr(tipText)}"></div>
-                `;
-              })
-              .join("");
-          }).join("");
+            const statusCls =
+              isHoldGap ? "status-holdgap" :
+              isWaiting ? "status-waiting" :
+              seg.status === "completed" ? "status-completed" :
+              seg.status === "on_hold" ? "status-onhold" :
+              "status-running";
 
-          return `
-            <div class="stationProcRow">
-              <div class="ganttCell procNo">
-                <div style="font-weight:900;">${escapeHtml(processNo)}</div>
-              </div>
+            return `
+              <div class="bar ${barStationCls} ${statusCls}"
+                   style="left:${leftPx}px; width:${widthPx}px;"
+                   data-tip="${escapeAttr(tipText)}"></div>
+            `;
+          })
+          .join("");
+      }).join("");
 
-              <div class="ganttCell status">
-                <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
-              </div>
-
-              <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
-                ${timeBandsHtml}
-                ${bars}
-              </div>
-            </div>
-          `;
-        })
-        .join("");
+      const stationCell = `
+        <div class="ganttCell project">
+          <div class="title">${idx === 0 ? escapeHtml(station) : ""}</div>
+        </div>
+      `;
 
       return `
-        <div class="stationGroup">
-          <div class="stationGroupLabel">
-            <div class="title">${escapeHtml(station)}</div>
+        <div class="stationProcRow">
+          ${stationCell}
+
+          <div class="ganttCell procNo">
+            <div style="font-weight:900;">${escapeHtml(processNo)}</div>
           </div>
 
-          <div class="stationGroupRows">
-            ${procRows}
+          <div class="ganttCell status">
+            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+          </div>
+
+          <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+            ${timeBandsHtml}
+            ${bars}
           </div>
         </div>
       `;
-    })
-    .join("");
+    }).join("");
+
+    return `
+      <div class="stationGroup">
+        ${procRows}
+      </div>
+    `;
+  })
+  .join("");
 
   bodyEl.innerHTML = stationBlocks;
 
@@ -1716,6 +2080,7 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
   });
 
   drawNowLine(rangeMin, rangeMax, hourW);
+  refreshStationLineBalancePanel(segments);
 }
 
 function renderGanttDaily(rangeMin, rangeMax, segments) {
@@ -2175,6 +2540,13 @@ async function render() {
     const { segments } = buildSegmentsFromRuns(runs);
 
     const mode = el("dateMode")?.value || "daily";
+
+    const lineBalanceSection = el("lineBalanceSection");
+    if (lineBalanceSection) {
+      lineBalanceSection.classList.toggle("hidden", mode !== "station");
+    }
+
+
     const wrap = document.querySelector(".ganttWrap");
     const grid = document.querySelector(".ganttGrid");
 
@@ -2318,7 +2690,13 @@ export function syncPickers(){
   if (btnToday) btnToday.classList.toggle("hidden", mode !== "month");
 }
 
-/* UI events */
+const stationBalancePicker = el("stationBalancePicker");
+if (stationBalancePicker) {
+  stationBalancePicker.addEventListener("change", async () => {
+    await renderStationOnlyView();
+  });
+}
+
 /* UI events */
 const btnExport = el("btn-export");
 if (btnExport) {
@@ -2527,5 +2905,6 @@ window.addEventListener("resize", async () => {
     await renderStationOnlyView();
   }
 });
+
 
 bindFloatingTooltip();
