@@ -57,8 +57,8 @@ let cachedEvents = [];
 /* Helpers for time */
 
 const TZ = "Asia/Kuala_Lumpur";
-const START_HOUR = 7;
-const END_HOUR = 22;
+const START_HOUR = 8;
+const END_HOUR = 21;
 
 function getHourW(){
   // Sset this in CSS: :root{ --hourW: 90px; }
@@ -500,12 +500,38 @@ function formatVariance(ms) {
 }
 
 /* Inject waiting into slice (renderGanttDaily) */
-function injectWaitingIntoLane(laneSegs) {
+function injectWaitingIntoLane(segs, rangeMin, rangeMax) {
+  const toMs = (v) => {
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === "number") return v;
+    if (typeof v === "string") return new Date(v).getTime();
+    return NaN;
+  };
+
+  const minMs = toMs(rangeMin);
+  const maxMs = toMs(rangeMax);
+  const nowMs = Date.now();
+
+  const sorted = [...segs]
+    .filter(Boolean)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+
   const out = [];
-  if (!Array.isArray(laneSegs) || !laneSegs.length) return out;
+  if (!sorted.length) return out;
 
-  const sorted = [...laneSegs].sort((a, b) => a.start - b.start);
+  // leading waiting
+  if (!Number.isNaN(minMs) && sorted[0].start.getTime() > minMs) {
+    out.push({
+      ...sorted[0],
+      start: new Date(minMs),
+      end: new Date(sorted[0].start.getTime()),
+      status: "waiting",
+      phase: "waiting",
+      processLabel: "waiting"
+    });
+  }
 
+  // actual segments + internal gaps
   for (let i = 0; i < sorted.length; i++) {
     const cur = sorted[i];
     out.push(cur);
@@ -513,30 +539,42 @@ function injectWaitingIntoLane(laneSegs) {
     const next = sorted[i + 1];
     if (!next) continue;
 
-    const gapStart = cur.end;
-    const gapEnd = next.start;
+    const gapStart = cur.end.getTime();
+    const gapEnd = next.start.getTime();
+
+    if (gapEnd > gapStart) {
+      out.push({
+        ...cur,
+        start: new Date(gapStart),
+        end: new Date(gapEnd),
+        status: "waiting",
+        phase: "waiting",
+        processLabel: "waiting"
+      });
+    }
+  }
+
+  // trailing waiting only for completed last process, up to current time
+  const last = sorted[sorted.length - 1];
+  const lastStatus = String(last?.status || "").toLowerCase().trim();
+
+  if (lastStatus === "completed") {
+    const trailingEndMs = Math.min(
+      nowMs,
+      maxMs
+    );
 
     if (
-      gapStart &&
-      gapEnd &&
-      gapEnd.getTime() > gapStart.getTime()
+      !Number.isNaN(trailingEndMs) &&
+      trailingEndMs > last.end.getTime()
     ) {
       out.push({
-        phase: "waiting",
+        ...last,
+        start: new Date(last.end.getTime()),
+        end: new Date(trailingEndMs),
         status: "waiting",
-        start: gapStart,
-        end: gapEnd,
-        station: cur.station,
-        processLabel: "Waiting",
-        projectName: cur.projectName,
-        materialNumber: cur.materialNumber,
-        description: cur.description,
-        serial: cur.serial,
-        qrKind: cur.qrKind,
-        chillerSerialNumber: cur.chillerSerialNumber,
-        pvSerialNumber: cur.pvSerialNumber,
-        vesselType: cur.vesselType,
-        coolingType: cur.coolingType
+        phase: "waiting",
+        processLabel: "waiting"
       });
     }
   }
@@ -644,7 +682,7 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
   // WAITING slice
   if (isWaiting) {
     return `
-      <div class="tipTitle">WAITING</div>
+      <div class="tipTitle">WAITING / IDLE TIME</div>
       <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(sliceStart)}</div>
       <div class="tipRow"><span class="tipLabel">End:</span> ${formatDateTime(sliceEnd)}</div>
       <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(sliceEnd.getTime() - sliceStart.getTime())}</div>
@@ -1066,8 +1104,6 @@ function buildMonthHeader(days){
 }
 
 
-
-
 function buildSegmentsFromRuns(runs) {
   const segments = [];
   const issues = [];
@@ -1304,44 +1340,6 @@ function buildStationLegend(segments) {
   if (legendStatusEl) legendStatusEl.innerHTML = typeHtml;
 }
 
-/* Build legend for station process rows */
-function buildStationProcessRows(segments) {
-  const byStation = new Map();
-
-  for (const seg of segments) {
-    const station = String(seg?.station || "UNKNOWN").trim() || "UNKNOWN";
-    if (!byStation.has(station)) byStation.set(station, []);
-    byStation.get(station).push(seg);
-  }
-
-  const stationEntries = [...byStation.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0])
-  );
-
-  const rows = [];
-
-  for (const [station, stationSegs] of stationEntries) {
-    const sorted = [...stationSegs].sort((a, b) => {
-      const aStart = a?.start?.getTime?.() || 0;
-      const bStart = b?.start?.getTime?.() || 0;
-      return aStart - bStart;
-    });
-
-    const withWaiting = injectWaitingIntoLane(sorted);
-
-    for (const seg of withWaiting) {
-      rows.push({
-        station,
-        stationCls: stationClass(station),
-        processLabel: seg?.processLabel || "-",
-        seg
-      });
-    }
-  }
-
-  return rows;
-}
-
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
@@ -1389,10 +1387,43 @@ function getSegTypeLabel(seg) {
   return String(seg?.coolingType || seg?.vesselType || "-").trim() || "-";
 }
 
+function groupStationByProcess(segments) {
+  const stationMap = new Map();
+
+  for (const seg of segments) {
+    const station = String(seg?.station || "UNKNOWN").trim() || "UNKNOWN";
+    const processNo = getProcessNo(seg) || "-"; // keeps "18,19" as one key
+
+    if (!stationMap.has(station)) {
+      stationMap.set(station, new Map());
+    }
+
+    const procMap = stationMap.get(station);
+
+    if (!procMap.has(processNo)) {
+      procMap.set(processNo, []);
+    }
+
+    procMap.get(processNo).push(seg);
+  }
+
+  // sort every lane by time
+  for (const [, procMap] of stationMap) {
+    for (const [, segs] of procMap) {
+      segs.sort((a, b) => {
+        const aTime = a.start?.getTime?.() || a.startEpochMs || 0;
+        const bTime = b.start?.getTime?.() || b.startEpochMs || 0;
+        return aTime - bTime;
+      });
+    }
+  }
+
+  return stationMap;
+}
+
 export async function renderStationOnlyView() {
   try {
     const runs = await loadRuns();
-
     if (!runs.length) {
       bodyEl.innerHTML = "";
       monthHeadEl.innerHTML = "";
@@ -1401,15 +1432,6 @@ export async function renderStationOnlyView() {
     }
 
     const { segments } = buildSegmentsFromRuns(runs);
-
-    const wrap = document.querySelector(".ganttWrap");
-    const grid = document.querySelector(".ganttGrid");
-
-    wrap?.classList.remove("dailyMode", "monthMode");
-    grid?.classList.remove("dailyMode", "monthMode");
-
-    wrap?.classList.add("stationMode");
-    grid?.classList.add("stationMode");
 
     const picker = el("dayPicker");
     const todayKey = getMYTodayKey();
@@ -1429,26 +1451,11 @@ export async function renderStationOnlyView() {
     document.documentElement.style.setProperty("--colW", hourW + "px");
     document.documentElement.style.setProperty("--minorDiv", "2");
 
-    if (!segsInWindow.length) {
-      bodyEl.innerHTML = `
-        <div class="emptyState">
-          No projects found for the selected day.
-        </div>
-      `;
-      if (dayHeadEl) dayHeadEl.innerHTML = buildHourHeader();
-      if (monthHeadEl) monthHeadEl.innerHTML = "";
-      renderStationLegend([]);
-      renderLegendStatus();
-      return;
-    }
-
-    renderStationLegend(segsInWindow);
     renderGanttStation(rangeMin, rangeMax, segsInWindow);
   } catch (err) {
     console.error(err);
   }
 }
-
 
 function renderStationLegend(segments) {
   const stationMap = new Map();
@@ -1540,67 +1547,6 @@ function waitingTipTextBuilder(start, end) {
   `;
 }
 
-function buildStationRows(segments) {
-  const byStation = new Map();
-
-  for (const seg of segments) {
-    const station = String(seg?.station || "UNKNOWN").trim() || "UNKNOWN";
-    if (!byStation.has(station)) byStation.set(station, []);
-    byStation.get(station).push(seg);
-  }
-
-  const rows = [];
-
-  for (const [station, stationSegs] of [...byStation.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const sorted = [...stationSegs].sort((a, b) => {
-      const aTime = a?.start?.getTime?.() || 0;
-      const bTime = b?.start?.getTime?.() || 0;
-      return aTime - bTime;
-    });
-
-    const segsWithWaiting = injectWaitingIntoLane(sorted);
-
-    segsWithWaiting.forEach((seg, idx) => {
-      rows.push({
-        station,
-        showStation: idx === 0,
-        seg
-      });
-    });
-  }
-
-  return rows;
-}
-
-function buildStationGroups(segments) {
-  const byStation = new Map();
-
-  for (const seg of segments) {
-    const station = String(seg?.station || "UNKNOWN").trim() || "UNKNOWN";
-    if (!byStation.has(station)) byStation.set(station, []);
-    byStation.get(station).push(seg);
-  }
-
-  const groups = [];
-
-  for (const [station, stationSegs] of [...byStation.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const sorted = [...stationSegs].sort((a, b) => {
-      const aTime = a?.start?.getTime?.() || 0;
-      const bTime = b?.start?.getTime?.() || 0;
-      return aTime - bTime;
-    });
-
-    const segsWithWaiting = injectWaitingIntoLane(sorted);
-
-    groups.push({
-      station,
-      rows: segsWithWaiting
-    });
-  }
-
-  return groups;
-}
-
 function drawNowLine(rangeMin, rangeMax, hourW) {
   const now = new Date();
 
@@ -1626,7 +1572,8 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
   if (!bodyEl || !dayHeadEl || !monthHeadEl) return;
 
   const hourW = getHourW();
-  const totalWidthPx = ((rangeMax.getTime() - rangeMin.getTime()) / 3600000) * hourW;
+  const totalWidthPx =
+    ((rangeMax.getTime() - rangeMin.getTime()) / 3600000) * hourW;
 
   dayHeadEl.innerHTML = buildHourHeader();
   monthHeadEl.innerHTML = "";
@@ -1643,104 +1590,132 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
 
   renderStationLegend(segments);
 
-  const timeBands = buildDailyTimeBands(rangeMin, rangeMax, hourW);
-  const grouped = groupRunsByStation(segments);
+  const grouped = groupStationByProcess(segments);
+  const timeBandsHtml = buildDailyTimeBands(rangeMin, rangeMax, hourW);
 
-  const stationRows = Array.from(grouped.entries())
+  const stationBlocks = Array.from(grouped.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([station, stationSegs]) => {
-      const sortedSegs = sortRunsByStart([...stationSegs]);
-      const laneSlices = buildStationLaneSlices(sortedSegs, rangeMin, rangeMax);
-      const processList = getStationProcessList(sortedSegs);
-      const st = getStationStatus(sortedSegs);
+    .map(([station, procMap]) => {
+      const stationCls = stationClass(station);
 
-      const processText = processList.length ? processList.join(", ") : "-";
+      const procRows = Array.from(procMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+        .map(([processNo, segs]) => {
+          const sortedSegs = [...segs].sort(
+            (a, b) => a.start.getTime() - b.start.getTime()
+          );
 
-      const bars = laneSlices.map(seg => {
-        const leftPx =
-          ((seg.start.getTime() - rangeMin.getTime()) / 3600000) * hourW;
+          /* Add waiting after sorting */
+          const segsWithWaiting = injectWaitingIntoLane(sortedSegs, rangeMin, rangeMax);
 
-        const widthPx = Math.max(
-          10,
-          ((seg.end.getTime() - seg.start.getTime()) / 3600000) * hourW
-        );
+          /* Render bars */
+          const cur = latestSegment(sortedSegs) || null;
+          const st = statusUi(
+            cur?.status || (cur?.phase === "waiting" ? "waiting" : "")
+          );
 
-        const isHoldGap = seg.sliceType === "on_hold_gap";
-        const isWaiting =
-          seg.sliceType === "waiting" ||
-          seg.phase === "waiting" ||
-          String(seg.status || "").toLowerCase() === "waiting";
+          const bars = segsWithWaiting.map(seg => {
+            return sliceSegForWaiting(seg)
+              .filter(p => !(
+                p.end.getTime() <= rangeMin.getTime() ||
+                p.start.getTime() >= rangeMax.getTime()
+              ))
+              .map(p => {
+                const sliceStart = new Date(
+                  Math.max(p.start.getTime(), rangeMin.getTime())
+                );
+                const sliceEnd = new Date(
+                  Math.min(p.end.getTime(), rangeMax.getTime())
+                );
 
-        const stClass =
-          isHoldGap ? "st-holdgap" :
-          isWaiting ? "st-waiting" :
-          stationClass(seg.station);
+                const leftPx =
+                  ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
 
-        const statusCls =
-          isHoldGap ? "status-holdgap" :
-          isWaiting ? "status-waiting" :
-          String(seg.status || "").toLowerCase() === "completed" ? "status-completed" :
-          String(seg.status || "").toLowerCase() === "on_hold" ? "status-onhold" :
-          "status-running";
+                const widthPx = Math.max(
+                  10,
+                  ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW
+                );
 
-        const tipText = tipTextBuilder(
-          seg,
-          seg.start,
-          seg.end,
-          isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process",
-          { type: seg.sliceType || "process" }
-        );
+                const isHoldGap = p.type === "on_hold_gap";
+                const isWaiting =
+                  p.type === "waiting" ||
+                  seg.phase === "waiting" ||
+                  seg.status === "waiting";
 
-        return `
-          <div class="bar ${stClass} ${statusCls}"
-               style="left:${leftPx}px; width:${widthPx}px;"
-               data-tip="${escapeAttr(tipText)}">
-          </div>
-        `;
-      }).join("");
+                let tipText;
+                if (isWaiting) {
+                  tipText = waitingTipTextBuilder(sliceStart, sliceEnd);
+                } else {
+                  tipText = stationTipTextBuilder(
+                    seg,
+                    sliceStart,
+                    sliceEnd,
+                    isHoldGap ? "on_hold_gap" : "process",
+                    p
+                  );
+                }
+
+                const barStationCls =
+                  isHoldGap ? "st-holdgap" :
+                  isWaiting ? "st-waiting" :
+                  stationCls;
+
+                const statusCls =
+                  isHoldGap ? "status-holdgap" :
+                  isWaiting ? "status-waiting" :
+                  seg.status === "completed" ? "status-completed" :
+                  seg.status === "on_hold" ? "status-onhold" :
+                  "status-running";
+
+                return `
+                  <div class="bar ${barStationCls} ${statusCls}"
+                       style="left:${leftPx}px; width:${widthPx}px;"
+                       data-tip="${escapeAttr(tipText)}"></div>
+                `;
+              })
+              .join("");
+          }).join("");
+
+          return `
+            <div class="stationProcRow">
+              <div class="ganttCell procNo">
+                <div style="font-weight:900;">${escapeHtml(processNo)}</div>
+              </div>
+
+              <div class="ganttCell status">
+                <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+              </div>
+
+              <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+                ${timeBandsHtml}
+                ${bars}
+              </div>
+            </div>
+          `;
+        })
+        .join("");
 
       return `
-        <div class="stationRow">
-          <div class="ganttCell project stationCell">
+        <div class="stationGroup">
+          <div class="stationGroupLabel">
             <div class="title">${escapeHtml(station)}</div>
-            <div class="meta">${escapeHtml(sortedSegs.length)} run(s)</div>
           </div>
 
-          <div class="ganttCell procNo stationProcCell">
-            <div style="font-weight:900;">${escapeHtml(processText)}</div>
-          </div>
-
-          <div class="ganttCell status stationStatusCell">
-            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
-          </div>
-
-          <div class="ganttTimeline stationTimeline dailyGrid" style="width:${totalWidthPx}px">
-            ${timeBands}
-            ${bars}
+          <div class="stationGroupRows">
+            ${procRows}
           </div>
         </div>
       `;
     })
     .join("");
 
-  bodyEl.innerHTML = stationRows;
+  bodyEl.innerHTML = stationBlocks;
 
   document.querySelectorAll(".ganttTimeline").forEach(tl => {
     tl.style.width = totalWidthPx + "px";
   });
 
   drawNowLine(rangeMin, rangeMax, hourW);
-
-  if (ganttWrapEl) {
-    const now = Date.now();
-    if (now >= rangeMin.getTime() && now <= rangeMax.getTime()) {
-      const leftPx = ((now - rangeMin.getTime()) / 3600000) * hourW;
-      requestAnimationFrame(() => {
-        const maxScroll = Math.max(0, ganttWrapEl.scrollWidth - ganttWrapEl.clientWidth);
-        ganttWrapEl.scrollLeft = clamp(leftPx - 200, 0, maxScroll);
-      });
-    }
-  }
 }
 
 function renderGanttDaily(rangeMin, rangeMax, segments) {
@@ -1811,7 +1786,9 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
         );
       
 
-      const lanes = buildLanes(segs).map(injectWaitingIntoLane);
+      const lanes = buildLanes(segs).map(laneSegs =>
+        injectWaitingIntoLane(laneSegs, rangeMin, rangeMax)
+      );
       const laneCount = Math.max(1, lanes.length);
 
       //  merged UNIT cell (shown once)
@@ -1825,8 +1802,9 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
 
       // right side rows: each lane gets its own PROC/STATUS/TIMELINE row
       const laneRowsHtml = lanes.map((laneSegs) => {
-        const cur = latestSegment(laneSegs) || null;
-        const procNo = getProcessNo(cur?.processLabel);
+        const realLaneSegs = laneSegs.filter(seg => seg.phase !== "waiting" && seg.status !== "waiting");
+        const cur = latestSegment(realLaneSegs) || null;
+        const procNo = getProcessNo(cur);
         const st = statusUi(cur?.status);
 
         const timeBands = buildDailyTimeBands(rangeMin, rangeMax, hourW)

@@ -1194,6 +1194,7 @@ select:focus{
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  font-weight: 500;
 }
 
 .legendSwatch {
@@ -1736,39 +1737,6 @@ select:focus{
   min-width: 100%;
 }
 
-.stationRow{
-  display:grid;
-  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
-  border-bottom:1px solid var(--border);
-  background:#fff;
-}
-
-.stationRow:nth-child(even){
-  background:#fbfdff;
-}
-
-.stationRow .ganttCell,
-.stationRow .ganttTimeline{
-  height: 66px;
-}
-
-.stationRow .ganttCell.project{
-  left: 0;
-  z-index: 20;
-  justify-content: flex-start;
-  align-items: center;
-}
-
-.stationRow .ganttCell.procNo{
-  left: var(--colProject);
-  z-index: 20;
-}
-
-.stationRow .ganttCell.status{
-  left: calc(var(--colProject) + var(--colProc));
-  z-index: 20;
-}
-
 .stationTimeline{
   position: relative;
 }
@@ -1779,7 +1747,7 @@ select:focus{
 }
 
 .stationCell .title{
-  font-size:13px;
+  font-size:12px;
   font-weight:800;
   color:#111827;
   line-height:1.2;
@@ -1801,8 +1769,47 @@ select:focus{
   text-align:center;
 }
 
-.stationGroup {
+.stationGroup{
+  display: grid;
+  grid-template-columns: var(--colProject) 1fr;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+
+.stationGroupLabel{
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  font-weight: 800;
+  border-right: 1px solid var(--border);
+  background: #fff;
+}
+
+.stationGroupRows{
   display: block;
+}
+
+.stationProcRow{
+  display: grid;
+  grid-template-columns: var(--colProc) var(--colStatus) 1fr;
+  min-height: 66px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stationProcRow:last-child{
+  border-bottom: none;
+}
+
+.stationProcRow .ganttCell,
+.stationProcRow .ganttTimeline{
+  height: 66px;
+}
+
+.stationProcRow .ganttCell.procNo,
+.stationProcRow .ganttCell.status{
+  position: relative;
+  left: auto;
+  z-index: 1;
 }
 
 .stationMerged {
@@ -1811,4 +1818,3 @@ select:focus{
   font-weight: 800;
   border-bottom: 1px solid #d7dbe3;
 }
-

@@ -23,6 +23,7 @@
 
     <section class="card">
       <div class="toolbar ganttTopBar">
+        <!-- Row 1: Legend -->
         <div class="legendTopRow">
           <div class="legendBlock">
             <div class="legendInlineSection">
@@ -32,13 +33,9 @@
 
             <div class="legendInlineDivider"></div>
 
-            <div class="legendTopRow">
-                <div class="legendBlock">
-                    <div class="legendInlineSection">
-                    <div class="hint">STATIONS:</div>
-                    <div id="legendStations" class="legendRow"></div>
-                    </div>
-                </div>
+            <div class="legendInlineSection statusSection">
+              <div class="hint">STATUS:</div>
+              <div id="legendStatus" class="legendRow"></div>
             </div>
           </div>
         </div>
@@ -57,8 +54,8 @@
         <div class="ganttGrid stationMode">
           <div class="ganttHead">
             <div class="ganttLeftHead">Station</div>
-            <div class="ganttLeftHead small">Process Used</div>
-            <div class="ganttLeftHead small">Overall Status</div>
+            <div class="ganttLeftHead small">Process No.</div>
+            <div class="ganttLeftHead small">Status</div>
 
             <div class="ganttTimelineHead">
               <div id="ganttMonthHead" class="ganttMonthHead"></div>
