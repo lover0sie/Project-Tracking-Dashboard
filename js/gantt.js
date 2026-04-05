@@ -2729,7 +2729,7 @@ export function updateGanttLeftHeaders() {
     return;
   }
 
-  heads[0].textContent = "Station / Unit";
+  heads[0].textContent = "Unit";
   heads[1].textContent = "Process No.";
   heads[2].textContent = "Status";
 }

@@ -11,14 +11,20 @@
   --accentHover:#1d4ed8;
   --radius:14px;
   --radiusSm:10px;
-  --dayW: 120px;
-  --rowH: 52px;
-  --colProject: 250px;
-  --colProc: 100px;
-  --colStatus: 110px;
-  --hourW: 90px; /* width of 1 hour column in daily view */
+  --dayW: 80px;
+  --rowH: 32px;
+  --barH: 16px;
+  --colProject: 210px;
+  --colProc: 90px;
+  --colStatus: 95px;
+  --hourW: 60px; /* width of 1 hour column in daily view */
   --colW: var(--dayW);
   --minorDiv: 1;
+
+  --fontXs: 10px;
+  --fontSm: 11px;
+  --fontMd: 12px;
+  --fontLg: 13px;
 
 }
 
@@ -30,6 +36,7 @@ body{
   margin:0;
   padding:20px;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: var(--fontSm);
   color:var(--text);
   background:var(--bg);
 }
@@ -55,7 +62,14 @@ html, body{
   margin: 6px 0 14px;
 }
 h2{ margin:0; font-size:20px; font-weight:800; }
-.sub{ margin-top:6px; font-size:13px; color:var(--muted); }
+.sub{ margin-top:6px; font-size:var(--fontSm); color:var(--muted); }
+
+.hint,
+.pickerLabel,
+.filters label {
+  font-size: var(--fontXs);
+  margin-bottom: 4px;
+}
 
 /* ==================== Global Actions ==================== */
 .actions{ display:flex; gap:10px; }
@@ -70,8 +84,9 @@ button{
 }
 button:active{ transform: translateY(1px); }
 
-#btn-export{ background:var(--accent); color:#fff; }
+#btn-export{ background:var(--accent); color:#fff; font-size:var(--fontSm) }
 #btn-export:hover{ background:var(--accentHover); }
+#btn-refresh { font-size:var(--fontSm);}
 
 a.btn{
   display:inline-flex;
@@ -81,14 +96,16 @@ a.btn{
   padding:10px 14px;
   border-radius: var(--radiusSm);
   border:1px solid transparent;
-  font-size:14px;
   font-weight:800;
   cursor:pointer;
+  font-size:var(--fontXs)
 }
 a.btn.secondary{
   background:#fff;
   color:#111827;
   border-color:var(--border);
+  font-size:var(--fontXs)
+  
 }
 a.btn.secondary:hover{
   border-color:#cbd5e1;
@@ -163,17 +180,20 @@ button.secondary:hover{ border-color:#cbd5e1; background:#fbfbfb; }
   color:#374151;
   margin:0 0 6px;
 }
+
 select{
-  min-width: 200px;
-  padding:10px 12px;
+  min-width: 160px;
+  padding: 6px 10px;
+  height: 36px;
   border:1px solid var(--border);
-  border-radius:var(--radiusSm);
+  border-radius: var(--radiusSm);
   background:#fff;
-  font-size:14px;
+  font-size: var(--fontSm);
   font-family: inherit;
   font-weight:600;
   outline:none;
 }
+
 select:focus{
   border-color: rgba(37,99,235,0.55);
   box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
@@ -235,6 +255,12 @@ select:focus{
   max-width: 100%;
 }
 
+.ganttRow,
+.unitLaneRow,
+.stationProcRow {
+  min-height: var(--rowH);
+}
+
 /* ======================= Timebands ============================ */
 
 .timeBand{
@@ -262,12 +288,13 @@ select:focus{
   display:grid;
   grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
   border-bottom:1px solid var(--border);
+  font-size: var(--fontSm);
   background:#fafafa;
 }
 
 .ganttLeftHead{
-  padding:10px 12px;
-  font-size:12px;
+  padding:6px 8px;
+  font-size: var(--fontSm);
   font-weight:800;
   font-family: "Segoe UI", system-ui, sans-serif;
   text-transform: uppercase;
@@ -303,10 +330,12 @@ select:focus{
   display: flex;
   flex-wrap: nowrap;      /* prevent wrapping (stacking) */
   white-space: nowrap;
+  font-size: var(--fontXs);
 }
 
 .ganttLeftHead.small{
   text-align:center;
+  font-size: var(--fontXs);
 }
 
 .ganttTimelineHead{
@@ -351,9 +380,9 @@ select:focus{
 
 /* ==================== Gantt: Sticky Body Columns ==================== */
 .ganttCell{
-  padding:10px 12px;
+  padding:3px 6px;
   border-right:1px solid var(--border);
-  height: var(--rowH);
+  min-height: var(--rowH);
   display:flex;
   align-items:center;
   justify-content:center;
@@ -361,6 +390,8 @@ select:focus{
   left: 0;
   background:#fff;
   z-index: 10;
+  font-size: var(--fontSm);
+  box-sizing: border-box;
 }
 
 .ganttCell, .ganttLeftHead{
@@ -380,7 +411,7 @@ select:focus{
 
 /* Process font size */
 .ganttCell.procNo > div{
-  font-size:12px;
+  font-size:11px;
 }
 
 .ganttCell.project{
@@ -445,15 +476,20 @@ select:focus{
 
 /* ==================== Gantt: Status Pill ==================== */
 .statusPill{
-  min-width:50px;
-  text-align:center;
-  padding:6px 12px;
-  border-radius:999px;
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:.4px;
-  border:2px solid;
-  box-shadow:none;      
+  min-width: 42px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  border: 1.5px solid;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  text-align: center;
 }
 
 /* RUNNING */
@@ -461,7 +497,7 @@ select:focus{
   background:#fff7cc;
   border-color:#f59e0b;
   color:#92400e;
-  font-size:12px;
+  font-size:10px;
 }
 
 /* COMPLETED */
@@ -526,6 +562,12 @@ select:focus{
   font-family: "Segoe UI", system-ui, sans-serif;
 }
 
+.dayCol .d1,
+.dayCol .d2 {
+  font-size: var(--fontXs);
+  line-height: 1.1;
+}
+
 /* Grid only */
 .ganttTimeline.todayCol{
   background:
@@ -580,15 +622,17 @@ select:focus{
 #ganttDayHead .dayCol,
 #ganttMonthHead .monthCell{
   border-right: 1px solid var(--border);
+  min-height: 34px;
+  font-size: var(--fontXs);
 }
 
 /* Keep bars above the overlay */
 .ganttTimeline .bar { z-index: 2; }
 
 .monthCell{
-  height:34px;
+  height:28px;
   padding:8px 12px;
-  font-size:14px;        
+  font-size:var(--fontXs);        
   font-weight:800;       
   letter-spacing:0.3px;
   color:#111827;
@@ -599,7 +643,7 @@ select:focus{
 /* ==================== Gantt: Timeline Rows ==================== */
 .ganttTimeline{
   position: relative;
-  height: var(--rowH);
+   min-height: var(--rowH);
   z-index: 1;
   background:
     repeating-linear-gradient(
@@ -609,6 +653,7 @@ select:focus{
       #e5e7eb calc(var(--colW) - 1px),
       #e5e7eb var(--colW)
     );
+    
 }
 
 /* Daily mode: strong line per hour + lighter line at half-hour */
@@ -648,24 +693,24 @@ select:focus{
 
 /* Smaller project header row */
 .ganttRow.groupRow {
-  min-height: 52px;
+  min-height: 38px;
   background:#f1f5f9;
   font-weight:600;
   border-top:2px solid #cbd5e1;
-  border-bottom:1px solid #e5e7eb;  
-  margin-top:10px;       
+  border-bottom:1px solid #e5e7eb;
+  margin-top: 6px;
 }
 
 .ganttRow.groupRow .ganttCell.project {
-  padding: 8px 12px;
-  font-size:15px;
-  font-weight:800;
+  padding: 6px 10px;
+  font-size: var(--fontSm);
+  font-weight: 800;
   color:#111827;
   background:#f1f5f9;
 }
 
 .ganttRow.groupRow .title {
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.2;
 }
 
@@ -675,10 +720,16 @@ select:focus{
   opacity: .8;
 }
 
+.ganttCell .title,
+.ganttCell .meta,
+.ganttCell .divider {
+  font-size: var(--fontSm);
+}
+
 /* FIX: shrink group row cells too */
 .ganttRow.groupRow .ganttCell,
 .ganttRow.groupRow .ganttTimeline{
-  height: 52px !important;     /* match your group row */
+  height: 30px !important;     /* match your group row */
 }
 
 .ganttRow.groupRow .ganttTimeline{
@@ -769,7 +820,7 @@ select:focus{
 }
 
 .groupHeaderRow .title{
-  font-size:12px;
+  font-size: var(--fontMd);
   color:#6b7280;
   display:flex;
   gap:6px;
@@ -778,10 +829,10 @@ select:focus{
 
 /* Material block aligned right */
 .materialRight{
-  font-size:12px;
+  font-size:11px;
   color:#6b7280;
   display:flex;
-  gap:6px;
+  gap:4px;
   align-items:center;
 }
 
@@ -832,13 +883,22 @@ select:focus{
 .bar{
   /* Position each bar absolutely from time math done in gantt.js. */
   position:absolute;
-  top: 18px;
-  height: 28px;
+  top: 50%;
+  height:  var(--barH);
   border-radius: 999px;
   border:1px solid rgba(0,0,0,0.06);
   box-shadow: 0 4px 10px rgba(17,24,39,0.08);
   cursor: default;
   opacity: 1 !important;
+  transform: translateY(-50%);
+}
+
+.bar,
+.standardBar {
+  height: var(--barH);
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 4px;
 }
 
 
@@ -1029,8 +1089,9 @@ select:focus{
 
 .bar.st-waiting,
 .bar.st-holdgap {
-  top: 18px;
-  height: 28px;
+  height: var(--barH);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 /* ==================== Legend Swatch Colors ==================== */
@@ -1222,13 +1283,20 @@ select:focus{
   flex-wrap: wrap;
 }
 
-
 .legendInlineSection {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
+
+.legendRow,
+.legendBlock,
+.legendInlineSection {
+  font-size: var(--fontXs);
+}
+
+
 
 .legendInlineSection .hint {
   margin: 0;
@@ -1536,7 +1604,7 @@ select:focus{
   position:absolute;
   top:0;
   bottom:0;
-  width:2px;
+  width:1px;
   background:#ef4444;
   box-shadow:0 0 6px rgba(239,68,68,0.6);
   z-index:3;
@@ -1554,7 +1622,7 @@ select:focus{
 .pickerGroup{
   display:flex;
   flex-direction:column;
-  gap:6px;
+  gap:4px;
 }
 
 .pickerLabel{
@@ -1566,17 +1634,15 @@ select:focus{
 }
 
 .pickerInput{
-  height: 40px;
-  min-width: 190px;
-  padding: 10px 12px;
+  min-width: 140px;
+  height: 36px;
+  padding: 6px 10px;
+  font-size: var(--fontSm);
+  font-weight: 600;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radiusSm);
   background: #fff;
-  font-size: 14px;
-  font-weight: 700;
   font-family: inherit;
-  outline: none;
-  transition: box-shadow .12s ease, border-color .12s ease;
 }
 
 .pickerInput:focus{
@@ -1862,7 +1928,7 @@ select:focus{
 
 .lineBalancePanel {
   width: 100%;
-  height: 320px;
+  height: 250px;
   margin-top: 10px;
   padding: 12px;
   border: 1px solid #e5e7eb;
