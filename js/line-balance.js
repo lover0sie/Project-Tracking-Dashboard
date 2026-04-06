@@ -6,7 +6,7 @@ import {
   getProcessNo,
   getFullProcessLabelFromSegs,
   getActualEffectiveDurationMs,
-  getStandardMinutesFromProcessNo
+  getStandardMinutesFromLabel
 } from "./helpers.js";
 
 const dayPicker = document.getElementById("lbDayPicker");
