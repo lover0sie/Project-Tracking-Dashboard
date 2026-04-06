@@ -7,7 +7,19 @@
 import { loadRuns, loadRunsForDay } from "./timeline.js";
 import { exportExcelReport } from "./excel-export.js";
 import { db } from "./firebase.js";
-import { getMYTodayKey, buildSegmentsFromRuns, getStationOptionsFromSegments, tsOrMsToDate, buildHoldWindowsFromRun } from "./helpers.js";
+import { 
+  getMYTodayKey, 
+  buildSegmentsFromRuns, 
+  getStationOptionsFromSegments, 
+  tsOrMsToDate, 
+  buildHoldWindowsFromRun ,
+  getActualEffectiveDurationMs,
+  getBreakOverlapMs,
+  sliceSegForWaiting,
+  STANDARD_TIME_MIN,
+  LEGEND_STATIONS, 
+  LEGEND_STATUS, 
+  renderLegend} from "./helpers.js";
 
 import {
   getFirestore,
@@ -16,42 +28,6 @@ import {
   query,
   where
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-
-// Estimated time in minutes for each process
-const STANDARD_TIME_MIN = {
-  "6 - Hole bevelling": 80,
-  "7 - Connector welding": 100,
-  "8A - Fitting internal plate": 200,
-  "8B - GMAW C&B": 300,
-  "9 - Fitting and welding distribution box": 250,
-  "10 - Tube support, bush fitting, and tube sheet fitting": 200,
-  "11 - Tubesheet welding": 220,
-  "12 - Bracket and attachment welding, copper tube brazing": 340,
-  "13 - Unit side plate and base welding": 380,
-  "14A - Tube slotting": 100,
-  "14B - Tube expansion": 400,
-  "15 - Primer painting": 180,
-  "16 - Pneumatic testing": 120,
-  "17 - Hydrostatic testing": 300,
-  "18, 19 - Primer painting (weld seam) and top coat painting": 600,
-
-  "6, 7 - Hole bevelling and connector welding": 200,
-  "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding": 500,
-  "12 - Bracket and attachment fitting and welding": 300,
-  "19 - Top coat painting": 400,
-
-  "Piping shop": 300,
-  "A - Insulation 1": 480,
-  "B - Insulation 2": 480,
-  "C - Major components assembly": 600,
-  "D - Steel pipe welding": 300,
-  "E - Copper pipe brazing": 350,
-  "F - Control box and wiring": 240,
-  "G - Piping insulation": 500,
-  "H - Packing": 360
-  
-}
-
 
 /* DOM */
 const el = (id) => document.getElementById(id);
@@ -113,6 +89,9 @@ function formatDuration(ms){
   return `${s}s`;
 }
 
+function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+
+function endOfDay(d){ const x=new Date(d); x.setHours(23,59,59,999); return x; }
 
 
 function parseDayKeyToDate(dayKey) {
@@ -246,57 +225,11 @@ function isLateAgainstStandard(seg) {
   return varianceMs != null && varianceMs > 0;
 }
 
-/* Get the daily break windows */
-function getDailyBreakWindows(baseDate) {
-  const makeRange = (startH, startM, endH, endM) => {
-    const start = new Date(baseDate);
-    start.setHours(startH, startM, 0, 0);
 
-    const end = new Date(baseDate);
-    end.setHours(endH, endM, 0, 0);
 
-    return { start, end };
-  };
 
-  return [
-    makeRange(10, 0, 10, 15), // 10:00:00 AM - 10:15:00 AM
-    makeRange(12, 0, 12, 30), // 12:00:00 PM - 12:30:00 PM
-    makeRange(15, 0, 15, 15)  // 03:00:00 PM - 03:15:00 PM
-  ];
-}
 
-/* Get the duration of overlap end and start time */
-function overlapMs(startA, endA, startB, endB) {
-  const start = Math.max(startA.getTime(), startB.getTime());
-  const end = Math.min(endA.getTime(), endB.getTime());
-  return Math.max(0, end - start);
-}
 
-/* Get the duration of overlapped break time */
-function getBreakOverlapMs(start, end) {
-  if (!start || !end || end <= start) return 0;
-
-  let total = 0;
-
-  let curDay = new Date(start);
-  curDay.setHours(0,0,0,0);
-
-  const lastDay = new Date(end);
-  lastDay.setHours(0,0,0,0);
-
-  while (curDay <= lastDay) {
-
-    const breaks = getDailyBreakWindows(curDay);
-
-    for (const b of breaks) {
-      total += overlapMs(start, end, b.start, b.end);
-    }
-
-    curDay.setDate(curDay.getDate() + 1);
-  }
-
-  return total;
-}
 
 /* Legacy function since currently using buildHoldWindowsFromRun */
 function getHoldDurationMsFromRun(r) {
@@ -334,110 +267,8 @@ export function stopGanttLiveRefresh() {
   }
 }
 
-/* Group the runs according to station */
-function groupRunsByStation(runs) {
-  const map = new Map();
 
-  for (const r of runs) {
-    const station = r.station || "UNKNOWN";
 
-    if (!map.has(station)) {
-      map.set(station, []);
-    }
-
-    map.get(station).push(r);
-  }
-
-  return map;
-}
-
-/* Sort inside each station according to the time */
-function sortRunsByStart(runs) {
-  return runs.sort((a, b) => {
-    const aTime = a.startEpochMs || 0;
-    const bTime = b.startEpochMs || 0;
-    return aTime - bTime;
-  });
-}
-
-function clipSegToRange(seg, rangeMin, rangeMax) {
-  if (!seg?.start || !seg?.end) return null;
-
-  const start = new Date(Math.max(seg.start.getTime(), rangeMin.getTime()));
-  const end = new Date(Math.min(seg.end.getTime(), rangeMax.getTime()));
-
-  if (end <= start) return null;
-
-  return { ...seg, start, end };
-}
-
-function getStationProcessList(stationSegs) {
-  const nums = new Set();
-
-  for (const seg of stationSegs) {
-    const label = String(seg.processLabel || "").trim();
-    if (!label) continue;
-
-    // try to extract process number part before " - "
-    const procNo = label.split(" - ")[0].trim();
-    if (procNo) nums.add(procNo);
-  }
-
-  return Array.from(nums).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-}
-
-/**
- * Build lane slices for a station.
- * Keeps process / hold / waiting slices visible in one single lane.
- */
-function buildStationLaneSlices(stationSegs, rangeMin, rangeMax) {
-  const out = [];
-
-  const sorted = [...stationSegs]
-    .map(seg => clipSegToRange(seg, rangeMin, rangeMax))
-    .filter(Boolean)
-    .sort((a, b) => a.start - b.start);
-
-  for (const seg of sorted) {
-    const parts = sliceSegForWaiting(seg);
-
-    for (const p of parts) {
-      const clipped = clipSegToRange(
-        {
-          ...seg,
-          start: p.start,
-          end: p.end,
-          sliceType: p.type || "process"
-        },
-        rangeMin,
-        rangeMax
-      );
-
-      if (clipped) out.push(clipped);
-    }
-  }
-
-  return out.sort((a, b) => a.start - b.start);
-}
-
-/* Get the actual effective duration by substracting the break time from elapsed time based on slices */
-function getActualEffectiveDurationMs(seg) {
-  const parts = sliceSegForWaiting(seg);
-
-  let total = 0;
-
-  for (const p of parts) {
-    if (p.type !== "process") continue;
-    if (!p.start || !p.end || p.end <= p.start) continue;
-
-    const elapsed = p.end.getTime() - p.start.getTime();
-    const breakMs = getBreakOverlapMs(p.start, p.end);
-
-    total += Math.max(0, elapsed - breakMs);
-  }
-
-  return total;
-}
 
 /* Build the daily time bands (the vertical yellow line shown in dashboard) */
 function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
@@ -625,8 +456,7 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
       : formatDateTime(sliceEnd);
 
     return `
-      <div class="tipTitle">ON HOLD</div>
-      <div class="tipRow"><span class="tipLabel">Process:</span> ${seg.processLabel || "-"}</div>
+      <div class="tipTitle">${seg.processLabel || "-"}</div>
       <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(sliceStart)}</div>
       <div class="tipRow"><span class="tipLabel">End:</span> ${endText}</div>
       <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(holdMs)}</div>
@@ -673,7 +503,6 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
 
   return `
     <div class="tipTitle">${seg.processLabel || "PROCESS"}</div>
-    <div class="tipRow"><span class="tipLabel">Station:</span> ${seg.station || "-"}</div>
     <div class="tipRow"><span class="tipLabel">Started By:</span> ${seg.employeeName || "-"} (${seg.employeeNumber || "-"})</div>
     <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${seg.resumedByName || "-"} (${seg.resumedByNumber || "-"})</div>
     <div class="tipRow"><span class="tipLabel">Manpower:</span> ${seg.manpower ?? "-"}</div>
@@ -700,8 +529,7 @@ function standardTipText(seg, stdStart, stdEnd) {
     : 0;
 
   return `
-    <div class="tipTitle">STANDARD TIME</div>
-    <div class="tipRow"><span class="tipLabel">Process:</span> ${seg.processLabel || "-"}</div>
+    <div class="tipTitle">${seg.processLabel || "-"}</div>
     <div class="tipRow"><span class="tipLabel">Standard Duration:</span> ${formatDuration(stdMs)}</div>
     <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${formatDuration(actualEffectiveMs)}</div>
     <div class="tipRow"><span class="tipLabel">Variance:</span> ${formatVariance(varianceMs)}</div>
@@ -742,69 +570,7 @@ function fitDailyToScreen(){
 }
 
 
-/* Create waiting and on hold process based on the status */
-function sliceSegForWaiting(seg) {
-  const parts = [];
-  const s = seg.start;
-  const e = seg.end;
-  if (!s || !e) return parts;
 
-  if (seg.phase === "waiting" || seg.status === "waiting") {
-    parts.push({ type: "waiting", start: s, end: e });
-    return parts;
-  }
-
-  const windows = Array.isArray(seg.holdWindows) ? seg.holdWindows : [];
-
-  if (!windows.length) {
-    parts.push({ type: "process", start: s, end: e });
-    return parts;
-  }
-
-  let cursor = s;
-
-  for (const w of windows) {
-    const holdStart = w.start instanceof Date ? w.start : new Date(w.start);
-
-    // KEY FIX:
-    const holdEnd = w.isOpen
-      ? new Date()
-      : (w.end instanceof Date ? w.end : new Date(w.end));
-
-    if (!(holdStart instanceof Date) || isNaN(holdStart)) continue;
-    if (!(holdEnd instanceof Date) || isNaN(holdEnd)) continue;
-    if (holdEnd <= holdStart) continue;
-
-    if (holdStart > cursor) {
-      parts.push({
-        type: "process",
-        start: cursor,
-        end: holdStart
-      });
-    }
-
-    parts.push({
-      type: "on_hold_gap",
-      start: holdStart,
-      end: holdEnd,
-      holdReason: w.holdReason || "",
-      remarks: w.remarks || "",
-      isOpen: !!w.isOpen
-    });
-
-    cursor = holdEnd;
-  }
-
-  if (cursor < e) {
-    parts.push({
-      type: "process",
-      start: cursor,
-      end: e
-    });
-  }
-
-  return parts;
-}
 
 /* Get the process number to display in the Process No. column */
 function getProcessNo(segOrLabel) {
@@ -822,26 +588,6 @@ function getProcessNo(segOrLabel) {
 
   const parts = processLabel.split(" - ");
   return parts[0]?.trim() || processLabel;
-}
-
-/* Get the full process name */
-function getFullProcessLabelFromSegs(processNo, segs) {
-  // Try get from actual segment first (most accurate)
-  const seg = segs.find(s => s.processLabel);
-
-  if (seg && seg.processLabel) {
-    return seg.processLabel;
-  }
-
-  // fallback → use STANDARD_TIME_MIN keys
-  for (const key in STANDARD_TIME_MIN) {
-    if (key.startsWith(processNo)) {
-      return key;
-    }
-  }
-
-  // fallback fallback
-  return processNo;
 }
 
 /* Get the latest segment */
@@ -873,9 +619,6 @@ function stationClass(station) {
   return "st-pv1"; // default
 }
 
-function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
-
-function endOfDay(d){ const x=new Date(d); x.setHours(23,59,59,999); return x; }
 
 function buildDateRange(minDate, maxDate) {
   const out = [];
@@ -1016,277 +759,6 @@ function buildChillerGroups(segments){
   return groups;
 }
 
-
-/* Render the legend for status (on_hold, running, completed, etc) */
-function renderLegendStatus() {
-  const stEl = document.getElementById("legendStatus");
-  if (!stEl) return;
-
-  stEl.innerHTML = `
-    <span class="legItem">
-      <span class="swatch swatch-waiting"></span>
-      Waiting
-    </span>
-    <span class="legItem">
-      <span class="swatch swatch-hold"></span>
-      On Hold
-    </span>
-  `;
-}
-
-/* =========================
-   LINE BALANCE HELPERS
-========================= */
-
-function getStandardMinutesFromProcessNo(processNo) {
-  for (const key in STANDARD_TIME_MIN) {
-    if (key.startsWith(processNo)) {
-      return STANDARD_TIME_MIN[key];
-    }
-  }
-  return 0;
-}
-
-/* Function to build the Line Balance Graph */
-
-/* For future use 
-function getCycleTimePlaceholderByStation(station) {
-  const map = {
-    "Pneumatic": 250,
-    "Piping Shop": 300,
-    "Fabrication": 400
-  };
-  return map[station] || 250;
-}
-
-function getTaktTimePlaceholderByStation(station) {
-  const map = {
-    "Pneumatic": 200,
-    "Piping Shop": 220,
-    "Fabrication": 300
-  };
-  return map[station] || 200;
-} */
-
-function getMonthRangeFromDate(date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-  start.setHours(0,0,0,0);
-  end.setHours(23,59,59,999);
-
-  return { start, end };
-}
-
-
-function buildStationLineBalanceData(station, segments) {
-  if (!station) {
-    return {
-      labels: [],
-      actual: [],
-      standard: [],
-      cycle: [],
-      takt: [],
-      fullLabels: []
-    };
-  }
-
-  const stationSegs = segments.filter(s =>
-    String(s.station || "").trim() === String(station).trim()
-  );
-
-  const processMap = new Map();
-
-  for (const seg of stationSegs) {
-    const processNo = getProcessNo(seg);
-
-    if (!processMap.has(processNo)) {
-      processMap.set(processNo, []);
-    }
-
-    processMap.get(processNo).push(seg);
-  }
-
-  const rows = [];
-
-  for (const [processNo, segs] of processMap.entries()) {
-    let totalActualMin = 0;
-
-    for (const seg of segs) {
-      totalActualMin += getProcessActualDurationMinutes(seg);
-    }
-
-    const standardPerUnit = getStandardMinutesFromProcessNo(processNo);
-    const numberOfRuns = segs.length;
-
-    const standardMin = standardPerUnit * numberOfRuns;
-
-    const fullLabel = getFullProcessLabelFromSegs(processNo, segs);
-
-    rows.push({
-      processNo,
-      fullLabel,
-      actual: Math.round(totalActualMin),
-      standard: Math.round(standardMin)
-    });
-  }
-
-  rows.sort((a, b) =>
-    a.processNo.localeCompare(b.processNo, undefined, { numeric: true })
-  );
-
-  // placeholder values
-  const cyclePlaceholder = 20000;
-  const taktPlaceholder = 10500;
-
-  /* For future varying cycle and takt time 
-  const cyclePlaceholder = getCycleTimePlaceholderByStation(station);
-  const taktPlaceholder = getTaktTimePlaceholderByStation(station); */
-
-  return {
-    labels: rows.map(r => r.processNo),
-    fullLabels: rows.map(r=> r.fullLabel),
-    actual: rows.map(r => r.actual),
-    standard: rows.map(r => r.standard),
-    cycle: rows.map(() => cyclePlaceholder),
-    takt: rows.map(() => taktPlaceholder),
-  };
-}
-
-function renderStationLineBalanceChart(data) {
-  const canvas = el("stationLineBalanceChart");
-  if (!canvas) return;
-
-  if (typeof Chart === "undefined") {
-    console.warn("Chart.js is not loaded.");
-    return;
-  }
-
-  if (stationLineBalanceChart) {
-    stationLineBalanceChart.destroy();
-    stationLineBalanceChart = null;
-  }
-
-  stationLineBalanceChart = new Chart(canvas, {
-    data: {
-      labels: data.labels,
-      datasets: [
-        {
-          type: "bar",
-          label: "Actual Time",
-          data: data.actual,
-          backgroundColor: "#60a5fa",
-          borderColor: "#60a5fa",
-          borderWidth: 1,
-          order: 3
-        },
-        {
-          type: "bar",
-          label: "Standard Time",
-          data: data.standard,
-          backgroundColor: "#ff8000",
-          borderColor: "#ff8000",
-          borderWidth: 1,
-          order: 3
-        },
-        {
-          type: "line",
-          label: "Cycle Time",
-          data: data.cycle,
-          borderColor: "#000000",
-          backgroundColor: "#000000",
-          borderWidth: 2,
-          tension: 0,
-          pointRadius: 3,
-          pointHoverRadius: 4,
-          fill: false,
-          order: 1
-        },
-        {
-          type: "line",
-          label: "Takt Time",
-          data: data.takt,
-          borderColor: "#ef4444",
-          backgroundColor: "#ef4444",
-          borderWidth: 2,
-          borderDash: [6, 6],
-          tension: 0,
-          pointRadius: 0,
-          fill: false,
-          order: 2
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: "index",
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: "top"
-        },
-        tooltip: {
-          callbacks: {
-            title(items) {
-              const idx = items?.[0]?.dataIndex ?? 0;
-              return data.fullLabels?.[idx] || items?.[0]?.label || "";
-            },
-            label(ctx) {
-              return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} min`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: "Process No."
-          }
-        },
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Duration (minutes)"
-          }
-        }
-      }
-    }
-  });
-}
-
-function refreshStationLineBalancePanel(segments) {
-  const section = el("lineBalanceSection");
-  const picker = el("stationBalancePicker");
-
-  if (!section || !picker) return;
-
-  if (!segments.length) {
-    section.classList.add("hidden");
-
-    if (stationLineBalanceChart) {
-      stationLineBalanceChart.destroy();
-      stationLineBalanceChart = null;
-    }
-
-    lastStationLineBalanceSegments = [];
-    return;
-  }
-
-  section.classList.remove("hidden");
-
-  const selectedStation = picker.value;
-  const data = buildStationLineBalanceData(selectedStation, segments);
-
-  renderStationLineBalanceChart(data);
-  lastStationLineBalanceSegments = segments;
-}
-
 /* ========== Building Station View =============== */
 
 /* Position bars by time */
@@ -1376,8 +848,8 @@ export async function renderStationOnlyView() {
 
     const { segments } = buildSegmentsFromRuns(runs);
 
-    renderLegendStatus();
-    renderStationLegend(segments);
+    renderLegend("legendStations", LEGEND_STATIONS);
+    renderLegend("legendStatus", LEGEND_STATUS);
 
     if (dayPicker && !dayPicker.value) {
       dayPicker.value = todayKey;
@@ -1500,18 +972,24 @@ function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
 
   const statusText = formatStatus(seg?.status || type || "-");
 
+  // 🔥 ADD THIS
+  const isHold = part?.type === "on_hold_gap";
+  const holdReason = part?.holdReason || seg?.holdReason || "-";
+  const remarks = part?.remarks || seg?.remarks || "-";
+
   return `
     <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}</div>
-    <div class="tipRow"><span class="tipLabel">Process:</span> ${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
+    <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
+
     <div class="tipRow"><span class="tipLabel">Type:</span> ${escapeHtml(typeText)}</div>
-    <div class="tipRow"><span class="tipLabel">Status:</span> ${escapeHtml(statusText)}</div>
     <div class="tipRow"><span class="tipLabel">Started By:</span> ${escapeHtml(seg.employeeName || "-")} (${escapeHtml(seg.employeeNumber || "-")})</div>
     <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${escapeHtml(seg.resumedByName || "-")} (${escapeHtml(seg.resumedByNumber || "-")})</div>
     <div class="tipRow"><span class="tipLabel">Manpower:</span> ${seg.manpower ?? "-"}</div>
     <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(realFrom))}</div>
     <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
     <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${escapeHtml(formatDuration(sliceEffectiveMs))}</div>
-    <div class="tipRow"><span class="tipLabel">Total Effective Duration:</span> ${escapeHtml(formatDuration(totalEffectiveMs))}</div>
+    <div class="tipRow"><span class="tipLabel">Hold Reason:</span> ${escapeHtml(holdReason)}</div>
+    <div class="tipRow"><span class="tipLabel">Remarks:</span> ${escapeHtml(remarks)}</div>
   `;
 }
 
@@ -1783,7 +1261,6 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
   });
 
   drawNowLine(rangeMin, rangeMax, hourW);
-  refreshStationLineBalancePanel(segments);
 }
 
 function renderGanttDaily(rangeMin, rangeMax, segments) {
@@ -2299,8 +1776,8 @@ async function render() {
 
     // DAILY MODE
     if (mode === "daily") {
-      renderStationLegend(segments);
-      renderLegendStatus();
+      renderLegend("legendStations", LEGEND_STATIONS);
+      renderLegend("legendStatus", LEGEND_STATUS);
 
       const picker = el("dayPicker");
       const todayKey = getMYTodayKey();
@@ -2327,8 +1804,8 @@ async function render() {
 
     // MONTHLY MODE
     if (mode === "month") {
-      renderStationLegend(segments);
-      renderLegendStatus();
+      renderLegend("legendStations", LEGEND_STATIONS);
+      renderLegend("legendStatus", LEGEND_STATUS);
 
       const mp = el("monthPicker");
       const now = new Date();
