@@ -7,6 +7,7 @@
 import { loadRuns, loadRunsForDay } from "./timeline.js";
 import { exportExcelReport } from "./excel-export.js";
 import { db } from "./firebase.js";
+import { getMYTodayKey, buildSegmentsFromRuns, getStationOptionsFromSegments, tsOrMsToDate, buildHoldWindowsFromRun } from "./helpers.js";
 
 import {
   getFirestore,
@@ -72,17 +73,9 @@ const END_HOUR = 21;
 
 let stationLineBalanceChart = null;
 let lastStationLineBalanceSegments = [];
-let lastStationLineBalanceData = [];
 
 let zoomLevel = 0.8;
 
-function toSafeId(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 function getHourW(){
   // Sset this in CSS: :root{ --hourW: 90px; }
@@ -120,20 +113,7 @@ function formatDuration(ms){
   return `${s}s`;
 }
 
-function getMYTodayKey() {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(new Date());
 
-  const year = parts.find(p => p.type === "year")?.value;
-  const month = parts.find(p => p.type === "month")?.value;
-  const day = parts.find(p => p.type === "day")?.value;
-
-  return `${year}-${month}-${day}`;
-}
 
 function parseDayKeyToDate(dayKey) {
   if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
@@ -872,141 +852,6 @@ function latestSegment(segs){
   )[0];
 }
 
-// Update to accept epoch long int
-function tsOrMsToDate(ts, ms) {
-  if (ts && typeof ts.toDate === "function") return ts.toDate();
-
-  const n = (typeof ms === "number") ? ms
-          : (typeof ms === "string" && ms.trim() !== "" && !isNaN(ms)) ? Number(ms)
-          : null;
-
-  if (typeof n === "number" && Number.isFinite(n)) return new Date(n);
-  return null;
-}
-
-/* =========================
-   HOLD WINDOWS BUILDER
-   supports:
-   - old data version (single hold/resume fields)
-   - new data version (holds[] / resumes[])
-   - active on_hold without resume yet
-========================= */
-function buildHoldWindowsFromRun(r, segEnd = new Date()) {
-  const windows = [];
-  const status = String(r?.status || "").toLowerCase().trim();
-  const effectiveEnd = segEnd instanceof Date ? segEnd : new Date(segEnd);
-
-  const toDateSafe = (v) => {
-    if (!v) return null;
-    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-    if (typeof v === "number") {
-      const d = new Date(v);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    if (typeof v?.toDate === "function") {
-      const d = v.toDate();
-      return d instanceof Date && !isNaN(d.getTime()) ? d : null;
-    }
-    return null;
-  };
-
-  // =========================
-  // NEW SYSTEM: holds[] / resumes[]
-  // =========================
-  const holdsArr = Array.isArray(r?.holds) ? r.holds : [];
-  const resumesArr = Array.isArray(r?.resumes) ? r.resumes : [];
-
-  if (holdsArr.length > 0) {
-    const holds = holdsArr
-      .map((h) => ({
-        holdAt:
-          toDateSafe(h?.holdAtEpochMs) ||
-          toDateSafe(h?.holdEpochMs) ||
-          toDateSafe(h?.holdAt),
-        holdReason: h?.holdReason || "",
-        remarks: h?.remarks || ""
-      }))
-      .filter((h) => h.holdAt)
-      .sort((a, b) => a.holdAt - b.holdAt);
-
-    const resumes = resumesArr
-      .map((x) => ({
-        resumedAt:
-          toDateSafe(x?.resumedAtEpochMs) ||
-          toDateSafe(x?.resumeEpochMs) ||
-          toDateSafe(x?.resumedAt) ||
-          toDateSafe(x?.resumeAt)
-      }))
-      .filter((x) => x.resumedAt)
-      .sort((a, b) => a.resumedAt - b.resumedAt);
-
-    let resumeIdx = 0;
-
-    for (const h of holds) {
-      while (
-        resumeIdx < resumes.length &&
-        resumes[resumeIdx].resumedAt <= h.holdAt
-      ) {
-        resumeIdx++;
-      }
-
-      const matchedResume =
-        resumeIdx < resumes.length ? resumes[resumeIdx] : null;
-
-      const holdEnd =
-        matchedResume?.resumedAt ||
-        (status === "on_hold" ? effectiveEnd : null);
-
-      if (!holdEnd || holdEnd <= h.holdAt) continue;
-
-      windows.push({
-        start: h.holdAt,
-        end: holdEnd,
-        holdReason: h.holdReason,
-        remarks: h.remarks,
-        isOpen: !matchedResume && status === "on_hold"
-      });
-
-      if (matchedResume) resumeIdx++;
-    }
-
-    return windows;
-  }
-
-  // =========================
-  // OLD SYSTEM: single hold/resume fields
-  // =========================
-  const holdAt =
-    toDateSafe(r?.holdEpochMs) ||
-    toDateSafe(r?.holdAt);
-
-  const resumedAt =
-    toDateSafe(r?.resumedEpochMs) ||
-    toDateSafe(r?.resumeEpochMs) ||
-    toDateSafe(r?.resumedAt) ||
-    toDateSafe(r?.resumeAt);
-
-  if (holdAt) {
-    const end =
-      resumedAt ||
-      (status === "on_hold" ? effectiveEnd : null);
-
-    if (end && end > holdAt) {
-      windows.push({
-        start: holdAt,
-        end,
-        holdReason: r?.holdReason || "",
-        remarks: r?.remarks || "",
-        isOpen: !resumedAt && status === "on_hold"
-      });
-    }
-  }
-
-  return windows;
-}
-
-
-
 /* Update here if there are more stations! */
 function stationClass(station) {
   const s = String(station || "").toLowerCase().replace(/\s+/g,"");
@@ -1101,86 +946,6 @@ function buildMonthHeader(days){
 }
 
 
-function buildSegmentsFromRuns(runs) {
-  const segments = [];
-  const issues = [];
-
-  for (const r of runs) {
-    const serial = r.serialNumber || "";
-    const station = r.station || "";
-
-    const start = tsOrMsToDate(r.startAt, r.startEpochMs);
-    const resumed = tsOrMsToDate(r.resumedAt, r.resumedEpochMs);
-
-    const statusRaw = String(r.status || "").toLowerCase().trim(); // running / completed / on_hold
-    const status =
-      (statusRaw === "completed" || statusRaw === "running" || statusRaw === "on_hold")
-        ? statusRaw
-        : "running";
-
-    // Pick end time based on status:
-    const endCompleted = tsOrMsToDate(r.endAt, r.endEpochMs);
-    const holdTime = tsOrMsToDate(r.holdAt, r.holdEpochMs);
-
-    let end = null;
-    if (status === "completed") end = endCompleted;
-    else if (status === "on_hold") end = holdTime || new Date();
-    else end = new Date(); // running
-
-    if (!serial || !station || !start) {
-      issues.push({ type: "missing_fields", id: r.id, serial, station });
-      continue;
-    }
-
-    if (end && end.getTime() < start.getTime()) end = new Date(start.getTime());
-
-    const durationMs =
-      typeof r.durationMs === "number"
-        ? r.durationMs
-        : (start && end ? (end.getTime() - start.getTime()) : 0);
-
-    const holdWindows = buildHoldWindowsFromRun(r, end);
-
-    segments.push({
-      serial,
-      projectName: r.projectName || "(No Project)",
-      materialNumber: r.materialNumber || "",
-      description: r.description || "",
-      station,
-      phase: "process",
-      processLabel: r.processName || "-",
-      manpower: Number(r.manpower ?? 0) || 0,
-      employeeName: r.startedByName || "",
-      employeeNumber: r.startedByNumber || "",
-      resumedByName: r.resumedByName || "",
-      resumedByNumber: r.resumedByNumber || "",
-      start,
-      end,
-      status,
-      holdReason: r.holdReason || "",
-      remarks: r.remarks || "",
-
-      holdAt: holdTime || null,
-      resumedAt: resumed || null,
-      holdEpochMs: r.holdEpochMs ?? null,
-      resumedEpochMs: r.resumedEpochMs ?? null,
-      holds: Array.isArray(r.holds) ? r.holds : [],
-      resumes: Array.isArray(r.resumes) ? r.resumes : [],
-
-      qrKind: r.qrKind || "",
-      chillerSerialNumber: r.chillerSerialNumber || "",
-      pvSerialNumber: r.pvSerialNumber || "",
-      vesselType: r.vesselType || "",
-      coolingType: r.coolingType || "",
-
-      ongoing: (status === "running" || status === "on_hold"),
-      durationMs: Math.max(0, durationMs),
-      holdWindows
-    });
-  }
-
-  return { segments, issues };
-}
 
 const UNIT_ORDER = ["CHILLER", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
 
@@ -1312,7 +1077,6 @@ function getMonthRangeFromDate(date) {
 
   return { start, end };
 }
-
 
 
 function buildStationLineBalanceData(station, segments) {
@@ -1594,7 +1358,6 @@ function groupStationByProcess(segments) {
 
 export async function renderStationOnlyView() {
   try {
-    const lineBalanceSection = el("lineBalanceSection");
     const dayPicker = el("dayPicker");
     const stationPicker = el("stationBalancePicker");
 
@@ -1608,14 +1371,6 @@ export async function renderStationOnlyView() {
       monthHeadEl.innerHTML = "";
       dayHeadEl.innerHTML = "";
 
-      if (lineBalanceSection) lineBalanceSection.classList.add("hidden");
-
-      if (stationLineBalanceChart) {
-        stationLineBalanceChart.destroy();
-        stationLineBalanceChart = null;
-      }
-
-      lastStationLineBalanceSegments = [];
       return;
     }
 
@@ -1651,15 +1406,6 @@ export async function renderStationOnlyView() {
       dayHeadEl.innerHTML = buildHourHeader();
       monthHeadEl.innerHTML = "";
       renderStationLegend([]);
-
-      if (lineBalanceSection) lineBalanceSection.classList.add("hidden");
-
-      if (stationLineBalanceChart) {
-        stationLineBalanceChart.destroy();
-        stationLineBalanceChart = null;
-      }
-
-      lastStationLineBalanceSegments = [];
       return;
     }
 
@@ -1685,19 +1431,6 @@ export async function renderStationOnlyView() {
       : segsInWindow;
 
     renderGanttStation(rangeMin, rangeMax, filteredSegs);
-
-    const { start: monthStart, end: monthEnd } = getMonthRangeFromDate(dayDate);
-
-    const segsInMonth = segments.filter(s =>
-      s.end.getTime() > monthStart.getTime() &&
-      s.start.getTime() < monthEnd.getTime()
-    );
-
-    const filteredMonthlySegs = selectedStation
-      ? segsInMonth.filter(s => String(s.station || "").trim() === selectedStation)
-      : segsInMonth;
-
-    refreshStationLineBalancePanel(filteredMonthlySegs);
 
   } catch (err) {
     console.error(err);
@@ -1833,13 +1566,7 @@ function getProcessActualDurationMinutes(seg) {
   return totalMs / 60000;
 }
 
-function getStationOptionsFromSegments(segments) {
-  return Array.from(
-    new Set(
-      segments.map(seg => String(seg?.station || "UNKNOWN").trim() || "UNKNOWN")
-    )
-  ).sort((a, b) => a.localeCompare(b));
-}
+
 
 const stationLineCharts = new Map();
 
@@ -1970,10 +1697,10 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
             const leftPx =
               ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
 
-            const widthPx = Math.max(
-              10,
-              ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW
-            );
+            const rawWidthPx =
+            ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW;
+
+            const widthPx = Math.max(1, rawWidthPx - 1);
 
             const isHoldGap = p.type === "on_hold_gap";
             const isWaiting =
@@ -2556,10 +2283,7 @@ async function render() {
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);
 
-    const lineBalanceSection = el("lineBalanceSection");
-    if (lineBalanceSection) {
-      lineBalanceSection.classList.toggle("hidden", mode !== "station");
-    }
+    
 
 
     const wrap = document.querySelector(".ganttWrap");

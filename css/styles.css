@@ -885,9 +885,9 @@ select:focus{
   position:absolute;
   top: 50%;
   height:  var(--barH);
-  border-radius: 999px;
-  border:1px solid rgba(0,0,0,0.06);
-  box-shadow: 0 4px 10px rgba(17,24,39,0.08);
+  border-radius:4px;
+  border:none;
+  box-shadow: none;
   cursor: default;
   opacity: 1 !important;
   transform: translateY(-50%);
@@ -1940,6 +1940,18 @@ select:focus{
 #stationLineBalanceChart {
   width: 100% !important;
   height: 100% !important;
+  display: block;
+}
+
+.chartCard {
+  width: 100%;
+  min-height: 420px;
+  padding: 16px;
+}
+
+#lineBalanceChart {
+  width: 100% !important;
+  height: 380px !important;
   display: block;
 }
 

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Line Balance Graph</title>
+
+ 
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+    <header class="top">
+        <div>
+            <h2>Line Balance Graph</h2>
+            <div class="sub">Data extracted from <b>Firestore</b></div>
+        </div>
+    </header>
+
+  <section class="card">
+    <div class="toolbar">
+      <div class="toolbarGroup">
+        <label for="pickerLabel">Date</label>
+         <input type="date" id="lbDayPicker" class="pickerInput" />
+      </div>
+
+      <div class="toolbarGroup">
+        <label for="lbStationPicker">Station</label>
+        <select id="lbStationPicker"></select>
+      </div>
+
+      <div class="toolbarGroup">
+        <a class="btn secondary" href="index.html">Back to Dashboard</a>
+      </div>
+    </div>
+
+    <div class="chartCard">
+      <canvas id="lineBalanceChart"></canvas>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="js/line-balance.js"></script>
+</body>
+</html>
