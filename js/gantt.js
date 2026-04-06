@@ -950,6 +950,20 @@ function getEffectiveDurationMs(seg) {
 }
 
 function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
+  const partType = part?.type || type || "";
+
+  if (partType === "waiting" || seg?.phase === "waiting" || seg?.status === "waiting") {
+    return waitingTipTextBuilder(realFrom, realTo);
+  }
+
+  if (partType === "on_hold_gap") {
+    return holdTipTextBuilder(seg, realFrom, realTo, part);
+  }
+
+  return processTipTextBuilder(seg, realFrom, realTo, type, part);
+}
+
+function processTipTextBuilder(seg, realFrom, realTo, type, part) {
   const endText = realTo ? formatDateTime(realTo) : "-";
 
   const sliceEffectiveMs = Math.max(
@@ -972,11 +986,6 @@ function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
 
   const statusText = formatStatus(seg?.status || type || "-");
 
-  // 🔥 ADD THIS
-  const isHold = part?.type === "on_hold_gap";
-  const holdReason = part?.holdReason || seg?.holdReason || "-";
-  const remarks = part?.remarks || seg?.remarks || "-";
-
   return `
     <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}</div>
     <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
@@ -988,8 +997,7 @@ function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
     <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(realFrom))}</div>
     <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
     <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${escapeHtml(formatDuration(sliceEffectiveMs))}</div>
-    <b><div class="tipRow">Hold Reason: ${escapeHtml(holdReason)}</div></b>
-    <b><div class="tipRow">Remarks:</span> ${escapeHtml(remarks)}</div></b>
+    <div class="tipRow"><span class="tipLabel">Total Effective Duration:</span> ${escapeHtml(formatDuration(totalEffectiveMs))}</div>
   `;
 }
 
@@ -1002,6 +1010,27 @@ function waitingTipTextBuilder(start, end) {
     <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(start))}</div>
     <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(formatDateTime(end))}</div>
     <div class="tipRow"><span class="tipLabel">Duration:</span> ${escapeHtml(formatDuration(durationMs))}</div>
+  `;
+}
+
+function holdTipTextBuilder(seg, start, end, part) {
+  const holdReason = part?.holdReason || seg?.holdReason || "-";
+  const remarks = part?.remarks || seg?.remarks || "-";
+  const durationMs = Math.max(0, end.getTime() - start.getTime());
+
+  const endText = part?.isOpen
+    ? `Now (${formatDateTime(new Date())})`
+    : formatDateTime(end);
+
+  return `
+    <div class="tipTitle">${escapeHtml(seg.projectName || "-")}</div>
+    <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
+
+    <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(start))}</div>
+    <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
+    <div class="tipRow"><span class="tipLabel">Duration:</span> ${escapeHtml(formatDuration(durationMs))}</div>
+    <b><div class="tipRow">Hold Reason:</span> ${escapeHtml(holdReason)}</div></b>
+    <b><div class="tipRow">Remarks:${escapeHtml(remarks)}</div></b>
   `;
 }
 
