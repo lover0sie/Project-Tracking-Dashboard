@@ -4,8 +4,17 @@
 /* Consist of functions to render the daily and monthly gantt chart */
 /* Consist of functions to build segments and slices for on hold, running, break time, and process */
 
-import { loadRuns } from "./timeline.js";
+import { loadRuns, loadRunsForDay } from "./timeline.js";
 import { exportExcelReport } from "./excel-export.js";
+import { db } from "./firebase.js";
+
+import {
+  getFirestore,
+  collectionGroup,
+  getDocs,
+  query,
+  where
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 // Estimated time in minutes for each process
 const STANDARD_TIME_MIN = {
@@ -52,6 +61,7 @@ const dayHeadEl = el("ganttDayHead");
 const ganttWrapEl = document.querySelector(".ganttWrap");
 
 let cachedEvents = [];
+const cachedRunsByMonth = new Map();
 // Cache fetched runs to avoid hitting Firestore on every re-render.
 
 /* Helpers for time */
@@ -110,16 +120,30 @@ function formatDuration(ms){
   return `${s}s`;
 }
 
-function getMYTodayKey(){
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); // YYYY-MM-DD
+function getMYTodayKey() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+
+  const year = parts.find(p => p.type === "year")?.value;
+  const month = parts.find(p => p.type === "month")?.value;
+  const day = parts.find(p => p.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
 }
 
-function parseDayKeyToDate(dayKey){
-  // dayKey = YYYY-MM-DD
-  const [y,m,d] = dayKey.split("-").map(Number);
-  return new Date(y, m-1, d);
-}
+function parseDayKeyToDate(dayKey) {
+  if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+    console.warn("Invalid dayKey:", dayKey);
+    return new Date();
+  }
 
+  const [y, m, d] = dayKey.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
 
 /* Get the standard time in minutes */
 function getStandardMinutes(processLabel) {
@@ -505,18 +529,7 @@ function formatVariance(ms) {
 }
 
 /* Inject waiting into slice (renderGanttDaily) */
-function injectWaitingIntoLane(segs, rangeMin, rangeMax) {
-  const toMs = (v) => {
-    if (v instanceof Date) return v.getTime();
-    if (typeof v === "number") return v;
-    if (typeof v === "string") return new Date(v).getTime();
-    return NaN;
-  };
-
-  const minMs = toMs(rangeMin);
-  const maxMs = toMs(rangeMax);
-  const nowMs = Date.now();
-
+function injectWaitingIntoLane(segs) {
   const sorted = [...segs]
     .filter(Boolean)
     .sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -524,19 +537,6 @@ function injectWaitingIntoLane(segs, rangeMin, rangeMax) {
   const out = [];
   if (!sorted.length) return out;
 
-  // leading waiting
-  if (!Number.isNaN(minMs) && sorted[0].start.getTime() > minMs) {
-    out.push({
-      ...sorted[0],
-      start: new Date(minMs),
-      end: new Date(sorted[0].start.getTime()),
-      status: "waiting",
-      phase: "waiting",
-      processLabel: "waiting"
-    });
-  }
-
-  // actual segments + internal gaps
   for (let i = 0; i < sorted.length; i++) {
     const cur = sorted[i];
     out.push(cur);
@@ -554,32 +554,7 @@ function injectWaitingIntoLane(segs, rangeMin, rangeMax) {
         end: new Date(gapEnd),
         status: "waiting",
         phase: "waiting",
-        processLabel: "waiting"
-      });
-    }
-  }
-
-  // trailing waiting only for completed last process, up to current time
-  const last = sorted[sorted.length - 1];
-  const lastStatus = String(last?.status || "").toLowerCase().trim();
-
-  if (lastStatus === "completed") {
-    const trailingEndMs = Math.min(
-      nowMs,
-      maxMs
-    );
-
-    if (
-      !Number.isNaN(trailingEndMs) &&
-      trailingEndMs > last.end.getTime()
-    ) {
-      out.push({
-        ...last,
-        start: new Date(last.end.getTime()),
-        end: new Date(trailingEndMs),
-        status: "waiting",
-        phase: "waiting",
-        processLabel: "waiting"
+        processLabel: "Waiting"
       });
     }
   }
@@ -1619,10 +1594,14 @@ function groupStationByProcess(segments) {
 
 export async function renderStationOnlyView() {
   try {
-    const runs = await loadRuns();
     const lineBalanceSection = el("lineBalanceSection");
     const dayPicker = el("dayPicker");
     const stationPicker = el("stationBalancePicker");
+
+    const todayKey = getMYTodayKey();
+    const dayKey = dayPicker?.value || todayKey;
+
+    const runs = await loadRunsForDay(dayKey);
 
     if (!runs.length) {
       bodyEl.innerHTML = "";
@@ -1645,7 +1624,6 @@ export async function renderStationOnlyView() {
     renderLegendStatus();
     renderStationLegend(segments);
 
-    const todayKey = getMYTodayKey();
     if (dayPicker && !dayPicker.value) {
       dayPicker.value = todayKey;
     }
@@ -1708,7 +1686,6 @@ export async function renderStationOnlyView() {
 
     renderGanttStation(rangeMin, rangeMax, filteredSegs);
 
-    //  MONTHLY SEGMENTS
     const { start: monthStart, end: monthEnd } = getMonthRangeFromDate(dayDate);
 
     const segsInMonth = segments.filter(s =>
@@ -1716,11 +1693,10 @@ export async function renderStationOnlyView() {
       s.start.getTime() < monthEnd.getTime()
     );
 
-    // filter by selected station
     const filteredMonthlySegs = selectedStation
       ? segsInMonth.filter(s => String(s.station || "").trim() === selectedStation)
       : segsInMonth;
-    
+
     refreshStationLineBalancePanel(filteredMonthlySegs);
 
   } catch (err) {
@@ -2527,7 +2503,48 @@ function escapeAttr(s) {
 
 async function render() {
   try {
-    const runs = await loadRuns();
+    let runs = [];
+
+    const mode = el("dateMode")?.value || "daily";
+
+    // get selected day
+    const picker = el("dayPicker");
+    const todayKey = getMYTodayKey();
+    const dayKey = picker?.value || todayKey;
+
+    if (mode === "daily" || mode === "station") {
+      runs = await loadRunsForDay(dayKey);
+    }
+    else if (mode === "month") {
+      const mp = el("monthPicker");
+      const now = new Date();
+      const def = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const [yy, mm] = (mp?.value || def).split("-").map(Number);
+      const monthKey = `${yy}-${String(mm).padStart(2, "0")}`;
+
+      //  Check cache first
+      if (cachedRunsByMonth.has(monthKey)) {
+        runs = cachedRunsByMonth.get(monthKey);
+      } else {
+        const lastDay = new Date(yy, mm, 0).getDate();
+
+        const startKey = `${yy}-${String(mm).padStart(2, "0")}-01`;
+        const endKey = `${yy}-${String(mm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+        const q = query(
+          collectionGroup(db, "runs"),
+          where("runDate", ">=", startKey),
+          where("runDate", "<=", endKey)
+        );
+
+        const snap = await getDocs(q);
+        runs = [];
+        snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
+
+        //  Save to cache
+        cachedRunsByMonth.set(monthKey, runs);
+      }
+    }
 
     if (!runs.length) {
       bodyEl.innerHTML = "";
@@ -2538,8 +2555,6 @@ async function render() {
 
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);
-
-    const mode = el("dateMode")?.value || "daily";
 
     const lineBalanceSection = el("lineBalanceSection");
     if (lineBalanceSection) {
@@ -2645,6 +2660,7 @@ async function render() {
 
       const rangeMin = startOfWorkDay(dayDate);
       const rangeMax = endOfWorkDay(dayDate);
+        
 
       const segsInWindow = segments.filter(s =>
         s.end.getTime() > rangeMin.getTime() &&

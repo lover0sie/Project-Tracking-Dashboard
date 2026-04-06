@@ -20,8 +20,7 @@ const firebaseConfig = {
   appId: "1:746921254909:web:7acce026b9d96c97880394"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+import { db } from "./firebase.js";
 
 // Cache: all-runs + per-day
 let cachedRunsAll = [];
@@ -34,6 +33,7 @@ export function clearCache() {
 
 /* Existing behavior (loads everything). */
 export async function loadRuns(force = false) {
+  console.warn("loadRuns() disabled to prevent excessive Firestore reads.");
   if (!force && cachedRunsAll.length) return cachedRunsAll;
 
   const snap = await getDocs(collectionGroup(db, "runs"));
