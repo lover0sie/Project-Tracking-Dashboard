@@ -460,12 +460,12 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
       <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(sliceStart)}</div>
       <div class="tipRow"><span class="tipLabel">End:</span> ${endText}</div>
       <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(holdMs)}</div>
-      <div class="tipRow"><span class="tipLabel">Reason:</span> ${
+      <b><div class="tipRow">Reason: ${
         holdReason === "others" && remarks
           ? "Others"
           : (normalizeHoldReason(holdReason) || "-")
-      }</div>
-      <div class="tipRow"><span class="tipLabel">Remark:</span> ${remarks || "-"}</div>
+      }</div></b>
+      <b><div class="tipRow">Remark: ${remarks || "-"}</div></b>
     `;
   }
 
@@ -532,7 +532,7 @@ function standardTipText(seg, stdStart, stdEnd) {
     <div class="tipTitle">${seg.processLabel || "-"}</div>
     <div class="tipRow"><span class="tipLabel">Standard Duration:</span> ${formatDuration(stdMs)}</div>
     <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${formatDuration(actualEffectiveMs)}</div>
-    <div class="tipRow"><span class="tipLabel">Variance:</span> ${formatVariance(varianceMs)}</div>
+    <b><div class="tipRow">Variance: ${formatVariance(varianceMs)}</div></b>
     <div class="tipDivider"></div>
     <div class="tipRow"><span class="tipLabel">On Hold:</span> ${formatDuration(holdMs)}</div>
     <div class="tipRow"><span class="tipLabel">Break:</span> ${formatDuration(breakMs)}</div>
@@ -988,8 +988,8 @@ function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
     <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(realFrom))}</div>
     <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
     <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${escapeHtml(formatDuration(sliceEffectiveMs))}</div>
-    <div class="tipRow"><span class="tipLabel">Hold Reason:</span> ${escapeHtml(holdReason)}</div>
-    <div class="tipRow"><span class="tipLabel">Remarks:</span> ${escapeHtml(remarks)}</div>
+    <b><div class="tipRow">Hold Reason: ${escapeHtml(holdReason)}</div></b>
+    <b><div class="tipRow">Remarks:</span> ${escapeHtml(remarks)}</div></b>
   `;
 }
 

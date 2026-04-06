@@ -372,7 +372,7 @@ select:focus{
   background: repeating-linear-gradient(
     135deg,
     hsl(0, 100%, 81%) 0 6px,
-    #7e7f81 6px 12px
+    #b00606 6px 12px
   );
   border: 2px dashed #dc2626;
 }
@@ -1150,7 +1150,7 @@ select:focus{
 }
 
 .ganttTip .tipLabel {
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .tipDivider {
