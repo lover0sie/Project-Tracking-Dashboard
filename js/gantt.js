@@ -996,7 +996,6 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
     <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}</div>
     <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
 
-    <div class="tipRow"><span class="tipLabel">Status:</span> ${escapeHtml(statusText)}</div>
     <div class="tipRow"><span class="tipLabel">Type:</span> ${escapeHtml(typeText)}</div>
     <div class="tipRow"><span class="tipLabel">Started By:</span> ${escapeHtml(seg.employeeName || "-")} (${escapeHtml(seg.employeeNumber || "-")})</div>
     <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${escapeHtml(seg.resumedByName || "-")} (${escapeHtml(seg.resumedByNumber || "-")})</div>
@@ -1013,7 +1012,6 @@ function waitingTipTextBuilder(start, end) {
 
   return `
     <div class="tipTitle">Waiting</div>
-    <div class="tipRow"><span class="tipLabel">Status:</span> Waiting</div>
     <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(start))}</div>
     <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(formatDateTime(end))}</div>
     <div class="tipRow"><span class="tipLabel">Duration:</span> ${escapeHtml(formatDuration(durationMs))}</div>
@@ -1037,7 +1035,7 @@ function holdTipTextBuilder(seg, start, end, part) {
     <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
     <div class="tipRow"><span class="tipLabel">Duration:</span> ${escapeHtml(formatDuration(durationMs))}</div>
     <b><div class="tipRow">Hold Reason:</span> ${escapeHtml(holdReason)}</div></b>
-    <b><div class="tipRow">Remarks:${escapeHtml(remarks)}</div></b>
+    <b><div class="tipRow">Remarks: ${escapeHtml(remarks)}</div></b>
   `;
 }
 
