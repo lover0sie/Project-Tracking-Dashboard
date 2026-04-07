@@ -4,7 +4,7 @@
 /* Consist of functions to render the daily and monthly gantt chart */
 /* Consist of functions to build segments and slices for on hold, running, break time, and process */
 
-import { loadRuns, loadRunsForDay } from "./timeline.js";
+import { loadRuns, loadRunsForDay, loadRunsForDayWithCarryForward } from "./timeline.js";
 import { exportExcelReport } from "./excel-export.js";
 import { db } from "./firebase.js";
 import { 
@@ -44,7 +44,7 @@ const cachedRunsByMonth = new Map();
 /* Helpers for time */
 
 const TZ = "Asia/Kuala_Lumpur";
-const START_HOUR = 8;
+const START_HOUR = 7;
 const END_HOUR = 21;
 
 let stationLineBalanceChart = null;
@@ -836,7 +836,7 @@ export async function renderStationOnlyView() {
     const todayKey = getMYTodayKey();
     const dayKey = dayPicker?.value || todayKey;
 
-    const runs = await loadRunsForDay(dayKey);
+    const runs = await loadRunsForDayWithCarryForward(dayKey);
 
     if (!runs.length) {
       bodyEl.innerHTML = "";
@@ -964,15 +964,6 @@ function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
 }
 
 function processTipTextBuilder(seg, realFrom, realTo, type, part) {
-  const endText = realTo ? formatDateTime(realTo) : "-";
-
-  const sliceEffectiveMs = Math.max(
-    0,
-    (realTo?.getTime?.() || 0) - (realFrom?.getTime?.() || 0)
-  );
-
-  const totalEffectiveMs = getEffectiveDurationMs(seg);
-
   const qrKind = String(seg?.qrKind || "").toUpperCase().trim();
   let typeText = "-";
 
@@ -984,12 +975,28 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
     typeText = seg?.coolingType || seg?.vesselType || "-";
   }
 
+  const isRunning =
+    String(seg?.status || "").toLowerCase().trim() === "running";
+
+  const effectiveEnd = isRunning ? new Date() : realTo;
+
+  const endText = isRunning
+    ? `Now (${formatDateTime(effectiveEnd)})`
+    : (realTo ? formatDateTime(realTo) : "-");
+
+  const sliceEffectiveMs = Math.max(
+    0,
+    (effectiveEnd?.getTime?.() || 0) - (realFrom?.getTime?.() || 0)
+  );
+
+  const totalEffectiveMs = getEffectiveDurationMs(seg);
   const statusText = formatStatus(seg?.status || type || "-");
 
   return `
     <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}</div>
     <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
 
+    <div class="tipRow"><span class="tipLabel">Status:</span> ${escapeHtml(statusText)}</div>
     <div class="tipRow"><span class="tipLabel">Type:</span> ${escapeHtml(typeText)}</div>
     <div class="tipRow"><span class="tipLabel">Started By:</span> ${escapeHtml(seg.employeeName || "-")} (${escapeHtml(seg.employeeNumber || "-")})</div>
     <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${escapeHtml(seg.resumedByName || "-")} (${escapeHtml(seg.resumedByNumber || "-")})</div>
@@ -1053,27 +1060,6 @@ function drawNowLine(rangeMin, rangeMax, hourW) {
     tl.appendChild(line);
   });
 }
-
-function getProcessActualDurationMinutes(seg) {
-  if (!seg) return 0;
-
-  // ignore synthetic waiting
-  if (seg.phase === "waiting" || seg.status === "waiting") return 0;
-
-  const parts = sliceSegForWaiting(seg);
-  let totalMs = 0;
-
-  for (const p of parts) {
-    if (p.type !== "process") continue;
-    if (!p.start || !p.end || p.end <= p.start) continue;
-
-    totalMs += Math.max(0, p.end.getTime() - p.start.getTime());
-  }
-
-  return totalMs / 60000;
-}
-
-
 
 const stationLineCharts = new Map();
 
@@ -1740,22 +1726,21 @@ async function render() {
 
     const mode = el("dateMode")?.value || "daily";
 
-    // get selected day
     const picker = el("dayPicker");
     const todayKey = getMYTodayKey();
     const dayKey = picker?.value || todayKey;
 
     if (mode === "daily" || mode === "station") {
-      runs = await loadRunsForDay(dayKey);
+      runs = await loadRunsForDayWithCarryForward(dayKey);
     }
     else if (mode === "month") {
       const mp = el("monthPicker");
       const now = new Date();
       const def = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       const [yy, mm] = (mp?.value || def).split("-").map(Number);
+
       const monthKey = `${yy}-${String(mm).padStart(2, "0")}`;
 
-      //  Check cache first
       if (cachedRunsByMonth.has(monthKey)) {
         runs = cachedRunsByMonth.get(monthKey);
       } else {
@@ -1774,7 +1759,6 @@ async function render() {
         runs = [];
         snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
 
-        //  Save to cache
         cachedRunsByMonth.set(monthKey, runs);
       }
     }
@@ -1788,9 +1772,6 @@ async function render() {
 
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);
-
-    
-
 
     const wrap = document.querySelector(".ganttWrap");
     const grid = document.querySelector(".ganttGrid");

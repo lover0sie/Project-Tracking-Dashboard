@@ -81,3 +81,43 @@ export function filterRunsOverlappingWindow(runs, windowStartMs, windowEndMs) {
     return end > windowStartMs && s < windowEndMs;
   });
 }
+
+function getPrevDayKey(dayKey) {
+  if (!dayKey) return "";
+
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() - 1);
+
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+
+  return `${yy}-${mm}-${dd}`;
+}
+
+export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
+  if (!dayKey) return [];
+
+  const prevDayKey = getPrevDayKey(dayKey);
+
+  const [todayRuns, prevRuns] = await Promise.all([
+    loadRunsForDay(dayKey, force),
+    loadRunsForDay(prevDayKey, force)
+  ]);
+
+  const merged = [...prevRuns, ...todayRuns].filter(r => {
+  if (r.runDate === dayKey) return true;
+
+  const status = String(r.status || "").toLowerCase().trim();
+  return status === "running" || status === "on_hold";
+  })
+
+  const seen = new Set();
+  return merged.filter(r => {
+    const key = r.id || `${r.serialNumber || ""}|${r.station || ""}|${r.startEpochMs || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
