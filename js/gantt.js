@@ -990,6 +990,8 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
   );
 
   const totalEffectiveMs = getEffectiveDurationMs(seg);
+
+  
   const statusText = formatStatus(seg?.status || type || "-");
 
   return `
@@ -1019,7 +1021,7 @@ function waitingTipTextBuilder(start, end) {
 }
 
 function holdTipTextBuilder(seg, start, end, part) {
-  const holdReason = part?.holdReason || seg?.holdReason || "-";
+  const holdReason = normalizeHoldReason(part?.holdReason || seg?.holdReason);
   const remarks = part?.remarks || seg?.remarks || "-";
   const durationMs = Math.max(0, end.getTime() - start.getTime());
 
