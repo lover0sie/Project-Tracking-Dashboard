@@ -1376,7 +1376,7 @@ select:focus{
   display:inline-flex;
   align-items:center;
   gap:6px;
-  font-size:12px;
+  font-size:10px;
   font-weight:600;
   color:#374151;
 }
@@ -1387,7 +1387,7 @@ select:focus{
 
 .swatch {
   display: inline-block;
-  width: 18px;
+  width: 16px;
   height: 10px;
   border-radius: 999px;
   border: 1px solid #94a3b8;
