@@ -1,24 +1,37 @@
-import { loadRunsForDay } from "./timeline.js";
+import { loadRunsForMonth } from "./timeline.js";
 import {
   buildSegmentsFromRuns,
-  getStationOptionsFromSegments,
-  getMYTodayKey,
-  getProcessNo,
-  getFullProcessLabelFromSegs,
   getActualEffectiveDurationMs,
-  getStandardMinutesFromLabel
+  getStandardMinutesFromLabel,
+  getProcessCode,
+  getTotalDurationMs
 } from "./helpers.js";
 
-const dayPicker = document.getElementById("lbDayPicker");
-const stationPicker = document.getElementById("lbStationPicker");
-const refreshBtn = document.getElementById("lbRefreshBtn");
+
+const monthPicker = document.getElementById("lbMonthPicker");
+const projectNameEl = document.getElementById("lbProjectName");
+const chillerSerialEl = document.getElementById("lbChillerSerial");
 const chartEl = document.getElementById("lineBalanceChart");
 
-let lineBalanceChart = null;
+const projectListEl = document.getElementById("lbProjectList");
+const projectCountEl = document.getElementById("lbProjectCount");
+const viewModeEl = document.getElementById("lbViewMode");
 
-function minutesBetween(start, end) {
-  if (!(start instanceof Date) || !(end instanceof Date)) return 0;
-  return Math.max(0, (end.getTime() - start.getTime()) / 60000);
+let lineBalanceChart = null;
+let selectedProjectSerial = "";
+
+let currentProjects = [];
+
+function getStationDisplayName(station = "") {
+  const map = {
+    "Pneumatic": "Paint Booth and Testing"
+  };
+
+  return map[station] || station;
+}
+
+function getSegmentProcessLabel(seg) {
+  return String(seg.processLabel || seg.processName || "").trim() || "Unknown";
 }
 
 function escapeHtml(str = "") {
@@ -30,151 +43,217 @@ function escapeHtml(str = "") {
     .replaceAll("'", "&#039;");
 }
 
-/* Function to build the Line Balance Graph */
-
-/* For future use 
-function getCycleTimePlaceholderByStation(station) {
-  const map = {
-    "Pneumatic": 250,
-    "Piping Shop": 300,
-    "Fabrication": 400
-  };
-  return map[station] || 250;
+function getDefaultMonthValue() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 
-function getTaktTimePlaceholderByStation(station) {
-  const map = {
-    "Pneumatic": 200,
-    "Piping Shop": 220,
-    "Fabrication": 300
+function getMonthDateRange(monthValue) {
+  const [year, month] = String(monthValue).split("-").map(Number);
+  if (!year || !month) return null;
+
+  const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const end = new Date(year, month, 1, 0, 0, 0, 0);
+
+  return { start, end };
+}
+
+function getProcessSortKey(processName = "") {
+  const m = String(processName).match(/^(\d+)([A-Z]?)/i);
+
+  if (!m) {
+    return { major: 9999, suffix: "" };
+  }
+
+  return {
+    major: Number(m[1]),
+    suffix: (m[2] || "").toUpperCase()
   };
-  return map[station] || 200;
-} */
+}
 
+function compareProcessSortKey(a, b) {
+  if ((a?.major ?? 9999) !== (b?.major ?? 9999)) {
+    return (a?.major ?? 9999) - (b?.major ?? 9999);
+  }
+  return (a?.suffix || "").localeCompare(b?.suffix || "");
+}
 
+function filterRunsByMonth(runs, monthValue) {
+  const range = getMonthDateRange(monthValue);
+  if (!range) return [];
 
-function buildStationLineBalanceData(selectedStation, segments) {
-  const filtered = selectedStation
-    ? segments.filter(s => String(s.station || "").trim() === selectedStation)
-    : segments;
+  return runs.filter(run => {
+    const ms = Number(run.startEpochMs || 0);
+    if (!ms) return false;
+    return ms >= range.start.getTime() && ms < range.end.getTime();
+  });
+}
 
-  const groups = new Map();
+function buildProjectsForMonth(runs) {
+  const map = new Map();
+
+  for (const run of runs) {
+    const serial = String(run.chillerSerialNumber || "").trim();
+    if (!serial) continue;
+
+    if (!map.has(serial)) {
+      map.set(serial, {
+        chillerSerialNumber: serial,
+        projectName: run.projectName || "-",
+        materialNumber: run.materialNumber || "-",
+        model: run.model || "-",
+        runCount: 0
+      });
+    }
+
+    const row = map.get(serial);
+    row.runCount += 1;
+  }
+
+  return Array.from(map.values()).sort((a, b) =>
+    String(a.projectName || "").localeCompare(String(b.projectName || ""))
+  );
+}
+
+function buildLineBalanceByStationForProject(segments, selectedChillerSerial) {
+  const filtered = segments.filter(seg =>
+    String(seg.chillerSerialNumber || "").trim() === String(selectedChillerSerial || "").trim() &&
+    seg.phase !== "waiting" &&
+    seg.status !== "waiting"
+  );
+
+  const stationMap = new Map();
 
   for (const seg of filtered) {
-    const processNo = getProcessNo(seg);
+    const rawStation = String(seg.station || "Unknown").trim();
+    const stationLabel = getStationDisplayName(rawStation);
+    const processLabel = getSegmentProcessLabel(seg);
 
-    if (!groups.has(processNo)) {
-      groups.set(processNo, []);
+    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    const totalMin = getTotalDurationMs(seg) / 60000;
+    const standardMin = getStandardMinutesFromLabel(processLabel) || 0;
+
+    if (!stationMap.has(rawStation)) {
+      stationMap.set(rawStation, {
+        label: stationLabel,
+        actualMin: 0,
+        totalMin: 0,
+        standardMin: 0,
+        sortKey: getProcessSortKey(processLabel)
+      });
     }
-    groups.get(processNo).push(seg);
+
+    const row = stationMap.get(rawStation);
+    row.actualMin += actualMin;
+    row.totalMin += totalMin;
+    row.standardMin += standardMin;
+
+    const currentSort = getProcessSortKey(processLabel);
+    if (compareProcessSortKey(currentSort, row.sortKey) < 0) {
+      row.sortKey = currentSort;
+    }
   }
 
-  const sortedKeys = [...groups.keys()].sort((a, b) => Number(a) - Number(b));
-
-  const labels = [];
-  const fullLabels = [];
-  const actual = [];
-  const standard = [];
-  const cycle = [];
-
-for (const key of sortedKeys) {
-    const segs = groups.get(key);
-
-    const totalMs = segs.reduce(
-        (sum, s) => sum + getActualEffectiveDurationMs(s),
-        0
-    );
-
-    const totalMin = totalMs / 60000;
-    const avgMin = segs.length ? totalMin / segs.length : 0;
-
-    const fullLabel = getFullProcessLabelFromSegs(key, segs);
-    const stdMin = getStandardMinutesFromLabel(fullLabel);
-
-    labels.push(key);
-    fullLabels.push(fullLabel);
-    actual.push(Number(totalMin.toFixed(1)));
-    standard.push(Number(stdMin.toFixed(1)));
-    cycle.push(Number(avgMin.toFixed(1)));
+  return Array.from(stationMap.values())
+    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
+    .map(item => ({
+      label: item.label,
+      actual: Number(item.actualMin.toFixed(1)),
+      total: Number(item.totalMin.toFixed(1)),
+      standard: Number(item.standardMin.toFixed(1))
+    }));
 }
 
-  const maxCycle = Math.max(...cycle, 0);
-  const takt = cycle.map(() => Number(maxCycle.toFixed(1)));
+function buildLineBalanceByProcessForProject(segments, selectedChillerSerial) {
+  const filtered = segments.filter(seg =>
+    String(seg.chillerSerialNumber || "").trim() === String(selectedChillerSerial || "").trim() &&
+    seg.phase !== "waiting" &&
+    seg.status !== "waiting"
+  );
 
-  return { labels, fullLabels, actual, standard, cycle, takt };
-}
+  const processMap = new Map();
 
-function buildLineBalanceData(segments) {
-  const grouped = new Map();
+  for (const seg of filtered) {
+    const fullLabel = getSegmentProcessLabel(seg);
+    const processCode = getProcessCode(fullLabel);
+    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    const totalMin = getTotalDurationMs(seg) / 60000;
+    const standardMin = getStandardMinutesFromLabel(fullLabel) || 0;
 
-  for (const s of segments) {
-    const key = String(s.processLabel || "").trim() || "Unknown";
-    const dur = getActualEffectiveDurationMs(s) / 60000;
+    if (!processMap.has(processCode)) {
+      processMap.set(processCode, {
+        code: processCode,
+        fullLabel: fullLabel || processCode,
+        actualMin: 0,
+        totalMin: 0,
+        standardMin: 0,
+        sortKey: getProcessSortKey(fullLabel)
+      });
+    }
 
-    if (!grouped.has(key)) grouped.set(key, 0);
-    grouped.set(key, grouped.get(key) + dur);
+    const row = processMap.get(processCode);
+    row.actualMin += actualMin;
+    row.totalMin += totalMin;
+    row.standardMin += standardMin;
   }
 
-  const labels = [...grouped.keys()];
-  const data = labels.map(k => grouped.get(k));
-
-  return { labels, data };
+  return Array.from(processMap.values())
+    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
+    .map(item => ({
+      label: item.code,
+      fullLabel: item.fullLabel,
+      actual: Number(item.actualMin.toFixed(1)),
+      total: Number(item.totalMin.toFixed(1)),
+      standard: Number(item.standardMin.toFixed(1))
+    }));
 }
 
-function renderLineBalanceChart(data) {
+
+function renderLineBalanceChartByMode(data, project, mode) {
+  if (!chartEl) return;
+
   if (lineBalanceChart) {
     lineBalanceChart.destroy();
     lineBalanceChart = null;
   }
 
+  if (!Array.isArray(data) || !data.length) {
+    return;
+  }
+
+  const modeTitleMap = {
+    process: "By Process",
+    line: "By Line"
+  };
+
   lineBalanceChart = new Chart(chartEl, {
     type: "bar",
     data: {
-      labels: data.labels,
+      labels: data.map(d => d.label),
       datasets: [
         {
-          type: "bar",
-          label: "Actual Time",
-          data: data.actual,
-          backgroundColor: "#60a5fa",
-          borderColor: "#60a5fa",
-          borderWidth: 1,
-          order: 3
-        },
-        {
-          type: "bar",
           label: "Standard Time",
-          data: data.standard,
+          data: data.map(d => d.standard),
           backgroundColor: "#ff8000",
           borderColor: "#ff8000",
+          borderWidth: 1
+        },
+        {
+          label: "Actual Time",
+          data: data.map(d => d.actual),
+          backgroundColor: "#60a5fa",
+          borderColor: "#60a5fa",
+          borderWidth: 1
+        },
+        {
+          label: "Total Duration",
+          data: data.map(d => d.total),
+          backgroundColor: "#9ca3af",
+          borderColor: "#9ca3af",
           borderWidth: 1,
-          order: 3
-        },
-        {
-          type: "line",
-          label: "Cycle Time",
-          data: data.cycle,
-          borderColor: "#000000",
-          backgroundColor: "#000000",
-          borderWidth: 2,
-          tension: 0,
-          pointRadius: 3,
-          pointHoverRadius: 4,
-          fill: false,
-          order: 1
-        },
-        {
-          type: "line",
-          label: "Takt Time",
-          data: data.takt,
-          borderColor: "#ef4444",
-          backgroundColor: "#ef4444",
-          borderWidth: 2,
-          borderDash: [6, 6],
-          tension: 0,
-          pointRadius: 0,
-          fill: false,
-          order: 2
+          hidden: true
         }
       ]
     },
@@ -188,13 +267,20 @@ function renderLineBalanceChart(data) {
       plugins: {
         legend: {
           display: true,
-          position: "top"
+          position: "top",
+          onClick(e, legendItem, legend) {
+            const chart = legend.chart;
+            const index = legendItem.datasetIndex;
+
+            chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
+            chart.update();
+          }
         },
         tooltip: {
           callbacks: {
             title(items) {
               const idx = items?.[0]?.dataIndex ?? 0;
-              return data.fullLabels?.[idx] || items?.[0]?.label || "";
+              return data[idx]?.fullLabel || data[idx]?.label || items?.[0]?.label || "";
             },
             label(ctx) {
               return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} min`;
@@ -206,7 +292,7 @@ function renderLineBalanceChart(data) {
         x: {
           title: {
             display: true,
-            text: "Process No."
+            text: mode === "process" ? "Process" : "Line"
           }
         },
         y: {
@@ -221,62 +307,137 @@ function renderLineBalanceChart(data) {
   });
 }
 
-/* function refreshStationLineBalancePanel(segments) {
-  const section = el("lineBalanceSection");
-  const picker = el("stationBalancePicker");
+function buildChartDataByMode(segments, selectedChillerSerial, mode) {
+  if (mode === "process") {
+    return buildLineBalanceByProcessForProject(segments, selectedChillerSerial);
+  }
 
-  if (!section || !picker) return;
+  if (mode === "line") {
+    return buildLineBalanceByStationForProject(segments, selectedChillerSerial);
+  }
 
-  if (!segments.length) {
-    section.classList.add("hidden");
+  /* buildLineBalanceByLineForProject(segments, selectedChillerSerial); */
+}
 
-    if (stationLineBalanceChart) {
-      stationLineBalanceChart.destroy();
-      stationLineBalanceChart = null;
-    }
+function clearChart() {
+  if (lineBalanceChart) {
+    lineBalanceChart.destroy();
+    lineBalanceChart = null;
+  }
+}
 
-    lastStationLineBalanceSegments = [];
+async function onProjectClick(project) {
+  const monthValue = monthPicker?.value || getDefaultMonthValue();
+  const monthRuns = await loadRunsForMonth(monthValue);
+
+  const result = buildSegmentsFromRuns(monthRuns);
+  const segments = Array.isArray(result) ? result : result.segments || [];
+
+  const mode = viewModeEl?.value || "station";
+
+  const chartData = buildChartDataByMode(
+    segments,
+    project.chillerSerialNumber,
+    mode
+  );
+
+  selectedProjectSerial = project.chillerSerialNumber || "";
+
+  if (projectNameEl) {
+    projectNameEl.textContent = project.projectName || "-";
+  }
+
+  if (chillerSerialEl) {
+    chillerSerialEl.textContent = project.chillerSerialNumber || "-";
+  }
+
+  renderProjectList(buildProjectsForMonth(monthRuns));
+  renderLineBalanceChartByMode(chartData, project, mode);
+}
+
+function renderProjectList(projects) {
+  if (!projectListEl) return;
+
+  if (projectCountEl) {
+    projectCountEl.textContent = String(projects.length);
+  }
+
+  if (!projects.length) {
+    projectListEl.innerHTML = `<div class="emptyState">No projects found for the selected month.</div>`;
     return;
   }
 
-  section.classList.remove("hidden");
+  projectListEl.innerHTML = projects.map(project => {
+    const activeClass =
+      String(project.chillerSerialNumber || "") === String(selectedProjectSerial || "")
+        ? " active"
+        : "";
 
-  const selectedStation = picker.value;
-  const data = buildStationLineBalanceData(selectedStation, segments);
+    return `
+      <div class="projectListItem${activeClass}" data-serial="${escapeHtml(project.chillerSerialNumber)}">
+        <div class="projectListTitle">${escapeHtml(project.projectName || "-")}</div>
+        <div class="projectListMeta">
+          ${escapeHtml(project.chillerSerialNumber || "-")} | ${escapeHtml(project.materialNumber || "-")}
+        </div>
+        <div class="projectListMeta">
+          ${escapeHtml(project.model || "-")} • ${escapeHtml(String(project.runCount || 0))} run(s)
+        </div>
+      </div>
+    `;
+  }).join("");
 
-  renderStationLineBalanceChart(data);
-  lastStationLineBalanceSegments = segments;
-} */
-
-async function renderPage() {
-  const todayKey = getMYTodayKey();
-  if (!dayPicker.value) dayPicker.value = todayKey;
-
-  const dayKey = dayPicker.value || todayKey;
-  const runs = await loadRunsForDay(dayKey);
-  const { segments } = buildSegmentsFromRuns(runs);
-
-  const stations = getStationOptionsFromSegments(segments);
-  const previousStation = stationPicker.value;
-
-  stationPicker.innerHTML = stations.map(st => `
-    <option value="${escapeHtml(st)}">${escapeHtml(st)}</option>
-  `).join("");
-
-  if (stations.includes(previousStation)) {
-    stationPicker.value = previousStation;
-  } else if (stations.length) {
-    stationPicker.value = stations[0];
-  }
-
-  const selectedStation = stationPicker.value || "";
-  const data = buildStationLineBalanceData(selectedStation, segments);
-
-  renderLineBalanceChart(data);
+  projectListEl.querySelectorAll(".projectListItem").forEach(item => {
+    item.addEventListener("click", () => {
+      const serial = item.dataset.serial || "";
+      const project = projects.find(p => String(p.chillerSerialNumber) === String(serial));
+      if (project) onProjectClick(project).catch(console.error);
+    });
+  });
 }
 
-refreshBtn?.addEventListener("click", renderPage);
-dayPicker?.addEventListener("change", renderPage);
-stationPicker?.addEventListener("change", renderPage);
+async function renderPage() {
+  if (!monthPicker) return;
+
+  if (!monthPicker.value) {
+    monthPicker.value = getDefaultMonthValue();
+  }
+
+  const monthRuns = await loadRunsForMonth(monthPicker.value);
+  const projects = buildProjectsForMonth(monthRuns);
+
+  renderProjectList(projects);
+
+    currentProjects = projects;
+
+
+  if (!projects.length) {
+    if (projectNameEl) projectNameEl.textContent = "-";
+    if (chillerSerialEl) chillerSerialEl.textContent = "-";
+    clearChart();
+    return;
+  }
+
+  const stillExists = projects.find(
+    p => String(p.chillerSerialNumber) === String(selectedProjectSerial)
+  );
+
+  const projectToShow = stillExists || projects[0];
+  await onProjectClick(projectToShow);
+}
+
+monthPicker?.addEventListener("change", () => {
+  selectedProjectSerial = "";
+  renderPage().catch(console.error);
+});
+
+viewModeEl?.addEventListener("change", () => {
+  const activeProject = currentProjects.find(
+    p => String(p.chillerSerialNumber) === String(selectedProjectSerial)
+  );
+
+  if (activeProject) {
+    onProjectClick(activeProject).catch(console.error);
+  }
+});
 
 renderPage().catch(console.error);

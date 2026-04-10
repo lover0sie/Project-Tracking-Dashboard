@@ -3,38 +3,65 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Line Balance Graph</title>
-
- 
+  <title>Line Balance Graph</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-    <header class="top">
-        <div>
-            <h2>Line Balance Graph</h2>
-            <div class="sub">Data extracted from <b>Firestore</b></div>
-        </div>
-    </header>
+  <header class="top">
+    <div>
+      <h2>Line Balance Graph</h2>
+      <div class="sub">Select a month, then click a project to view effective duration by station</div>
+    </div>
+  </header>
 
   <section class="card">
-    <div class="toolbar">
+    <div class="toolbar lineBalanceToolbar">
       <div class="toolbarGroup">
-        <label for="pickerLabel">Date</label>
-         <input type="date" id="lbDayPicker" class="pickerInput" />
+        <label for="lbMonthPicker">Month</label>
+        <input type="month" id="lbMonthPicker" class="pickerInput" />
       </div>
 
       <div class="toolbarGroup">
-        <label for="lbStationPicker">Station</label>
-        <select id="lbStationPicker"></select>
+        <label for="lbViewMode">View</label>
+        <select id="lbViewMode" class="pickerInput">
+          <option value="process">By Process</option>
+          <option value="line" selected>By Line</option>
+        </select>
       </div>
 
-      <div class="toolbarGroup">
+      <div class="toolbarGroup infoGroup">
+        <label>Total Projects</label>
+        <div id="lbProjectCount" class="infoText">0</div>
+      </div>
+
+      <div class="toolbarGroup infoGroup">
+        <label>Selected Project</label>
+        <div id="lbProjectName" class="infoText">-</div>
+      </div>
+
+      <div class="toolbarGroup infoGroup">
+        <label>Chiller Serial Number</label>
+        <div id="lbChillerSerial" class="infoText">-</div>
+      </div>
+
+      <div class="toolbarGroup pushRight">
         <a class="btn secondary" href="index.html">Back to Dashboard</a>
       </div>
     </div>
 
-    <div class="chartCard">
-      <canvas id="lineBalanceChart"></canvas>
+    <div class="lineBalanceLayout">
+      <div class="projectListPanel">
+        <div class="sectionTitle">Projects in Selected Month</div>
+        <div id="lbProjectList" class="projectList">
+          <div class="emptyState">No projects loaded yet.</div>
+        </div>
+      </div>
+
+      <div class="chartPanel">
+        <div class="chartCard">
+          <canvas id="lineBalanceChart"></canvas>
+        </div>
+      </div>
     </div>
   </section>
 

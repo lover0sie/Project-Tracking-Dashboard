@@ -121,3 +121,33 @@ export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
     return true;
   });
 }
+
+function getMonthRange(monthValue) {
+  const [year, month] = String(monthValue).split("-").map(Number);
+  if (!year || !month) return null;
+
+  const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const end = new Date(year, month, 1, 0, 0, 0, 0);
+
+  return {
+    startMs: start.getTime(),
+    endMs: end.getTime()
+  };
+}
+
+export async function loadRunsForMonth(monthValue) {
+  const range = getMonthRange(monthValue);
+  if (!range) return [];
+
+  const q = query(
+    collectionGroup(db, "runs"),
+    where("startEpochMs", ">=", range.startMs),
+    where("startEpochMs", "<", range.endMs),
+    orderBy("startEpochMs", "asc")
+  );
+
+  const snap = await getDocs(q);
+  const runs = [];
+  snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
+  return runs;
+}

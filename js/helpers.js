@@ -1,5 +1,219 @@
 /* Helpers shared across different js */
 
+/* Array mapping START */
+
+// Station -> vessel type -> processes 
+export const PROCESS_BY_LINE = {
+  "PV 1": [
+      "1 - Plasma cutting to bevelling",
+      "2 - Shotblast to rolling",
+      "3 - Longtidunal SAW",
+      "4 - Rerolling",
+      "5 - Circumference SAW (Two shells joining)",
+      "6 - Hole bevelling",
+      "7 - Connector welding",
+      "8A - Internal plate assembly",
+      "8B - Fitting internal plate",
+      "8C - GMAW C&B",
+      "9 - Fitting and welding distribution box",
+      "10 - Tube support, bush fitting, and tube sheet fitting",
+      "11 - Tubesheet welding",
+      "12 - Bracket and attachment welding, copper tube brazing",
+      "13 - Unit side plate and base welding",
+      "14A - Tube slotting",
+      "14B - Tube expansion"
+    
+  ],
+
+  "PV 2": [
+    
+      "1 - Plasma cutting to bevelling",
+      "2 - Shotblast to rolling",
+      "3 - Longtidunal SAW",
+      "4 - Rerolling",
+      "5 - Circumference SAW (Two shells joining)",
+      "6 - Hole bevelling",
+      "7 - Connector welding",
+      "8A - Internal plate assembly",
+      "8B - Fitting internal plate",
+      "8C - GMAW C&B",
+      "9 - Fitting and welding distribution box",
+      "10 - Tube support, bush fitting, and tube sheet fitting",
+      "11 - Tubesheet welding",
+      "12 - Bracket and attachment welding, copper tube brazing",
+      "13 - Unit side plate and base welding",
+      "14A - Tube slotting",
+      "14B - Tube expansion"
+  ],
+
+
+  "Sub Assy": {
+    "ECONOMIZER": [
+      "6, 7 - Hole bevelling and connector welding",
+      "8, 9, 10, 11 - Internal plate distribution box tube support and bush fitting and welding",
+      "12 - Bracket and attachment fitting and welding",
+    ],
+
+    
+    "OIL SEPARATOR": [
+      "6, 7 - Hole bevelling and connector welding",
+      "8, 9, 10, 11 - Internal plate distribution box tube support and bush fitting and welding",
+      "12 - Bracket and attachment fitting and welding",
+    ]
+  },
+
+   "Pneumatic": {
+    "EVAPORATOR": [
+      "15 - Primer painting",
+      "16 - Pneumatic testing",
+      "17 - Hydrostatic testing",
+      "18, 19 - Primer painting (weld seam) and top coat painting"
+    ],
+    
+    "CONDENSER": [
+      "15 - Primer painting",
+      "16 - Pneumatic testing",
+      "17 - Hydrostatic testing",
+      "18, 19 - Primer painting (weld seam) and top coat painting"
+    ],
+
+    "OIL SEPARATOR": [
+      "15 - Primer painting",
+      "16 - Pneumatic testing",
+      "18, 19 - Primer painting (weld seam) and top coat painting"
+    ],
+
+    "ECONOMIZER": [
+      "15 - Primer painting",
+      "16 - Pneumatic testing",
+      "18, 19 - Primer painting (weld seam) and top coat painting"
+    ]
+  }
+};
+
+export const PROCESS_BY_CHILLER = {
+
+  "WC 1": {
+    "WATER-COOLED": [
+      "Major components assembly",
+      "Steel pipe welding",
+      "Copper pipe brazing",
+      "Control and starter box wiring"
+    ]
+  },
+
+  "WC 2": {
+    "WATER-COOLED": [
+      "Major components assembly",
+      "Steel pipe welding",
+      "Copper pipe brazing",
+      "Control and starter box wiring"
+    ]
+  },
+
+   "AC 1": {
+    "AIR-COOLED": [
+      "Major components assembly",
+      "Steel pipe welding",
+      "Copper pipe brazing",
+      "Control and starter box wiring"
+    ]
+  },
+
+   "AC 2": {
+    "AIR-COOLED": [
+      "Major components assembly",
+      "Steel pipe welding",
+      "Copper pipe brazing",
+      "Control and starter box wiring"
+    ]
+  },
+
+  "Insulation 1": {
+    "AIR-COOLED": [
+      "Insulation 1",
+      "Insulation 2"
+    ],
+
+    "WATER-COOLED": [
+      "Insulation 1",
+      "Insulation 2"
+    ]
+  },
+
+  "Insulation 2": {
+    "AIR-COOLED": [
+      "Insulation 1",
+      "Insulation 2"
+    ],
+
+    "WATER-COOLED": [
+      "Insulation 1",
+      "Insulation 2"
+    ]
+  },
+
+  "Packing": {
+    "AIR-COOLED":[
+      "Packing"
+    ],
+
+    "WATER-COOLED":[
+      "Packing"
+    ]
+  }
+  
+};
+
+// Allowed vessels to stations
+export const STATION_ALLOWED_VESSELS = {
+  "PV 1": ["EVAPORATOR", "CONDENSER"],
+  "PV 2": ["EVAPORATOR", "CONDENSER"],
+  "Sub Assy": ["ECONOMIZER", "OIL SEPARATOR"],
+  "Pneumatic": [
+    "EVAPORATOR",
+    "CONDENSER",
+    "ECONOMIZER",
+    "OIL SEPARATOR"
+  ]
+};
+
+export const STATION_ALLOWED_CHILLER_TYPES = {
+  "Piping Shop": ["AIR-COOLED"],
+  "WC 1": ["WATER-COOLED"],
+  "WC 2": ["WATER-COOLED"],
+  "AC 1": ["WATER-COOLED"],
+  "AC 2": ["WATER-COOLED"],
+  "Insulation 1": ["AIR-COOLED", "WATER-COOLED"],
+  "Insulation 1": ["AIR-COOLED", "WATER-COOLED"],
+  "Packing": ["AIR-COOLED", "WATER-COOLED"],
+};
+
+// A normalized station key to match with state.js (PROCESS_BY_LINE)
+export function getStationKey(employeeData = state.employeeData){
+  const raw = String(
+    employeeData?.station ||
+    employeeData?.lineStation ||
+    employeeData?.processLine ||
+    ""
+  ).trim().toUpperCase();
+
+  const map = {
+    "PV1": "PV 1",
+    "PV 1": "PV 1",
+    "PV2": "PV 2",
+    "PV 2": "PV 2",
+    "SUBASSY" : "Sub Assy",
+    "SUB ASSY": "Sub Assy",
+    "PNEUMATIC": "Pneumatic"
+  };
+
+  return map[raw] || "";
+}
+
+
+/* Array mapping END */
+
 export const STANDARD_TIME_MIN = {
   "6 - Hole bevelling": 80,
   "7 - Connector welding": 100,
@@ -98,6 +312,42 @@ export function getProcessNo(seg) {
   const label = String(seg?.processLabel || "").trim();
   const match = label.match(/^(\d+)/); // first number
   return match ? match[1] : label || "UNKNOWN";
+}
+
+export function getProcessCode(processName = "") {
+  const str = String(processName || "").trim();
+
+  // take everything before "-"
+  const m = str.match(/^(.+?)\s*-/);
+  if (!m) return str;
+
+  let codePart = m[1].trim();
+
+  // normalize spaces after commas → "6, 7" → "6,7"
+  codePart = codePart.replace(/\s*,\s*/g, ",");
+
+  return codePart;
+}
+
+function getSegmentSortOrder(seg) {
+  const name = String(seg.processName || "");
+  const m = name.match(/^(\d+)([A-Z]?)/i);
+
+  if (!m) {
+    return { major: 9999, suffix: "" };
+  }
+
+  return {
+    major: Number(m[1]),
+    suffix: (m[2] || "").toUpperCase()
+  };
+}
+
+function compareSortOrder(a, b) {
+  if ((a?.major ?? 9999) !== (b?.major ?? 9999)) {
+    return (a?.major ?? 9999) - (b?.major ?? 9999);
+  }
+  return (a?.suffix || "").localeCompare(b?.suffix || "");
 }
 
 export function getFullProcessLabelFromSegs(processNo, segs) {
@@ -213,6 +463,52 @@ export function getActualEffectiveDurationMs(seg) {
   }
 
   return total;
+}
+
+export function getTotalDurationMs(seg) {
+  if (!seg?.start || !seg?.end) return 0;
+  if (!(seg.start instanceof Date) || !(seg.end instanceof Date)) return 0;
+  if (seg.end <= seg.start) return 0;
+
+  return seg.end.getTime() - seg.start.getTime();
+}
+
+function buildStationEffectiveHoursData(segments, selectedChillerSerial) {
+  const filtered = segments.filter(seg =>
+    String(seg.chillerSerialNumber || "").trim() === String(selectedChillerSerial || "").trim()
+  );
+
+  const stationMap = new Map();
+
+  for (const seg of filtered) {
+    const station = String(seg.station || "Unknown").trim();
+    const effectiveMs = getActualEffectiveDurationMs(seg);
+
+    if (!stationMap.has(station)) {
+      stationMap.set(station, {
+        station,
+        totalMs: 0,
+        sortOrder: getSegmentSortOrder(seg)
+      });
+    }
+
+    const row = stationMap.get(station);
+    row.totalMs += effectiveMs;
+
+    // keep earliest process order for station sorting
+    const curr = getSegmentSortOrder(seg);
+    if (compareSortOrder(curr, row.sortOrder) < 0) {
+      row.sortOrder = curr;
+    }
+  }
+
+  return Array.from(stationMap.values())
+    .sort((a, b) => compareSortOrder(a.sortOrder, b.sortOrder))
+    .map(item => ({
+      station: item.station,
+      hours: +(item.totalMs / 3600000).toFixed(2),
+      totalMs: item.totalMs
+    }));
 }
 
 /* Get the duration of overlap end and start time */
