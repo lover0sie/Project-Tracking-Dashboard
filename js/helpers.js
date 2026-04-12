@@ -217,8 +217,9 @@ export function getStationKey(employeeData = state.employeeData){
 export const STANDARD_TIME_MIN = {
   "6 - Hole bevelling": 80,
   "7 - Connector welding": 100,
-  "8A - Fitting internal plate": 200,
-  "8B - GMAW C&B": 300,
+  "8A - Internal plate assembly": 200,
+  "8B - Fitting internal plate": 300,
+  "8C - GMAW C&B": 400,
   "9 - Fitting and welding distribution box": 250,
   "10 - Tube support, bush fitting, and tube sheet fitting": 200,
   "11 - Tubesheet welding": 220,
@@ -232,6 +233,8 @@ export const STANDARD_TIME_MIN = {
   "18, 19 - Primer painting (weld seam) and top coat painting": 600,
 
   "6, 7 - Hole bevelling and connector welding": 200,
+  "6, 7, 8 - Hole bevelling, connector welding, fitting internal plate and GMAW C&B": 350,
+  "9, 10, 11 - Distribution box, tube support and bush, tubesheet fitting and welding": 500,
   "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding": 500,
   "12 - Bracket and attachment fitting and welding": 300,
   "19 - Top coat painting": 400,
@@ -588,118 +591,77 @@ export function getMYTodayKey() {
    - new data version (holds[] / resumes[])
    - active on_hold without resume yet
 ========================= */
-export function buildHoldWindowsFromRun(r, segEnd = new Date()) {
+export function buildHoldWindowsFromRun(run, now = new Date()) {
+  const holds = Array.isArray(run?.holds) ? run.holds : [];
+  const resumes = Array.isArray(run?.resumes) ? run.resumes : [];
+
   const windows = [];
-  const status = String(r?.status || "").toLowerCase().trim();
-  const effectiveEnd = segEnd instanceof Date ? segEnd : new Date(segEnd);
 
-  const toDateSafe = (v) => {
-    if (!v) return null;
-    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-    if (typeof v === "number") {
-      const d = new Date(v);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    if (typeof v?.toDate === "function") {
-      const d = v.toDate();
-      return d instanceof Date && !isNaN(d.getTime()) ? d : null;
-    }
-    return null;
-  };
+  for (let i = 0; i < holds.length; i++) {
+    const h = holds[i];
+    const holdStartMs = Number(h?.holdAtEpochMs);
 
-  // =========================
-  // NEW SYSTEM: holds[] / resumes[]
-  // =========================
-  const holdsArr = Array.isArray(r?.holds) ? r.holds : [];
-  const resumesArr = Array.isArray(r?.resumes) ? r.resumes : [];
+    if (!Number.isFinite(holdStartMs)) continue;
 
-  if (holdsArr.length > 0) {
-    const holds = holdsArr
-      .map((h) => ({
-        holdAt:
-          toDateSafe(h?.holdAtEpochMs) ||
-          toDateSafe(h?.holdEpochMs) ||
-          toDateSafe(h?.holdAt),
-        holdReason: h?.holdReason || "",
-        remarks: h?.remarks || ""
-      }))
-      .filter((h) => h.holdAt)
-      .sort((a, b) => a.holdAt - b.holdAt);
+    const r = resumes[i];
+    const resumeMs = Number(r?.resumedAtEpochMs);
 
-    const resumes = resumesArr
-      .map((x) => ({
-        resumedAt:
-          toDateSafe(x?.resumedAtEpochMs) ||
-          toDateSafe(x?.resumeEpochMs) ||
-          toDateSafe(x?.resumedAt) ||
-          toDateSafe(x?.resumeAt)
-      }))
-      .filter((x) => x.resumedAt)
-      .sort((a, b) => a.resumedAt - b.resumedAt);
+    const isOpen = !Number.isFinite(resumeMs);
+    const rawEndMs = isOpen ? now.getTime() : resumeMs;
 
-    let resumeIdx = 0;
+    // Important: keep open hold alive even when called at same timestamp
+    const holdEndMs = isOpen
+      ? Math.max(rawEndMs, holdStartMs + 1)
+      : rawEndMs;
 
-    for (const h of holds) {
-      while (
-        resumeIdx < resumes.length &&
-        resumes[resumeIdx].resumedAt <= h.holdAt
-      ) {
-        resumeIdx++;
+    if (!Number.isFinite(holdEndMs)) continue;
+    if (holdEndMs < holdStartMs) continue;
+
+    windows.push({
+      start: new Date(holdStartMs),
+      end: new Date(holdEndMs),
+      isOpen,
+      holdReason: h?.holdReason || run?.holdReason || "",
+      remarks: h?.remarks || run?.remarks || "",
+      byName: h?.byName || "",
+      byNumber: h?.byNumber || "",
+      autoStopType: run?.autoStopType || ""
+    });
+  }
+
+  // Legacy fallback
+  if (!windows.length) {
+    const holdMs =
+      typeof run?.holdEpochMs === "number" ? run.holdEpochMs : null;
+
+    const resumeMs =
+      typeof run?.resumedEpochMs === "number" ? run.resumedEpochMs : null;
+
+    if (holdMs != null) {
+      const status = String(run?.status || "").toLowerCase().trim();
+      const isOpen = resumeMs == null && status === "on_hold";
+      const rawEndMs = resumeMs != null ? resumeMs : (isOpen ? now.getTime() : null);
+
+      const endMs = isOpen
+        ? Math.max(rawEndMs ?? holdMs, holdMs + 1)
+        : rawEndMs;
+
+      if (endMs != null && endMs >= holdMs) {
+        windows.push({
+          start: new Date(holdMs),
+          end: new Date(endMs),
+          isOpen,
+          holdReason: run?.holdReason || "",
+          remarks: run?.remarks || "",
+          byName: "",
+          byNumber: "",
+          autoStopType: run?.autoStopType || ""
+        });
       }
-
-      const matchedResume =
-        resumeIdx < resumes.length ? resumes[resumeIdx] : null;
-
-      const holdEnd =
-        matchedResume?.resumedAt ||
-        (status === "on_hold" ? effectiveEnd : null);
-
-      if (!holdEnd || holdEnd <= h.holdAt) continue;
-
-      windows.push({
-        start: h.holdAt,
-        end: holdEnd,
-        holdReason: h.holdReason,
-        remarks: h.remarks,
-        isOpen: !matchedResume && status === "on_hold"
-      });
-
-      if (matchedResume) resumeIdx++;
-    }
-
-    return windows;
-  }
-
-  // =========================
-  // OLD SYSTEM: single hold/resume fields
-  // =========================
-  const holdAt =
-    toDateSafe(r?.holdEpochMs) ||
-    toDateSafe(r?.holdAt);
-
-  const resumedAt =
-    toDateSafe(r?.resumedEpochMs) ||
-    toDateSafe(r?.resumeEpochMs) ||
-    toDateSafe(r?.resumedAt) ||
-    toDateSafe(r?.resumeAt);
-
-  if (holdAt) {
-    const end =
-      resumedAt ||
-      (status === "on_hold" ? effectiveEnd : null);
-
-    if (end && end > holdAt) {
-      windows.push({
-        start: holdAt,
-        end,
-        holdReason: r?.holdReason || "",
-        remarks: r?.remarks || "",
-        isOpen: !resumedAt && status === "on_hold"
-      });
     }
   }
 
-  return windows;
+  return windows.sort((a, b) => a.start - b.start);
 }
 
 

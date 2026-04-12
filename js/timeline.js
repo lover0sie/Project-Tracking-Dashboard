@@ -1,6 +1,6 @@
 /* For tree view */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+
 import {
   getFirestore,
   collectionGroup,
@@ -8,7 +8,7 @@ import {
   query,
   where,
   orderBy
-} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
 /* Firebase config */
 const firebaseConfig = {
@@ -99,19 +99,24 @@ function getPrevDayKey(dayKey) {
 export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
   if (!dayKey) return [];
 
-  const prevDayKey = getPrevDayKey(dayKey);
-
-  const [todayRuns, prevRuns] = await Promise.all([
+  const [todayRuns, allRuns] = await Promise.all([
     loadRunsForDay(dayKey, force),
-    loadRunsForDay(prevDayKey, force)
+    loadRuns(force)
   ]);
 
-  const merged = [...prevRuns, ...todayRuns].filter(r => {
-  if (r.runDate === dayKey) return true;
+  const merged = [...allRuns, ...todayRuns].filter(r => {
+    const runDate = String(r.runDate || "").trim();
+    const status = String(r.status || "").toLowerCase().trim();
 
-  const status = String(r.status || "").toLowerCase().trim();
-  return status === "running" || status === "on_hold";
-  })
+    if (runDate === dayKey) return true;
+
+    // bring forward any older active run
+    if (runDate < dayKey && (status === "running" || status === "on_hold")) {
+      return true;
+    }
+
+    return false;
+  });
 
   const seen = new Set();
   return merged.filter(r => {

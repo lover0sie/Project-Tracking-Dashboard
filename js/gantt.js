@@ -21,13 +21,16 @@ import {
   LEGEND_STATUS, 
   renderLegend} from "./helpers.js";
 
+import { autoStopRuns } from "./auto-stop.js";
+
+
 import {
   getFirestore,
   collectionGroup,
   getDocs,
   query,
   where
-} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
 /* DOM */
 const el = (id) => document.getElementById(id);
@@ -51,6 +54,7 @@ let stationLineBalanceChart = null;
 let lastStationLineBalanceSegments = [];
 
 let zoomLevel = 0.8;
+
 
 
 function getHourW(){
@@ -146,7 +150,8 @@ function normalizeHoldReason(reason){
     item_shortage: "Material Shortage",
     resume_tomorrow: "Resume Next Shift / Tomorrow",
     others: "Others",
-    browser_closed: "Auto Hold (Browser Closed / Tab Closed)"
+    browser_closed: "Auto Hold (Browser Closed / Tab Closed)",
+    end_of_shift: "End Of Shift"
   };
 
   const key = String(reason).toLowerCase().trim();
@@ -1279,6 +1284,8 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
 }
 
 function renderGanttDaily(rangeMin, rangeMax, segments) {
+
+  
   
   // disable monthly today highlight
   document.documentElement.style.setProperty("--todayLeft", "-9999px");
@@ -1721,6 +1728,8 @@ function escapeAttr(s) {
 }
 
 async function render() {
+  await autoStopRuns();
+  const runs = await loadRuns(true);
   try {
     let runs = [];
 
@@ -1748,6 +1757,7 @@ async function render() {
 
         const startKey = `${yy}-${String(mm).padStart(2, "0")}-01`;
         const endKey = `${yy}-${String(mm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
 
         const q = query(
           collectionGroup(db, "runs"),
