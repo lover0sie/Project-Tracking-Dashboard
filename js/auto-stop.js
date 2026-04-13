@@ -47,6 +47,16 @@ function getAutoStopType(now = new Date()) {
   return null;
 }
 
+const now = new Date();
+const stopType = getAutoStopType(now);
+
+console.log("[AUTO STOP]");
+console.log("now:", now.toString());
+console.log("iso:", now.toISOString());
+console.log("timezone:", Intl.DateTimeFormat().resolvedOptions().timeZone);
+console.log("hours:", now.getHours(), "minutes:", now.getMinutes());
+console.log("stopType:", stopType);
+
 export async function autoStopRuns() {
   const now = getNow();
   const nowMs = now.getTime();
@@ -80,9 +90,9 @@ export async function autoStopRuns() {
     if (stopType === "night_shift_end" && run.autoStopType === "night_shift_end") continue;
 
     const remarks =
-      stopType === "shift_end"
-        ? "Auto hold at 5:30 PM"
-        : "Auto hold at 9:00 PM";
+    stopType === "shift_end"
+      ? `Auto hold after 5:30 PM cutoff at ${now.toLocaleString("en-MY")}`
+      : `Auto hold after 9:00 PM cutoff at ${now.toLocaleString("en-MY")}`;
 
     await updateDoc(docSnap.ref, {
       status: "on_hold",
