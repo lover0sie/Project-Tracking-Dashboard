@@ -50,13 +50,6 @@ function getAutoStopType(now = new Date()) {
 const now = new Date();
 const stopType = getAutoStopType(now);
 
-console.log("[AUTO STOP]");
-console.log("now:", now.toString());
-console.log("iso:", now.toISOString());
-console.log("timezone:", Intl.DateTimeFormat().resolvedOptions().timeZone);
-console.log("hours:", now.getHours(), "minutes:", now.getMinutes());
-console.log("stopType:", stopType);
-
 export async function autoStopRuns() {
   const now = getNow();
   const nowMs = now.getTime();
@@ -117,6 +110,47 @@ export async function autoStopRuns() {
     checked,
     updated,
     skippedExcluded,
+    reason: stopType
+  };
+}
+
+export async function previewAutoStopRuns() {
+  const now = new Date();
+  const stopType = getAutoStopType(now);
+
+  if (!stopType) {
+    return { eligible: [], reason: null };
+  }
+
+  const snap = await getDocs(collectionGroup(db, "runs"));
+
+  const eligible = [];
+
+  snap.forEach(docSnap => {
+    const r = docSnap.data();
+
+    const status = String(r.status || "").toLowerCase().trim();
+
+    if (status !== "running") return;
+
+    // skip excluded processes
+    if (isExcludedFromAutoHold(r.processName)) return;
+
+    // prevent repeat auto-stop
+    if (stopType === "shift_end" && r.autoStopType === "shift_end") return;
+    if (stopType === "night_shift_end" && r.autoStopType === "night_shift_end") return;
+
+    eligible.push({
+      id: docSnap.id,
+      serialNumber: r.serialNumber,
+      processName: r.processName,
+      projectName: r.projectName,
+      station: r.station
+    });
+  });
+
+  return {
+    eligible,
     reason: stopType
   };
 }

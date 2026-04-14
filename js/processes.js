@@ -63,7 +63,6 @@ const PROCESS_BY_PV = {
 }
 
 // CHILLER -> processes
-// CHILLER -> processes
 export const PROCESS_BY_CHILLER = {
   "AIR-COOLED": [
     "Piping shop",

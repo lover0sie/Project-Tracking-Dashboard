@@ -21,7 +21,7 @@ import {
   LEGEND_STATUS, 
   renderLegend} from "./helpers.js";
 
-import { autoStopRuns } from "./auto-stop.js";
+import { autoStopRuns, previewAutoStopRuns } from "./auto-stop.js";
 
 
 import {
@@ -55,7 +55,22 @@ let lastStationLineBalanceSegments = [];
 
 let zoomLevel = 0.8;
 
+function normalize(str) {
+  return String(str || "").toLowerCase().trim();
+}
 
+function isPastCutoff(now = new Date()) {
+  const mins = now.getHours() * 60 + now.getMinutes();
+  return mins >= (17 * 60 + 30);
+}
+
+function getCutoffState(now = new Date()) {
+  const mins = now.getHours() * 60 + now.getMinutes();
+
+  if (mins >= (21 * 60)) return "night";      // 9:00 PM
+  if (mins >= (17 * 60 + 30)) return "shift"; // 5:30 PM
+  return null;
+}
 
 function getHourW(){
   // Sset this in CSS: :root{ --hourW: 90px; }
@@ -1246,21 +1261,25 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         </div>
       `;
 
+      const hasAutoStopCandidate = sortedSegs.some(s => s.isAutoStopCandidate);
+
       return `
-        <div class="stationProcRow">
-          ${stationCell}
+        <div class="stationProcRow ${hasAutoStopCandidate ? 'autoStopHighlight' : ''}">
+          <div class="stationProcRow">
+            ${stationCell}
 
-          <div class="ganttCell procNo">
-            <div style="font-weight:900;">${escapeHtml(processNo)}</div>
-          </div>
+            <div class="ganttCell procNo">
+              <div style="font-weight:900;">${escapeHtml(processNo)}</div>
+            </div>
 
-          <div class="ganttCell status">
-            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
-          </div>
+            <div class="ganttCell status">
+              <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+            </div>
 
-          <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
-            ${timeBandsHtml}
-            ${bars}
+            <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+              ${timeBandsHtml}
+              ${bars}
+            </div>
           </div>
         </div>
       `;
@@ -1369,6 +1388,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
 
       // right side rows: each lane gets its own PROC/STATUS/TIMELINE row
       const laneRowsHtml = lanes.map((laneSegs) => {
+        const hasAutoStopCandidate = laneSegs.some(s => s.isAutoStopCandidate);
         const realLaneSegs = laneSegs.filter(seg => seg.phase !== "waiting" && seg.status !== "waiting");
         const cur = latestSegment(realLaneSegs) || null;
         const procNo = getProcessNo(cur);
@@ -1468,7 +1488,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
             </div>
           </div>
 
-          <div class="unitLaneRow">
+           <div class="unitLaneRow ${hasAutoStopCandidate ? 'autoStopHighlight' : ''}">
             <div class="ganttCell procNo">
               <div style="font-weight:900;">${escapeHtml(procNo)}</div>
             </div>
@@ -1482,6 +1502,8 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
               ${bars}
             </div>
           </div>
+
+          
         `;
       }).join("");
 
@@ -1589,6 +1611,8 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
   );
 
   bodyEl.innerHTML = groupArr.map(g => {
+
+    
 
     // Group header row (Project + Material)
     const headerRow = `
@@ -1728,8 +1752,7 @@ function escapeAttr(s) {
 }
 
 async function render() {
-  await autoStopRuns();
-  const runs = await loadRuns(true);
+
   try {
     let runs = [];
 
@@ -1738,6 +1761,14 @@ async function render() {
     const picker = el("dayPicker");
     const todayKey = getMYTodayKey();
     const dayKey = picker?.value || todayKey;
+
+    if (!isPastCutoff()) {
+      btnAutoStop.disabled = true;
+      btnAutoStop.title = "Available after 5:30 PM";
+    } else {
+      btnAutoStop.disabled = false;
+      btnAutoStop.title = "";
+    }
 
     if (mode === "daily" || mode === "station") {
       runs = await loadRunsForDayWithCarryForward(dayKey);
@@ -1782,6 +1813,28 @@ async function render() {
 
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);
+    
+    const preview = await previewAutoStopRuns();
+
+      const eligibleKeys = new Set(
+      preview.eligible.map(e =>
+        `${normalize(e.serialNumber)}|${normalize(e.station)}|${normalize(e.processName)}`
+      )
+    );
+
+    segments.forEach(seg => {
+      const key = `${normalize(seg.serial)}|${normalize(seg.station)}|${normalize(seg.processName || seg.processLabel)}`;
+
+      seg.isAutoStopCandidate = eligibleKeys.has(key);
+    });
+
+    console.log("Preview:", preview.eligible);
+    console.log("Segments:", segments);
+
+    console.log(
+      "Auto-stop candidates:",
+      segments.filter(s => s.isAutoStopCandidate)
+    );
 
     const wrap = document.querySelector(".ganttWrap");
     const grid = document.querySelector(".ganttGrid");
@@ -2142,6 +2195,52 @@ window.addEventListener("resize", async () => {
     await renderStationOnlyView();
   }
 });
+
+const btnAutoStop = document.getElementById("btnAutoStop");
+
+if (btnAutoStop) {
+  btnAutoStop.addEventListener("click", async () => {
+  try {
+    const cutoff = getCutoffState();
+
+    if (!cutoff) {
+      alert("Auto stop only allowed after 5:30 PM.");
+      return;
+    }
+
+    const preview = await previewAutoStopRuns();
+
+    if (!preview.eligible.length) {
+      alert("No running processes to auto-stop.");
+      return;
+    }
+
+    const ok = confirm(
+      `${preview.eligible.length} process(es) will be auto-held.\n\nProceed?`
+    );
+
+    if (!ok) return;
+
+      btnAutoStop.disabled = true;
+      btnAutoStop.textContent = "Running...";
+
+      const result = await autoStopRuns();
+
+      console.log("Auto stop result:", result);
+
+      await render(); // refresh dashboard after update
+
+      alert(`Auto stop done. Updated ${result.updated} run(s).`);
+    } catch (err) {
+      console.error("Auto stop failed:", err);
+      alert("Auto stop failed. Check console.");
+    } finally {
+      btnAutoStop.disabled = false;
+      btnAutoStop.textContent = "Run Auto Stop";
+    }
+  });
+
+}
 
 
 bindFloatingTooltip();

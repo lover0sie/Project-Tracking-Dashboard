@@ -672,6 +672,7 @@ export function buildSegmentsFromRuns(runs) {
   for (const r of runs) {
     const serial = r.serialNumber || "";
     const station = r.station || "";
+    const id = r.id
 
     const start = tsOrMsToDate(r.startAt, r.startEpochMs);
     const resumed = tsOrMsToDate(r.resumedAt, r.resumedEpochMs);
