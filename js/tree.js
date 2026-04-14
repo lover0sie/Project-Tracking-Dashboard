@@ -1,6 +1,6 @@
 console.log("TREE RENDER CALLED");
 
-import { loadRuns, loadRunsForDay } from "./timeline.js";
+import { loadRuns} from "./timeline.js";
 import {formatDateTime} from "./gantt.js"
 
 const el = id => document.getElementById(id);
@@ -190,11 +190,6 @@ function getSelectedDayKey() {
 function getSelectedMonthKey() {
   const picker = el("monthPicker");
   return picker?.value || "";
-}
-
-function filterRunsByMonth(runs, monthKey){
-  if (!monthKey) return runs;
-  return (runs || []).filter(r => String(r.runDate || "").startsWith(monthKey));
 }
 
 function statusUi(status){

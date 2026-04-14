@@ -99,23 +99,49 @@ function getPrevDayKey(dayKey) {
 export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
   if (!dayKey) return [];
 
-  const [todayRuns, allRuns] = await Promise.all([
-    loadRunsForDay(dayKey, force),
-    loadRuns(force)
-  ]);
+  const allRuns = await loadRuns(force);
 
-  const merged = [...allRuns, ...todayRuns].filter(r => {
-    const runDate = String(r.runDate || "").trim();
+  const selectedDate = new Date(dayKey + "T00:00:00");
+  const dayStartMs = new Date(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+    selectedDate.getDate(),
+    0, 0, 0, 0
+  ).getTime();
+
+  const dayEndMs = new Date(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+    selectedDate.getDate(),
+    23, 59, 59, 999
+  ).getTime();
+
+  const merged = allRuns.filter(r => {
+    const startMs =
+      typeof r.startEpochMs === "number" ? r.startEpochMs : null;
+
+    let endMs =
+      typeof r.endEpochMs === "number"
+        ? r.endEpochMs
+        : null;
+
     const status = String(r.status || "").toLowerCase().trim();
 
-    if (runDate === dayKey) return true;
-
-    // bring forward any older active run
-    if (runDate < dayKey && (status === "running" || status === "on_hold")) {
-      return true;
+    if (endMs == null) {
+      if (status === "running") {
+        endMs = Date.now();
+      } else if (status === "on_hold") {
+        endMs =
+          typeof r.holdEpochMs === "number"
+            ? r.holdEpochMs
+            : Date.now();
+      }
     }
 
-    return false;
+    if (startMs == null) return false;
+    if (endMs == null) endMs = startMs;
+
+    return endMs > dayStartMs && startMs < dayEndMs;
   });
 
   const seen = new Set();

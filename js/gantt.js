@@ -48,7 +48,7 @@ const cachedRunsByMonth = new Map();
 
 const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 7;
-const END_HOUR = 21;
+const END_HOUR = 22;
 
 let stationLineBalanceChart = null;
 let lastStationLineBalanceSegments = [];
