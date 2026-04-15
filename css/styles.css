@@ -1926,15 +1926,23 @@ select:focus{
   display: block;
 }
 
+/* Single chart */
 .chartCard {
-  width: 100%;
-  min-height: 420px;
-  padding: 16px;
+  min-height: 280px;
+  flex-shrink: 0;   /* important: prevents shrinking */
 }
+
+/* Multiple chart */
+.chartCard canvas {
+  width: 100% !important;
+  height: 350px !important;   /* smaller chart */
+}
+
+
 
 #lineBalanceChart {
   width: 100% !important;
-  height: 380px !important;
+  height: 200px !important;
   display: block;
 }
 
@@ -2016,10 +2024,6 @@ select:focus{
   line-height: 1.45;
 }
 
-.chartCard {
-  margin-top: 14px;
-  height: 420px;
-}
 
 .emptyState {
   padding: 16px;
@@ -2032,9 +2036,9 @@ select:focus{
 
 .lineBalanceLayout {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 320px 1fr;
   gap: 16px;
-  margin-top: 14px;
+  align-items: stretch;
 }
 
 .projectListPanel {
@@ -2042,7 +2046,7 @@ select:focus{
   border-radius: 10px;
   background: #fff;
   padding: 12px;
-  min-height: 460px;
+  height: 520px;
   max-height: 460px;
   overflow: hidden;
 }
@@ -2051,7 +2055,7 @@ select:focus{
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 400px;
+  height: 100%;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -2090,12 +2094,19 @@ select:focus{
 }
 
 .chartPanel {
-  min-width: 0;
+  height: 520px;          
+  overflow: hidden;
 }
 
-.chartCard {
-  height: 460px;
+.lineBalanceCharts {
+  height: 100%;
+  overflow-y: auto;        /* enables vertical scroll */
+  padding-right: 6px;      /* avoid scrollbar overlap */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
+
 
 .infoText {
   min-height: 38px;

@@ -217,6 +217,7 @@ export function getStationKey(employeeData = state.employeeData){
 export const STANDARD_TIME_MIN = {
   "6 - Hole bevelling": 80,
   "7 - Connector welding": 100,
+  "8 - Fitting internal plate & GMAW": 100,
   "8A - Internal plate assembly": 200,
   "8B - Fitting internal plate": 300,
   "8C - GMAW C&B": 400,

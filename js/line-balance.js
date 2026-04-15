@@ -1,27 +1,25 @@
-import { loadRunsForMonth } from "./timeline.js";
+import { loadRuns } from "./timeline.js";
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
   getStandardMinutesFromLabel,
-  getProcessCode,
-  getTotalDurationMs
+  getProcessCode
 } from "./helpers.js";
 
-
-const monthPicker = document.getElementById("lbMonthPicker");
 const projectNameEl = document.getElementById("lbProjectName");
 const chillerSerialEl = document.getElementById("lbChillerSerial");
-const chartEl = document.getElementById("lineBalanceChart");
-
 const projectListEl = document.getElementById("lbProjectList");
 const projectCountEl = document.getElementById("lbProjectCount");
-const viewModeEl = document.getElementById("lbViewMode");
+const qrKindViewEl = document.getElementById("lbQrKindView");
+const chartsContainerEl = document.getElementById("lineBalanceCharts");
 
-let lineBalanceChart = null;
 let selectedProjectSerial = "";
-
 let currentProjects = [];
+let allRunsCache = [];
+let allSegmentsCache = [];
+let lineBalanceCharts = [];
 
+/* Change the station display name for Pneumatic */
 function getStationDisplayName(station = "") {
   const map = {
     "Pneumatic": "Paint Booth and Testing"
@@ -30,10 +28,12 @@ function getStationDisplayName(station = "") {
   return map[station] || station;
 }
 
+/* Get the process label for each segment and return string with no space */
 function getSegmentProcessLabel(seg) {
   return String(seg.processLabel || seg.processName || "").trim() || "Unknown";
 }
 
+/* Replace all the chraracter symbol */
 function escapeHtml(str = "") {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -43,6 +43,7 @@ function escapeHtml(str = "") {
     .replaceAll("'", "&#039;");
 }
 
+/* Get month of the date in year-month */
 function getDefaultMonthValue() {
   const now = new Date();
   const y = now.getFullYear();
@@ -50,19 +51,14 @@ function getDefaultMonthValue() {
   return `${y}-${m}`;
 }
 
-function getMonthDateRange(monthValue) {
-  const [year, month] = String(monthValue).split("-").map(Number);
-  if (!year || !month) return null;
-
-  const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const end = new Date(year, month, 1, 0, 0, 0, 0);
-
-  return { start, end };
-}
 
 function getProcessSortKey(processName = "") {
+
+  // Regex matching where d+ represents one or more digits as the major number, and the string A-Z as the suffix
+  // i represents case insensitive
   const m = String(processName).match(/^(\d+)([A-Z]?)/i);
 
+  // If not matched, assign a major number (e.g. process ABC returns 9999)
   if (!m) {
     return { major: 9999, suffix: "" };
   }
@@ -73,6 +69,8 @@ function getProcessSortKey(processName = "") {
   };
 }
 
+
+/* Compare the major number and sort */
 function compareProcessSortKey(a, b) {
   if ((a?.major ?? 9999) !== (b?.major ?? 9999)) {
     return (a?.major ?? 9999) - (b?.major ?? 9999);
@@ -80,16 +78,128 @@ function compareProcessSortKey(a, b) {
   return (a?.suffix || "").localeCompare(b?.suffix || "");
 }
 
-function filterRunsByMonth(runs, monthValue) {
-  const range = getMonthDateRange(monthValue);
-  if (!range) return [];
+/* Filter segments according the scope. In this case, the scope is the project */
+function filterSegmentsByScope(segments, scope, target) {
 
-  return runs.filter(run => {
-    const ms = Number(run.startEpochMs || 0);
-    if (!ms) return false;
-    return ms >= range.start.getTime() && ms < range.end.getTime();
-  });
+  // If the scope is project, then return segments match to the project name 
+  if (scope === "project") {
+    return segments.filter(seg =>
+      String(seg.chillerSerialNumber || "").trim() === String(target || "").trim()
+    );
+  }
+
+  // If the scope is model, then return segments match to the model 
+  if (scope === "model") {
+    return segments.filter(seg =>
+      String(seg.model || "").trim() === String(target || "").trim()
+    );
+  }
+
+  return [];
 }
+
+/* Group segments under PV to vesselType */
+function groupPvSegmentsByVesselType(segments) {
+  const map = new Map();
+
+  for (const seg of segments) {
+    const vesselType = String(seg.vesselType || "").trim();
+    if (!vesselType) continue;
+
+    // Map if the segment has a vesselType
+    if (!map.has(vesselType)) {
+      map.set(vesselType, []);
+    }
+
+    // Push the vessel type of the segment into map
+    map.get(vesselType).push(seg);
+  }
+
+  return map;
+}
+
+/* Get the project segments by filtering according to the chillerSerialNumber */
+function getProjectSegments(segments, chillerSerialNumber) {
+  return segments.filter(seg =>
+    String(seg.chillerSerialNumber || "").trim() === String(chillerSerialNumber || "").trim()
+  );
+}
+
+/* Build the Projects array that mapped of item based on qrKinds (PV, CHILLER) to get data, store in array, and sort */
+function buildProjects(runs) {
+  const map = new Map();
+
+  for (const run of runs) {
+    const serial = String(run.chillerSerialNumber || "").trim();
+    if (!serial) continue;
+
+    if (!map.has(serial)) {
+      map.set(serial, {
+        chillerSerialNumber: serial,
+        projectName: run.projectName || "-",
+        materialNumber: run.materialNumber || "-",
+        model: run.model || "-",
+        runCount: 0,
+        qrKinds: new Set()
+      });
+    }
+
+    const row = map.get(serial);
+    row.runCount += 1;
+
+    if (run.qrKind) {
+      row.qrKinds.add(String(run.qrKind).trim());
+    }
+  }
+
+  return Array.from(map.values())
+    .map(item => ({
+      ...item,
+      qrKinds: Array.from(item.qrKinds)
+    }))
+    .sort((a, b) =>
+      String(a.projectName || "").localeCompare(String(b.projectName || ""))
+    );
+}
+
+/* Build the ProcessChartData array that mapped based on its process code that consist of label, full label, standard and actual time */
+function buildProcessChartData(segments) {
+  const processMap = new Map();
+
+  for (const seg of segments) {
+    if (seg.phase === "waiting" || seg.status === "waiting") continue;
+
+    const fullLabel = getSegmentProcessLabel(seg);
+    const processCode = getProcessCode(fullLabel);
+    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    const standardMin = getStandardMinutesFromLabel(fullLabel) || 0;
+
+    if (!processMap.has(processCode)) {
+      processMap.set(processCode, {
+        label: processCode,
+        fullLabel,
+        actualMin: 0,
+        standardMin: 0,
+        sortKey: getProcessSortKey(fullLabel)
+      });
+    }
+
+    const row = processMap.get(processCode);
+    row.actualMin += actualMin;
+    row.standardMin += standardMin;
+  }
+
+  return Array.from(processMap.values())
+    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
+    .map(item => ({
+      label: item.label,
+      fullLabel: item.fullLabel,
+      actual: Number(item.actualMin.toFixed(1)),
+      standard: Number(item.standardMin.toFixed(1)),
+      takt: 450
+    }));
+}
+
 
 function buildProjectsForMonth(runs) {
   const map = new Map();
@@ -117,9 +227,39 @@ function buildProjectsForMonth(runs) {
   );
 }
 
-function buildLineBalanceByStationForProject(segments, selectedChillerSerial) {
-  const filtered = segments.filter(seg =>
-    String(seg.chillerSerialNumber || "").trim() === String(selectedChillerSerial || "").trim() &&
+function buildModelsForMonth(runs) {
+  const map = new Map();
+
+  for (const run of runs) {
+    const model = String(run.model || "").trim();
+    if (!model) continue;
+
+    if (!map.has(model)) {
+      map.set(model, {
+        model,
+        projectCountSet: new Set(),
+        runCount: 0
+      });
+    }
+
+    const row = map.get(model);
+    row.runCount += 1;
+
+    const serial = String(run.chillerSerialNumber || "").trim();
+    if (serial) row.projectCountSet.add(serial);
+  }
+
+  return Array.from(map.values())
+    .map(item => ({
+      model: item.model,
+      projectCount: item.projectCountSet.size,
+      runCount: item.runCount
+    }))
+    .sort((a, b) => String(a.model).localeCompare(String(b.model)));
+}
+
+function buildLineBalanceByLine(segments, scope, target) {
+  const filtered = filterSegmentsByScope(segments, scope, target).filter(seg =>
     seg.phase !== "waiting" &&
     seg.status !== "waiting"
   );
@@ -166,9 +306,8 @@ function buildLineBalanceByStationForProject(segments, selectedChillerSerial) {
     }));
 }
 
-function buildLineBalanceByProcessForProject(segments, selectedChillerSerial) {
-  const filtered = segments.filter(seg =>
-    String(seg.chillerSerialNumber || "").trim() === String(selectedChillerSerial || "").trim() &&
+function buildLineBalanceByProcess(segments, scope, target) {
+  const filtered = filterSegmentsByScope(segments, scope, target).filter(seg =>
     seg.phase !== "waiting" &&
     seg.status !== "waiting"
   );
@@ -211,7 +350,7 @@ function buildLineBalanceByProcessForProject(segments, selectedChillerSerial) {
 }
 
 
-function renderLineBalanceChartByMode(data, project, mode) {
+function renderLineBalanceChartByMode(data, item, mode, scope) {
   if (!chartEl) return;
 
   if (lineBalanceChart) {
@@ -224,9 +363,14 @@ function renderLineBalanceChartByMode(data, project, mode) {
   }
 
   const modeTitleMap = {
-    process: "By Process",
-    line: "By Line"
-  };
+  process: "By Process",
+  line: "By Line"
+};
+
+const scopeTitle =
+  scope === "model"
+    ? (item.model || "-")
+    : (item.projectName || item.chillerSerialNumber || "-");
 
   lineBalanceChart = new Chart(chartEl, {
     type: "bar",
@@ -236,8 +380,8 @@ function renderLineBalanceChartByMode(data, project, mode) {
         {
           label: "Standard Time",
           data: data.map(d => d.standard),
-          backgroundColor: "#ff8000",
-          borderColor: "#ff8000",
+          backgroundColor: "#56493c",
+          borderColor: "#56493c",
           borderWidth: 1
         },
         {
@@ -254,20 +398,52 @@ function renderLineBalanceChartByMode(data, project, mode) {
           borderColor: "#9ca3af",
           borderWidth: 1,
           hidden: true
+        },
+        {
+          type: "line",
+          label: "Takt Time",
+          data: new Array(data.length).fill(450),  // flat line
+          borderColor: "rgba(239, 68, 68, 0.7)",
+          backgroundColor: "#ef4444",
+          borderWidth: 2,
+          borderDash: [6, 6],
+          pointRadius: 0,          
+          pointHoverRadius: 0,
+          fill: false,
+          tension: 0,              
+          spanGaps: true,
+          order: 1
         }
       ]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
+      aspectRatio: 3,   // width : height,
       interaction: {
         mode: "index",
         intersect: false
       },
+      layout: {
+        padding: {
+          top: 5,
+          bottom: 5,
+          left: 5,
+          right: 5
+        }
+      },
       plugins: {
+        title: {
+          display: true,
+          text: `Line Balance ${modeTitleMap[mode] || ""} - ${scopeTitle}`
+        },
         legend: {
           display: true,
           position: "top",
+          boxWidth: 10,
+          font: {
+          size: 10
+          },
           onClick(e, legendItem, legend) {
             const chart = legend.chart;
             const index = legendItem.datasetIndex;
@@ -275,6 +451,7 @@ function renderLineBalanceChartByMode(data, project, mode) {
             chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
             chart.update();
           }
+          
         },
         tooltip: {
           callbacks: {
@@ -292,7 +469,96 @@ function renderLineBalanceChartByMode(data, project, mode) {
         x: {
           title: {
             display: true,
-            text: mode === "process" ? "Process" : "Line"
+            text: "Process",
+            size: 10
+          }
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Duration (minutes)",
+            size: 10
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderProcessChart(canvasEl, data, titleText) {
+  if (!canvasEl || !Array.isArray(data) || !data.length) return null;
+
+  return new Chart(canvasEl, {
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [
+        {
+          type: "bar",
+          label: "Standard Time",
+          data: data.map(d => d.standard),
+          backgroundColor: "#a19d99",
+          borderColor: "#a19d99",
+          borderWidth: 1,
+          order: 2
+        },
+        {
+          type: "bar",
+          label: "Actual Time",
+          data: data.map(d => d.actual),
+          backgroundColor: "#60a5fa",
+          borderColor: "#60a5fa",
+          borderWidth: 1,
+          order: 2
+        },
+        {
+          type: "line",
+          label: "Takt Time",
+          data: data.map(d => d.takt),
+          borderColor: "#ef4444",
+          backgroundColor: "#ef4444",
+          borderWidth: 2,
+          borderDash: [6, 6],
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: titleText
+        },
+        legend: {
+          display: true,
+          position: "top"
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              const idx = items?.[0]?.dataIndex ?? 0;
+              return data[idx]?.fullLabel || items?.[0]?.label || "";
+            },
+            label(ctx) {
+              return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} min`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Process"
           }
         },
         y: {
@@ -307,52 +573,34 @@ function renderLineBalanceChartByMode(data, project, mode) {
   });
 }
 
-function buildChartDataByMode(segments, selectedChillerSerial, mode) {
+
+function buildChartDataByMode(segments, scope, target, mode) {
   if (mode === "process") {
-    return buildLineBalanceByProcessForProject(segments, selectedChillerSerial);
+    return buildLineBalanceByProcess(segments, scope, target);
   }
 
   if (mode === "line") {
-    return buildLineBalanceByStationForProject(segments, selectedChillerSerial);
+    return buildLineBalanceByLine(segments, scope, target);
   }
 
-  /* buildLineBalanceByLineForProject(segments, selectedChillerSerial); */
+  return [];
 }
 
-function clearChart() {
-  if (lineBalanceChart) {
-    lineBalanceChart.destroy();
-    lineBalanceChart = null;
-  }
-}
+function createChartCard(titleText) {
+  const wrap = document.createElement("div");
+  wrap.className = "chartCard";
 
-async function onProjectClick(project) {
-  const monthValue = monthPicker?.value || getDefaultMonthValue();
-  const monthRuns = await loadRunsForMonth(monthValue);
+  const heading = document.createElement("div");
+  heading.className = "sectionTitle";
+  heading.textContent = titleText;
 
-  const result = buildSegmentsFromRuns(monthRuns);
-  const segments = Array.isArray(result) ? result : result.segments || [];
+  const canvas = document.createElement("canvas");
 
-  const mode = viewModeEl?.value || "station";
+  wrap.appendChild(heading);
+  wrap.appendChild(canvas);
+  chartsContainerEl.appendChild(wrap);
 
-  const chartData = buildChartDataByMode(
-    segments,
-    project.chillerSerialNumber,
-    mode
-  );
-
-  selectedProjectSerial = project.chillerSerialNumber || "";
-
-  if (projectNameEl) {
-    projectNameEl.textContent = project.projectName || "-";
-  }
-
-  if (chillerSerialEl) {
-    chillerSerialEl.textContent = project.chillerSerialNumber || "-";
-  }
-
-  renderProjectList(buildProjectsForMonth(monthRuns));
-  renderLineBalanceChartByMode(chartData, project, mode);
+  return canvas;
 }
 
 function renderProjectList(projects) {
@@ -363,7 +611,7 @@ function renderProjectList(projects) {
   }
 
   if (!projects.length) {
-    projectListEl.innerHTML = `<div class="emptyState">No projects found for the selected month.</div>`;
+    projectListEl.innerHTML = `<div class="emptyState">No projects found.</div>`;
     return;
   }
 
@@ -380,63 +628,239 @@ function renderProjectList(projects) {
           ${escapeHtml(project.chillerSerialNumber || "-")} | ${escapeHtml(project.materialNumber || "-")}
         </div>
         <div class="projectListMeta">
-          ${escapeHtml(project.model || "-")} • ${escapeHtml(String(project.runCount || 0))} run(s)
+          ${escapeHtml(project.model || "-")} • ${escapeHtml(project.qrKinds.join(", "))} • ${escapeHtml(String(project.runCount || 0))} run(s)
         </div>
       </div>
     `;
   }).join("");
 
-  projectListEl.querySelectorAll(".projectListItem").forEach(item => {
-    item.addEventListener("click", () => {
-      const serial = item.dataset.serial || "";
-      const project = projects.find(p => String(p.chillerSerialNumber) === String(serial));
-      if (project) onProjectClick(project).catch(console.error);
+  projectListEl.querySelectorAll(".projectListItem").forEach(itemEl => {
+    itemEl.addEventListener("click", () => {
+      const serial = itemEl.dataset.serial || "";
+      const chosen = projects.find(p =>
+        String(p.chillerSerialNumber || "") === String(serial)
+      );
+
+      if (chosen) onProjectClick(chosen);
     });
   });
 }
 
-async function renderPage() {
-  if (!monthPicker) return;
 
-  if (!monthPicker.value) {
-    monthPicker.value = getDefaultMonthValue();
+function clearCharts() {
+  lineBalanceCharts.forEach(chart => chart?.destroy?.());
+  lineBalanceCharts = [];
+
+  if (chartsContainerEl) {
+    chartsContainerEl.innerHTML = "";
+  }
+}
+
+function onProjectClick(project) {
+  selectedProjectSerial = project.chillerSerialNumber || "";
+
+  if (projectNameEl) {
+    projectNameEl.textContent = project.projectName || "-";
   }
 
-  const monthRuns = await loadRunsForMonth(monthPicker.value);
-  const projects = buildProjectsForMonth(monthRuns);
+  if (chillerSerialEl) {
+    chillerSerialEl.textContent = project.chillerSerialNumber || "-";
+  }
 
-  renderProjectList(projects);
+  renderProjectList(currentProjects);
+  renderSelectedProjectCharts(project);
+}
 
-    currentProjects = projects;
+async function onTargetClick(item) {
+  const monthValue = monthPicker?.value || getDefaultMonthValue();
+  const monthRuns = await loadRunsForMonth(monthValue);
+
+  const result = buildSegmentsFromRuns(monthRuns);
+  const segments = Array.isArray(result) ? result : result.segments || [];
+
+  const scope = scopeModeEl?.value || "project";
+  const mode = viewModeEl?.value || "line";
+
+  const target = scope === "project"
+    ? item.chillerSerialNumber
+    : item.model;
+
+  const chartData = buildChartDataByMode(
+    segments,
+    scope,
+    target,
+    mode
+  );
+
+  selectedTarget = target || "";
+
+  if (projectNameEl) {
+    projectNameEl.textContent =
+      scope === "project"
+        ? (item.projectName || "-")
+        : (item.model || "-");
+  }
+
+  if (chillerSerialEl) {
+    chillerSerialEl.textContent =
+      scope === "project"
+        ? (item.chillerSerialNumber || "-")
+        : `${item.projectCount || 0} project(s)`;
+  }
+
+  renderTargetList(
+    scope === "project"
+      ? buildProjectsForMonth(monthRuns)
+      : buildModelsForMonth(monthRuns)
+  );
+
+  renderLineBalanceChartByMode(chartData, item, mode, scope);
+}
 
 
-  if (!projects.length) {
-    if (projectNameEl) projectNameEl.textContent = "-";
-    if (chillerSerialEl) chillerSerialEl.textContent = "-";
-    clearChart();
+
+function renderTargetList(items) {
+  if (!projectListEl) return;
+
+  if (projectCountEl) {
+    projectCountEl.textContent = String(items.length);
+  }
+
+  if (!items.length) {
+    projectListEl.innerHTML = `<div class="emptyState">No items found for the selected month.</div>`;
     return;
   }
 
-  const stillExists = projects.find(
-    p => String(p.chillerSerialNumber) === String(selectedProjectSerial)
-  );
+  const scope = scopeModeEl?.value || "project";
 
-  const projectToShow = stillExists || projects[0];
-  await onProjectClick(projectToShow);
+  projectListEl.innerHTML = items.map(item => {
+    const targetValue =
+      scope === "project"
+        ? String(item.chillerSerialNumber || "")
+        : String(item.model || "");
+
+    const activeClass =
+      targetValue === String(selectedTarget || "")
+        ? " active"
+        : "";
+
+    if (scope === "project") {
+      return `
+        <div class="projectListItem${activeClass}" data-target="${escapeHtml(item.chillerSerialNumber)}">
+          <div class="projectListTitle">${escapeHtml(item.projectName || "-")}</div>
+          <div class="projectListMeta">
+            ${escapeHtml(item.chillerSerialNumber || "-")} | ${escapeHtml(item.materialNumber || "-")}
+          </div>
+          <div class="projectListMeta">
+            ${escapeHtml(item.model || "-")} • ${escapeHtml(String(item.runCount || 0))} run(s)
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="projectListItem${activeClass}" data-target="${escapeHtml(item.model)}">
+        <div class="projectListTitle">${escapeHtml(item.model || "-")}</div>
+        <div class="projectListMeta">
+          ${escapeHtml(String(item.projectCount || 0))} project(s)
+        </div>
+        <div class="projectListMeta">
+          ${escapeHtml(String(item.runCount || 0))} run(s)
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  projectListEl.querySelectorAll(".projectListItem").forEach(itemEl => {
+    itemEl.addEventListener("click", () => {
+      const target = itemEl.dataset.target || "";
+      const chosen = items.find(item =>
+        (scope === "project"
+          ? String(item.chillerSerialNumber || "")
+          : String(item.model || "")
+        ) === String(target)
+      );
+
+      if (chosen) onTargetClick(chosen).catch(console.error);
+    });
+  });
 }
 
-monthPicker?.addEventListener("change", () => {
-  selectedProjectSerial = "";
-  renderPage().catch(console.error);
-});
+function renderSelectedProjectCharts(project) {
+  clearCharts();
 
-viewModeEl?.addEventListener("change", () => {
+  const projectSegments = getProjectSegments(allSegmentsCache, project.chillerSerialNumber);
+  const qrKindView = qrKindViewEl?.value || "CHILLER";
+
+  if (qrKindView === "CHILLER") {
+    const chillerSegs = projectSegments.filter(seg =>
+      String(seg.qrKind || "").trim() === "CHILLER"
+    );
+
+    const data = buildProcessChartData(chillerSegs);
+    const canvas = createChartCard("CHILLER");
+
+    const chart = renderProcessChart(
+      canvas,
+      data,
+      `Line Balance - ${project.projectName || project.chillerSerialNumber} (CHILLER)`
+    );
+
+    if (chart) lineBalanceCharts.push(chart);
+    return;
+  }
+
+  const pvSegs = projectSegments.filter(seg =>
+    String(seg.qrKind || "").trim() === "PV"
+  );
+
+  const vesselMap = groupPvSegmentsByVesselType(pvSegs);
+
+  for (const [vesselType, segs] of vesselMap.entries()) {
+    const data = buildProcessChartData(segs);
+    const canvas = createChartCard(vesselType);
+
+    const chart = renderProcessChart(
+      canvas,
+      data,
+      `Line Balance - ${project.projectName || project.chillerSerialNumber} (${vesselType})`
+    );
+
+    if (chart) lineBalanceCharts.push(chart);
+  }
+}
+
+async function renderPage() {
+  allRunsCache = await loadRuns();
+
+  const result = buildSegmentsFromRuns(allRunsCache);
+  allSegmentsCache = Array.isArray(result) ? result : result.segments || [];
+
+  currentProjects = buildProjects(allRunsCache);
+  renderProjectList(currentProjects);
+
+  if (!currentProjects.length) {
+    if (projectNameEl) projectNameEl.textContent = "-";
+    if (chillerSerialEl) chillerSerialEl.textContent = "-";
+    clearCharts();
+    return;
+  }
+
+  const stillExists = currentProjects.find(
+    p => String(p.chillerSerialNumber || "") === String(selectedProjectSerial || "")
+  );
+
+  const projectToShow = stillExists || currentProjects[0];
+  onProjectClick(projectToShow);
+}
+
+qrKindViewEl?.addEventListener("change", () => {
   const activeProject = currentProjects.find(
-    p => String(p.chillerSerialNumber) === String(selectedProjectSerial)
+    p => String(p.chillerSerialNumber || "") === String(selectedProjectSerial || "")
   );
 
   if (activeProject) {
-    onProjectClick(activeProject).catch(console.error);
+    renderSelectedProjectCharts(activeProject);
   }
 });
 

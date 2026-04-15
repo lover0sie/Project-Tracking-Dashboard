@@ -10,26 +10,19 @@
   <header class="top">
     <div>
       <h2>Line Balance Graph</h2>
-      <div class="sub">Select a month, then click a project to view effective duration by station</div>
+      <div class="sub">Select a project, then choose CHILLER or PV view</div>
     </div>
   </header>
 
   <section class="card">
     <div class="toolbar lineBalanceToolbar">
       <div class="toolbarGroup">
-        <label for="lbMonthPicker">Month</label>
-        <input type="month" id="lbMonthPicker" class="pickerInput" />
-      </div>
-
-      <div class="toolbarGroup">
-        <label for="lbViewMode">View</label>
-        <select id="lbViewMode" class="pickerInput">
-          <option value="process">By Process</option>
-          <option value="line" selected>By Line</option>
+        <label for="lbQrKindView">View</label>
+        <select id="lbQrKindView" class="pickerInput">
+          <option value="CHILLER">CHILLER</option>
+          <option value="PV">PV</option>
         </select>
       </div>
-
-
 
       <div class="toolbarGroup infoGroup">
         <label>Total Projects</label>
@@ -53,15 +46,15 @@
 
     <div class="lineBalanceLayout">
       <div class="projectListPanel">
-        <div class="sectionTitle">Projects in Selected Month</div>
+        <div class="sectionTitle">All Projects</div>
         <div id="lbProjectList" class="projectList">
           <div class="emptyState">No projects loaded yet.</div>
         </div>
       </div>
 
       <div class="chartPanel">
-        <div class="chartCard">
-          <canvas id="lineBalanceChart"></canvas>
+        <div id="lineBalanceCharts" class="lineBalanceCharts">
+          <div class="emptyState">Select a project to view line balance.</div>
         </div>
       </div>
     </div>

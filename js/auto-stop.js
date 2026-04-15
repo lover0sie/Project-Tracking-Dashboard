@@ -42,7 +42,7 @@ function getTodayKey(date = new Date()) {
 }
 
 function getAutoStopType(now = new Date()) {
-  if (isPastTime(21, 0, now)) return "night_shift_end";
+  if (isPastTime(21, 30, now)) return "night_shift_end";
   if (isPastTime(17, 30, now)) return "shift_end";
   return null;
 }
