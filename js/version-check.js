@@ -1,6 +1,6 @@
 /* App versioning checking */
 
-const APP_VERSION = "2026-04-16-02"; /* Update here */
+const APP_VERSION = "2026-04-16-03"; /* Update here */
 let versionTimer = null;
 const VERSION_REFRESHED_KEY = "projectDashboardRefreshedVersion";
 
@@ -45,7 +45,7 @@ function showUpdatePopup(latestVersion) {
 
   document.body.appendChild(div);
 
-  document.getElementById("btn-update-now").onclick = () => {
+  document.getElementById("btn-update-now").onclick = async () => {
     localStorage.setItem(VERSION_REFRESHED_KEY, latestVersion);
 
     const btn = document.getElementById("btn-update-now");
@@ -55,6 +55,15 @@ function showUpdatePopup(latestVersion) {
     }
 
     document.getElementById("version-popup")?.remove();
+
+    if ("caches" in window) {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      } catch (err) {
+        console.warn("Cache clear failed", err);
+      }
+    }
 
     const url = new URL(window.location.href);
     url.searchParams.set("appVersion", latestVersion);
