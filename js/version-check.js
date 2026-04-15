@@ -1,7 +1,8 @@
 /* App versioning checking */
 
-const APP_VERSION = "2026-04-15-02"; /* Update here */
+const APP_VERSION = "2026-04-16-02"; /* Update here */
 let versionTimer = null;
+const VERSION_REFRESHED_KEY = "projectDashboardRefreshedVersion";
 
 async function checkVersion() {
   try {
@@ -16,7 +17,10 @@ async function checkVersion() {
 
     if (!latest) return;
 
-    if (latest !== APP_VERSION) {
+    if (
+      latest !== APP_VERSION &&
+      localStorage.getItem(VERSION_REFRESHED_KEY) !== latest
+    ) {
       showUpdatePopup(latest);
     }
   } catch (e) {
@@ -42,7 +46,20 @@ function showUpdatePopup(latestVersion) {
   document.body.appendChild(div);
 
   document.getElementById("btn-update-now").onclick = () => {
-    window.location.reload();
+    localStorage.setItem(VERSION_REFRESHED_KEY, latestVersion);
+
+    const btn = document.getElementById("btn-update-now");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Refreshing...";
+    }
+
+    document.getElementById("version-popup")?.remove();
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("appVersion", latestVersion);
+    url.searchParams.set("refreshAt", Date.now());
+    window.location.replace(url.toString());
   };
 }
 
