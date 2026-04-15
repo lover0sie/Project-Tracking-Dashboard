@@ -1,6 +1,6 @@
 /* App versioning checking */
 
-const APP_VERSION = "2026-04-15-01"; /* Update here */
+const APP_VERSION = "2026-04-15-02"; /* Update here */
 let versionTimer = null;
 
 async function checkVersion() {
@@ -33,7 +33,7 @@ function showUpdatePopup(latestVersion) {
     <div class="version-card">
       <div class="version-title">New Version Available</div>
       <div class="version-text">
-        A new version (${latestVersion}) is available.
+        A new version <span class="version-badge">${latestVersion}</span> is available.
       </div>
       <button id="btn-update-now">Refresh</button>
     </div>

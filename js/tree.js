@@ -294,7 +294,6 @@ export async function renderTree() {
 
   monthHeadEl.innerHTML = "";
   dayHeadEl.innerHTML = "";
-  document.getElementById("legendStations").innerHTML = "";
 
   const tree = buildTree(runs);
   const projects = Array.from(tree.values()).sort((a, b) =>

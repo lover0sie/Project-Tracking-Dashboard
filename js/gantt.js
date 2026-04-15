@@ -568,15 +568,15 @@ function fitDailyToScreen(){
 
   const hoursCount = (END_HOUR - START_HOUR) + 1; // 16
 
-  // left sticky columns width from CSS variables
-  const rootStyle = getComputedStyle(document.documentElement);
-  const colProject = parseFloat(rootStyle.getPropertyValue("--colProject")) || 260;
-  const colProc    = parseFloat(rootStyle.getPropertyValue("--colProc")) || 120;
-  const colStatus  = parseFloat(rootStyle.getPropertyValue("--colStatus")) || 110;
-
   // available width inside your card (use ganttWrap width)
   const wrap = document.querySelector(".ganttWrap");
   if (!wrap) return;
+
+  // left sticky columns width from the active page scope
+  const wrapStyle = getComputedStyle(wrap);
+  const colProject = parseFloat(wrapStyle.getPropertyValue("--colProject")) || 260;
+  const colProc    = parseFloat(wrapStyle.getPropertyValue("--colProc")) || 120;
+  const colStatus  = parseFloat(wrapStyle.getPropertyValue("--colStatus")) || 110;
 
   const wrapWidth = wrap.clientWidth;
 
@@ -1151,8 +1151,11 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
   if (!bodyEl || !dayHeadEl || !monthHeadEl) return;
 
   const hourW = getHourW();
-  const totalWidthPx =
-    ((rangeMax.getTime() - rangeMin.getTime()) / 3600000) * hourW;
+  const hourCount = (END_HOUR - START_HOUR) + 1;
+  const totalWidthPx = hourCount * hourW;
+  const stationGridLinesHtml = Array.from({ length: (hourCount * 2) + 1 }, (_, i) => (
+    `<div class="stationGridLine ${i % 2 === 0 ? "major" : "minor"}" style="left:${(i * hourW) / 2}px"></div>`
+  )).join("");
 
   dayHeadEl.innerHTML = buildHourHeader();
   monthHeadEl.innerHTML = "";
@@ -1163,11 +1166,8 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         No projects found for the selected day.
       </div>
     `;
-    renderStationLegend([]);
     return;
   }
-
-  renderStationLegend(segments);
 
   const grouped = groupStationByProcess(segments);
   const timeBandsHtml = buildDailyTimeBands(rangeMin, rangeMax, hourW);
@@ -1278,6 +1278,7 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
 
             <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
               ${timeBandsHtml}
+              ${stationGridLinesHtml}
               ${bars}
             </div>
           </div>
@@ -2198,26 +2199,81 @@ window.addEventListener("resize", async () => {
 
 const btnAutoStop = document.getElementById("btnAutoStop");
 
+function showAutoStopPopup({
+  title = "Auto Stop",
+  message = "",
+  confirmText = "OK",
+  cancelText = "",
+  tone = "info"
+} = {}) {
+  return new Promise(resolve => {
+    document.getElementById("auto-stop-popup")?.remove();
+
+    const popup = document.createElement("div");
+    popup.id = "auto-stop-popup";
+    popup.innerHTML = `
+      <div class="autoStopCard ${escapeHtml(tone)}">
+        <div class="autoStopMark">${tone === "danger" ? "!" : tone === "success" ? "OK" : "i"}</div>
+        <div class="autoStopTitle">${escapeHtml(title)}</div>
+        <div class="autoStopText">${escapeHtml(message)}</div>
+        <div class="autoStopActions">
+          ${cancelText ? `<button type="button" class="autoStopBtn secondary" data-action="cancel">${escapeHtml(cancelText)}</button>` : ""}
+          <button type="button" class="autoStopBtn primary" data-action="confirm">${escapeHtml(confirmText)}</button>
+        </div>
+      </div>
+    `;
+
+    const close = value => {
+      popup.remove();
+      resolve(value);
+    };
+
+    popup.addEventListener("click", e => {
+      if (e.target === popup) close(false);
+      const action = e.target?.dataset?.action;
+      if (action === "confirm") close(true);
+      if (action === "cancel") close(false);
+    });
+
+    document.body.appendChild(popup);
+    popup.querySelector(".autoStopBtn.primary")?.focus();
+  });
+}
+
 if (btnAutoStop) {
   btnAutoStop.addEventListener("click", async () => {
   try {
     const cutoff = getCutoffState();
 
     if (!cutoff) {
-      alert("Auto stop only allowed after 5:30 PM.");
+      await showAutoStopPopup({
+        title: "Auto Stop Not Available",
+        message: "Auto stop is only allowed after 5:30 PM.",
+        confirmText: "Got it",
+        tone: "info"
+      });
       return;
     }
 
     const preview = await previewAutoStopRuns();
 
     if (!preview.eligible.length) {
-      alert("No running processes to auto-stop.");
+      await showAutoStopPopup({
+        title: "No Candidates",
+        message: "There are no running processes to auto-stop.",
+        confirmText: "Got it",
+        tone: "info"
+      });
       return;
     }
 
-    const ok = confirm(
-      `${preview.eligible.length} process(es) will be auto-held.\n\nProceed?`
-    );
+    const ok = await showAutoStopPopup({
+      title: "Run Auto Stop?",
+      message: `${preview.eligible.length} processes will be auto-held. Proceed?`,
+      confirmText: "Run Auto Stop",
+      cancelText: "Cancel",
+      tone: "danger"
+    });
 
     if (!ok) return;
 
@@ -2230,10 +2286,20 @@ if (btnAutoStop) {
 
       await render(); // refresh dashboard after update
 
-      alert(`Auto stop done. Updated ${result.updated} run(s).`);
+      await showAutoStopPopup({
+        title: "Auto Stop Complete",
+        message: `Updated ${result.updated} run(s).`,
+        confirmText: "Done",
+        tone: "success"
+      });
     } catch (err) {
       console.error("Auto stop failed:", err);
-      alert("Auto stop failed. Check console.");
+      await showAutoStopPopup({
+        title: "Auto Stop Failed",
+        message: "Auto stop failed. Check console for details.",
+        confirmText: "Close",
+        tone: "danger"
+      });
     } finally {
       btnAutoStop.disabled = false;
       btnAutoStop.textContent = "Run Auto Stop";

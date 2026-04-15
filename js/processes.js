@@ -116,6 +116,20 @@ function renderCategoryOptions(){
   `;
 }
 
+function splitProcessLabel(label) {
+  const text = String(label || "").trim();
+  const match = text.match(/^(.+?)\s+-\s+(.+)$/);
+
+  if (!match) {
+    return { code: "", name: text };
+  }
+
+  return {
+    code: match[1].trim(),
+    name: match[2].trim()
+  };
+}
+
 /* ===== show process list ===== */
 function renderProcessList(value){
   const container = el("processList");
@@ -138,7 +152,16 @@ function renderProcessList(value){
     <div class="procBlock">
       <div class="procTitle">${escapeHtml(key)} Processes</div>
       <ul class="procUl">
-        ${list.map(p => `<li>${escapeHtml(p)}</li>`).join("")}
+        ${list.map(p => {
+          const { code, name } = splitProcessLabel(p);
+
+          return `
+            <li>
+              ${code ? `<span class="procNoBadge">${escapeHtml(code)}</span>` : ""}
+              <span class="procStepText">${escapeHtml(name)}</span>
+            </li>
+          `;
+        }).join("")}
       </ul>
     </div>
   `;

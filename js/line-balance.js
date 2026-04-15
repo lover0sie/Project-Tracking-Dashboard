@@ -1,10 +1,11 @@
-import { loadRuns } from "./timeline.js";
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
   getStandardMinutesFromLabel,
   getProcessCode
 } from "./helpers.js";
+
+import { loadProjectHeadersFallbackFromRuns, loadRunsForProject } from "./timeline.js";
 
 const projectNameEl = document.getElementById("lbProjectName");
 const chillerSerialEl = document.getElementById("lbChillerSerial");
@@ -17,23 +18,23 @@ let selectedProjectSerial = "";
 let currentProjects = [];
 let allRunsCache = [];
 let allSegmentsCache = [];
-let lineBalanceCharts = [];
+let tooltipEl = null;
+let selectedProjectRuns = [];
+let selectedProjectSegments = [];
 
-/* Change the station display name for Pneumatic */
-function getStationDisplayName(station = "") {
-  const map = {
-    "Pneumatic": "Paint Booth and Testing"
-  };
-
-  return map[station] || station;
+function normalizeProjectHeaders(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(row => ({
+      chillerSerialNumber: String(row.chillerSerialNumber || row.id || "").trim(),
+      projectName: row.projectName || "-",
+      materialNumber: row.materialNumber || "-",
+      model: row.model || "-",
+      runCount: Number(row.runCount || 0),
+      qrKinds: Array.isArray(row.qrKinds) ? row.qrKinds : []
+    }))
+    .filter(row => row.chillerSerialNumber);
 }
 
-/* Get the process label for each segment and return string with no space */
-function getSegmentProcessLabel(seg) {
-  return String(seg.processLabel || seg.processName || "").trim() || "Unknown";
-}
-
-/* Replace all the chraracter symbol */
 function escapeHtml(str = "") {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -43,22 +44,15 @@ function escapeHtml(str = "") {
     .replaceAll("'", "&#039;");
 }
 
-/* Get month of the date in year-month */
-function getDefaultMonthValue() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+function getSegmentProcessLabel(seg) {
+  return String(seg.processLabel || seg.processName || "").trim() || "Unknown";
 }
 
-
 function getProcessSortKey(processName = "") {
+  const code = getProcessCode(processName);
+  const first = String(code || "").split(",")[0].trim();
+  const m = first.match(/^(\d+)([A-Z]?)/i);
 
-  // Regex matching where d+ represents one or more digits as the major number, and the string A-Z as the suffix
-  // i represents case insensitive
-  const m = String(processName).match(/^(\d+)([A-Z]?)/i);
-
-  // If not matched, assign a major number (e.g. process ABC returns 9999)
   if (!m) {
     return { major: 9999, suffix: "" };
   }
@@ -69,8 +63,6 @@ function getProcessSortKey(processName = "") {
   };
 }
 
-
-/* Compare the major number and sort */
 function compareProcessSortKey(a, b) {
   if ((a?.major ?? 9999) !== (b?.major ?? 9999)) {
     return (a?.major ?? 9999) - (b?.major ?? 9999);
@@ -78,54 +70,6 @@ function compareProcessSortKey(a, b) {
   return (a?.suffix || "").localeCompare(b?.suffix || "");
 }
 
-/* Filter segments according the scope. In this case, the scope is the project */
-function filterSegmentsByScope(segments, scope, target) {
-
-  // If the scope is project, then return segments match to the project name 
-  if (scope === "project") {
-    return segments.filter(seg =>
-      String(seg.chillerSerialNumber || "").trim() === String(target || "").trim()
-    );
-  }
-
-  // If the scope is model, then return segments match to the model 
-  if (scope === "model") {
-    return segments.filter(seg =>
-      String(seg.model || "").trim() === String(target || "").trim()
-    );
-  }
-
-  return [];
-}
-
-/* Group segments under PV to vesselType */
-function groupPvSegmentsByVesselType(segments) {
-  const map = new Map();
-
-  for (const seg of segments) {
-    const vesselType = String(seg.vesselType || "").trim();
-    if (!vesselType) continue;
-
-    // Map if the segment has a vesselType
-    if (!map.has(vesselType)) {
-      map.set(vesselType, []);
-    }
-
-    // Push the vessel type of the segment into map
-    map.get(vesselType).push(seg);
-  }
-
-  return map;
-}
-
-/* Get the project segments by filtering according to the chillerSerialNumber */
-function getProjectSegments(segments, chillerSerialNumber) {
-  return segments.filter(seg =>
-    String(seg.chillerSerialNumber || "").trim() === String(chillerSerialNumber || "").trim()
-  );
-}
-
-/* Build the Projects array that mapped of item based on qrKinds (PV, CHILLER) to get data, store in array, and sort */
 function buildProjects(runs) {
   const map = new Map();
 
@@ -162,7 +106,29 @@ function buildProjects(runs) {
     );
 }
 
-/* Build the ProcessChartData array that mapped based on its process code that consist of label, full label, standard and actual time */
+function getProjectSegments(segments, chillerSerialNumber) {
+  return segments.filter(seg =>
+    String(seg.chillerSerialNumber || "").trim() === String(chillerSerialNumber || "").trim()
+  );
+}
+
+function groupPvSegmentsByVesselType(segments) {
+  const map = new Map();
+
+  for (const seg of segments) {
+    const vesselType = String(seg.vesselType || "").trim();
+    if (!vesselType) continue;
+
+    if (!map.has(vesselType)) {
+      map.set(vesselType, []);
+    }
+
+    map.get(vesselType).push(seg);
+  }
+
+  return map;
+}
+
 function buildProcessChartData(segments) {
   const processMap = new Map();
 
@@ -195,412 +161,280 @@ function buildProcessChartData(segments) {
       label: item.label,
       fullLabel: item.fullLabel,
       actual: Number(item.actualMin.toFixed(1)),
-      standard: Number(item.standardMin.toFixed(1)),
-      takt: 450
-    }));
-}
-
-
-function buildProjectsForMonth(runs) {
-  const map = new Map();
-
-  for (const run of runs) {
-    const serial = String(run.chillerSerialNumber || "").trim();
-    if (!serial) continue;
-
-    if (!map.has(serial)) {
-      map.set(serial, {
-        chillerSerialNumber: serial,
-        projectName: run.projectName || "-",
-        materialNumber: run.materialNumber || "-",
-        model: run.model || "-",
-        runCount: 0
-      });
-    }
-
-    const row = map.get(serial);
-    row.runCount += 1;
-  }
-
-  return Array.from(map.values()).sort((a, b) =>
-    String(a.projectName || "").localeCompare(String(b.projectName || ""))
-  );
-}
-
-function buildModelsForMonth(runs) {
-  const map = new Map();
-
-  for (const run of runs) {
-    const model = String(run.model || "").trim();
-    if (!model) continue;
-
-    if (!map.has(model)) {
-      map.set(model, {
-        model,
-        projectCountSet: new Set(),
-        runCount: 0
-      });
-    }
-
-    const row = map.get(model);
-    row.runCount += 1;
-
-    const serial = String(run.chillerSerialNumber || "").trim();
-    if (serial) row.projectCountSet.add(serial);
-  }
-
-  return Array.from(map.values())
-    .map(item => ({
-      model: item.model,
-      projectCount: item.projectCountSet.size,
-      runCount: item.runCount
-    }))
-    .sort((a, b) => String(a.model).localeCompare(String(b.model)));
-}
-
-function buildLineBalanceByLine(segments, scope, target) {
-  const filtered = filterSegmentsByScope(segments, scope, target).filter(seg =>
-    seg.phase !== "waiting" &&
-    seg.status !== "waiting"
-  );
-
-  const stationMap = new Map();
-
-  for (const seg of filtered) {
-    const rawStation = String(seg.station || "Unknown").trim();
-    const stationLabel = getStationDisplayName(rawStation);
-    const processLabel = getSegmentProcessLabel(seg);
-
-    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
-    const totalMin = getTotalDurationMs(seg) / 60000;
-    const standardMin = getStandardMinutesFromLabel(processLabel) || 0;
-
-    if (!stationMap.has(rawStation)) {
-      stationMap.set(rawStation, {
-        label: stationLabel,
-        actualMin: 0,
-        totalMin: 0,
-        standardMin: 0,
-        sortKey: getProcessSortKey(processLabel)
-      });
-    }
-
-    const row = stationMap.get(rawStation);
-    row.actualMin += actualMin;
-    row.totalMin += totalMin;
-    row.standardMin += standardMin;
-
-    const currentSort = getProcessSortKey(processLabel);
-    if (compareProcessSortKey(currentSort, row.sortKey) < 0) {
-      row.sortKey = currentSort;
-    }
-  }
-
-  return Array.from(stationMap.values())
-    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
-    .map(item => ({
-      label: item.label,
-      actual: Number(item.actualMin.toFixed(1)),
-      total: Number(item.totalMin.toFixed(1)),
       standard: Number(item.standardMin.toFixed(1))
     }));
 }
 
-function buildLineBalanceByProcess(segments, scope, target) {
-  const filtered = filterSegmentsByScope(segments, scope, target).filter(seg =>
-    seg.phase !== "waiting" &&
-    seg.status !== "waiting"
-  );
+function ensureTooltip() {
+  if (tooltipEl) return tooltipEl;
 
-  const processMap = new Map();
-
-  for (const seg of filtered) {
-    const fullLabel = getSegmentProcessLabel(seg);
-    const processCode = getProcessCode(fullLabel);
-    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
-    const totalMin = getTotalDurationMs(seg) / 60000;
-    const standardMin = getStandardMinutesFromLabel(fullLabel) || 0;
-
-    if (!processMap.has(processCode)) {
-      processMap.set(processCode, {
-        code: processCode,
-        fullLabel: fullLabel || processCode,
-        actualMin: 0,
-        totalMin: 0,
-        standardMin: 0,
-        sortKey: getProcessSortKey(fullLabel)
-      });
-    }
-
-    const row = processMap.get(processCode);
-    row.actualMin += actualMin;
-    row.totalMin += totalMin;
-    row.standardMin += standardMin;
-  }
-
-  return Array.from(processMap.values())
-    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
-    .map(item => ({
-      label: item.code,
-      fullLabel: item.fullLabel,
-      actual: Number(item.actualMin.toFixed(1)),
-      total: Number(item.totalMin.toFixed(1)),
-      standard: Number(item.standardMin.toFixed(1))
-    }));
+  tooltipEl = document.createElement("div");
+  tooltipEl.className = "lbTooltip";
+  tooltipEl.style.display = "none";
+  document.body.appendChild(tooltipEl);
+  return tooltipEl;
 }
 
+function showTooltip(html, x, y) {
+  const el = ensureTooltip();
+  el.innerHTML = html;
+  el.style.display = "block";
 
-function renderLineBalanceChartByMode(data, item, mode, scope) {
-  if (!chartEl) return;
+  const pad = 14;
+  const rect = el.getBoundingClientRect();
 
-  if (lineBalanceChart) {
-    lineBalanceChart.destroy();
-    lineBalanceChart = null;
+  let left = x + 14;
+  let top = y + 14;
+
+  if (left + rect.width > window.innerWidth - pad) {
+    left = x - rect.width - 14;
   }
 
-  if (!Array.isArray(data) || !data.length) {
-    return;
+  if (top + rect.height > window.innerHeight - pad) {
+    top = y - rect.height - 14;
   }
 
-  const modeTitleMap = {
-  process: "By Process",
-  line: "By Line"
-};
-
-const scopeTitle =
-  scope === "model"
-    ? (item.model || "-")
-    : (item.projectName || item.chillerSerialNumber || "-");
-
-  lineBalanceChart = new Chart(chartEl, {
-    type: "bar",
-    data: {
-      labels: data.map(d => d.label),
-      datasets: [
-        {
-          label: "Standard Time",
-          data: data.map(d => d.standard),
-          backgroundColor: "#56493c",
-          borderColor: "#56493c",
-          borderWidth: 1
-        },
-        {
-          label: "Actual Time",
-          data: data.map(d => d.actual),
-          backgroundColor: "#60a5fa",
-          borderColor: "#60a5fa",
-          borderWidth: 1
-        },
-        {
-          label: "Total Duration",
-          data: data.map(d => d.total),
-          backgroundColor: "#9ca3af",
-          borderColor: "#9ca3af",
-          borderWidth: 1,
-          hidden: true
-        },
-        {
-          type: "line",
-          label: "Takt Time",
-          data: new Array(data.length).fill(450),  // flat line
-          borderColor: "rgba(239, 68, 68, 0.7)",
-          backgroundColor: "#ef4444",
-          borderWidth: 2,
-          borderDash: [6, 6],
-          pointRadius: 0,          
-          pointHoverRadius: 0,
-          fill: false,
-          tension: 0,              
-          spanGaps: true,
-          order: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      aspectRatio: 3,   // width : height,
-      interaction: {
-        mode: "index",
-        intersect: false
-      },
-      layout: {
-        padding: {
-          top: 5,
-          bottom: 5,
-          left: 5,
-          right: 5
-        }
-      },
-      plugins: {
-        title: {
-          display: true,
-          text: `Line Balance ${modeTitleMap[mode] || ""} - ${scopeTitle}`
-        },
-        legend: {
-          display: true,
-          position: "top",
-          boxWidth: 10,
-          font: {
-          size: 10
-          },
-          onClick(e, legendItem, legend) {
-            const chart = legend.chart;
-            const index = legendItem.datasetIndex;
-
-            chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
-            chart.update();
-          }
-          
-        },
-        tooltip: {
-          callbacks: {
-            title(items) {
-              const idx = items?.[0]?.dataIndex ?? 0;
-              return data[idx]?.fullLabel || data[idx]?.label || items?.[0]?.label || "";
-            },
-            label(ctx) {
-              return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} min`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: "Process",
-            size: 10
-          }
-        },
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Duration (minutes)",
-            size: 10
-          }
-        }
-      }
-    }
-  });
+  el.style.left = `${Math.max(pad, left)}px`;
+  el.style.top = `${Math.max(pad, top)}px`;
 }
 
-function renderProcessChart(canvasEl, data, titleText) {
-  if (!canvasEl || !Array.isArray(data) || !data.length) return null;
-
-  return new Chart(canvasEl, {
-    data: {
-      labels: data.map(d => d.label),
-      datasets: [
-        {
-          type: "bar",
-          label: "Standard Time",
-          data: data.map(d => d.standard),
-          backgroundColor: "#a19d99",
-          borderColor: "#a19d99",
-          borderWidth: 1,
-          order: 2
-        },
-        {
-          type: "bar",
-          label: "Actual Time",
-          data: data.map(d => d.actual),
-          backgroundColor: "#60a5fa",
-          borderColor: "#60a5fa",
-          borderWidth: 1,
-          order: 2
-        },
-        {
-          type: "line",
-          label: "Takt Time",
-          data: data.map(d => d.takt),
-          borderColor: "#ef4444",
-          backgroundColor: "#ef4444",
-          borderWidth: 2,
-          borderDash: [6, 6],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          order: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: "index",
-        intersect: false
-      },
-      plugins: {
-        title: {
-          display: true,
-          text: titleText
-        },
-        legend: {
-          display: true,
-          position: "top"
-        },
-        tooltip: {
-          callbacks: {
-            title(items) {
-              const idx = items?.[0]?.dataIndex ?? 0;
-              return data[idx]?.fullLabel || items?.[0]?.label || "";
-            },
-            label(ctx) {
-              return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} min`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: "Process"
-          }
-        },
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Duration (minutes)"
-          }
-        }
-      }
-    }
-  });
+function hideTooltip() {
+  if (tooltipEl) {
+    tooltipEl.style.display = "none";
+  }
 }
 
-
-function buildChartDataByMode(segments, scope, target, mode) {
-  if (mode === "process") {
-    return buildLineBalanceByProcess(segments, scope, target);
+function clearCharts() {
+  hideTooltip();
+  if (chartsContainerEl) {
+    chartsContainerEl.innerHTML = "";
+    chartsContainerEl.scrollTop = 0;
   }
-
-  if (mode === "line") {
-    return buildLineBalanceByLine(segments, scope, target);
-  }
-
-  return [];
 }
 
 function createChartCard(titleText) {
+  const vesselTitle = ["CHILLER", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"]
+    .find(type => String(titleText || "").includes(type));
+  const displayTitle = vesselTitle || titleText;
+
   const wrap = document.createElement("div");
   wrap.className = "chartCard";
 
-  const heading = document.createElement("div");
-  heading.className = "sectionTitle";
-  heading.textContent = titleText;
+  wrap.innerHTML = `
+    <div class="lbChartTitle">${escapeHtml(displayTitle)}</div>
+    <div class="lbLegend">
+      <span class="lbLegendItem">
+        <span class="lbLegendSwatch standard"></span>
+        Standard Time
+      </span>
+      <span class="lbLegendItem">
+        <span class="lbLegendSwatch actual"></span>
+        Actual Time
+      </span>
+      <span class="lbLegendItem">
+        <span class="lbLegendLine"></span>
+        Takt Time (450 min)
+      </span>
+    </div>
+    <div class="lbChartMount"></div>
+  `;
 
-  const canvas = document.createElement("canvas");
-
-  wrap.appendChild(heading);
-  wrap.appendChild(canvas);
   chartsContainerEl.appendChild(wrap);
+  return wrap.querySelector(".lbChartMount");
+}
 
-  return canvas;
+function renderCustomLineBalanceChart(container, data, options = {}) {
+  if (!container) return;
+  if (!Array.isArray(data) || !data.length) {
+    container.innerHTML = `<div class="emptyState">No data available for this view.</div>`;
+    return;
+  }
+
+  const takt = Number(options.taktTime ?? 450);
+  const rawMax = Math.max(
+    takt,
+    ...data.flatMap(d => [Number(d.actual || 0), Number(d.standard || 0)])
+  );
+
+  const chartMax = Math.max(500, Math.ceil(rawMax / 50) * 50);
+  const tickCount = 5;
+
+  const yAxisHtml = Array.from({ length: tickCount + 1 }, (_, i) => {
+    const value = (chartMax / tickCount) * (tickCount - i);
+    const pct = (i / tickCount) * 100;
+
+    return `
+      <div class="lbTick" style="top:${pct}%">
+        <span class="lbTickLabel">${Math.round(value)}</span>
+      </div>
+    `;
+  }).join("");
+
+  const gridHtml = Array.from({ length: tickCount + 1 }, (_, i) => {
+    const pct = (i / tickCount) * 100;
+    return `<div class="lbGridLine" style="top:${pct}%"></div>`;
+  }).join("");
+
+  const taktPct = (takt / chartMax) * 100;
+
+  const colsHtml = data.map((d, idx) => {
+    const actualPct = (Number(d.actual || 0) / chartMax) * 100;
+    const standardPct = (Number(d.standard || 0) / chartMax) * 100;
+    const standardValueClass = standardPct > 94 ? " inside" : "";
+    const actualValueClass = actualPct > 94 ? " inside" : "";
+
+    return `
+      <div class="lbCol"
+          data-idx="${idx}"
+          data-label="${escapeHtml(d.label || "")}"
+          data-full-label="${escapeHtml(d.fullLabel || d.label || "")}"
+          data-actual="${Number(d.actual || 0).toFixed(1)}"
+          data-standard="${Number(d.standard || 0).toFixed(1)}">
+        
+        <div class="lbColPlot">
+          <div class="lbBarGroup">
+            <div class="lbBar standard" style="height:${standardPct}%">
+              <span class="lbBarValue${standardValueClass}">${Number(d.standard || 0).toFixed(0)}</span>
+            </div>
+            <div class="lbBar actual" style="height:${actualPct}%">
+              <span class="lbBarValue${actualValueClass}">${Number(d.actual || 0).toFixed(0)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lbColLabel">${escapeHtml(d.label || "")}</div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="lbCustomChart">
+      <div class="lbYAxis">
+        <div class="lbYAxisInner">
+          ${yAxisHtml}
+        </div>
+      </div>
+
+      <div class="lbPlotWrap">
+        <div class="lbPlot">
+          <div class="lbGrid">
+            ${gridHtml}
+            <div class="lbTaktLine" style="bottom:${taktPct}%">
+              <span class="lbTaktLabel">450 min</span>
+            </div>
+          </div>
+
+          <div class="lbCols">
+            ${colsHtml}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.querySelectorAll(".lbCol").forEach(col => {
+    col.addEventListener("mousemove", e => {
+      const fullLabel = col.dataset.fullLabel || col.dataset.label || "-";
+      const actual = col.dataset.actual || "0.0";
+      const standard = col.dataset.standard || "0.0";
+
+      showTooltip(
+        `
+          <div class="lbTooltipTitle">${escapeHtml(fullLabel)}</div>
+          <div>Standard Time: ${escapeHtml(standard)} min</div>
+          <div>Actual Time: ${escapeHtml(actual)} min</div>
+          <div>Takt Time: 450 min</div>
+        `,
+        e.clientX,
+        e.clientY
+      );
+    });
+
+    col.addEventListener("mouseleave", hideTooltip);
+  });
+}
+
+function renderSelectedProjectCharts(project) {
+  clearCharts();
+
+  const projectSegments = selectedProjectSegments;
+  const qrKindView = qrKindViewEl?.value || "CHILLER";
+
+  console.log("qrKindView:", qrKindViewEl?.value);
+  console.log("selectedProjectSegments for render:", selectedProjectSegments);
+
+  if (qrKindView === "CHILLER") {
+    const chillerSegs = projectSegments.filter(seg =>
+      String(seg.qrKind || "").trim() === "CHILLER"
+    );
+
+    const data = buildProcessChartData(chillerSegs);
+    const mount = createChartCard(
+      `${project.projectName || project.chillerSerialNumber} — CHILLER`
+    );
+    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+    return;
+  }
+
+  
+
+  const pvSegs = projectSegments.filter(seg =>
+    String(seg.qrKind || "").trim() === "PV"
+  );
+
+  const vesselMap = groupPvSegmentsByVesselType(pvSegs);
+
+  if (!vesselMap.size) {
+    const mount = createChartCard(
+      `${project.projectName || project.chillerSerialNumber} — PV`
+    );
+    mount.innerHTML = `<div class="emptyState">No PV data found for this project.</div>`;
+    return;
+  }
+
+  const preferredOrder = ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
+
+  const entries = Array.from(vesselMap.entries()).sort((a, b) => {
+    const ai = preferredOrder.indexOf(a[0]);
+    const bi = preferredOrder.indexOf(b[0]);
+
+    if (ai === -1 && bi === -1) return a[0].localeCompare(b[0]);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+
+  for (const [vesselType, segs] of entries) {
+    const data = buildProcessChartData(segs);
+    const mount = createChartCard(
+      `${project.projectName || project.chillerSerialNumber} — ${vesselType}`
+    );
+    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+  }
+}
+
+async function onProjectClick(project) {
+  selectedProjectSerial = project.chillerSerialNumber || "";
+
+  if (projectNameEl) {
+    projectNameEl.textContent = project.projectName || "-";
+  }
+
+  if (chillerSerialEl) {
+    chillerSerialEl.textContent = project.chillerSerialNumber || "-";
+  }
+
+  renderProjectList(currentProjects);
+
+  console.log("clicked project:", project);
+  const runs = await loadRunsForProject(project.chillerSerialNumber);
+  console.log("runs for project:", runs);
+  const result = buildSegmentsFromRuns(runs);
+  console.log("buildSegmentsFromRuns result:", result);
+  selectedProjectSegments = Array.isArray(result) ? result : result.segments || [];
+  console.log("selectedProjectSegments:", selectedProjectSegments);
+
+  renderSelectedProjectCharts(project);
 }
 
 function renderProjectList(projects) {
@@ -628,7 +462,7 @@ function renderProjectList(projects) {
           ${escapeHtml(project.chillerSerialNumber || "-")} | ${escapeHtml(project.materialNumber || "-")}
         </div>
         <div class="projectListMeta">
-          ${escapeHtml(project.model || "-")} • ${escapeHtml(project.qrKinds.join(", "))} • ${escapeHtml(String(project.runCount || 0))} run(s)
+          ${escapeHtml(project.model || "-")} • ${escapeHtml((Array.isArray(project.qrKinds) ? project.qrKinds : []).join(", "))} • ${escapeHtml(String(project.runCount || 0))} run(s)
         </div>
       </div>
     `;
@@ -646,197 +480,14 @@ function renderProjectList(projects) {
   });
 }
 
-
-function clearCharts() {
-  lineBalanceCharts.forEach(chart => chart?.destroy?.());
-  lineBalanceCharts = [];
-
-  if (chartsContainerEl) {
-    chartsContainerEl.innerHTML = "";
-  }
-}
-
-function onProjectClick(project) {
-  selectedProjectSerial = project.chillerSerialNumber || "";
-
-  if (projectNameEl) {
-    projectNameEl.textContent = project.projectName || "-";
-  }
-
-  if (chillerSerialEl) {
-    chillerSerialEl.textContent = project.chillerSerialNumber || "-";
-  }
-
-  renderProjectList(currentProjects);
-  renderSelectedProjectCharts(project);
-}
-
-async function onTargetClick(item) {
-  const monthValue = monthPicker?.value || getDefaultMonthValue();
-  const monthRuns = await loadRunsForMonth(monthValue);
-
-  const result = buildSegmentsFromRuns(monthRuns);
-  const segments = Array.isArray(result) ? result : result.segments || [];
-
-  const scope = scopeModeEl?.value || "project";
-  const mode = viewModeEl?.value || "line";
-
-  const target = scope === "project"
-    ? item.chillerSerialNumber
-    : item.model;
-
-  const chartData = buildChartDataByMode(
-    segments,
-    scope,
-    target,
-    mode
-  );
-
-  selectedTarget = target || "";
-
-  if (projectNameEl) {
-    projectNameEl.textContent =
-      scope === "project"
-        ? (item.projectName || "-")
-        : (item.model || "-");
-  }
-
-  if (chillerSerialEl) {
-    chillerSerialEl.textContent =
-      scope === "project"
-        ? (item.chillerSerialNumber || "-")
-        : `${item.projectCount || 0} project(s)`;
-  }
-
-  renderTargetList(
-    scope === "project"
-      ? buildProjectsForMonth(monthRuns)
-      : buildModelsForMonth(monthRuns)
-  );
-
-  renderLineBalanceChartByMode(chartData, item, mode, scope);
-}
-
-
-
-function renderTargetList(items) {
-  if (!projectListEl) return;
-
-  if (projectCountEl) {
-    projectCountEl.textContent = String(items.length);
-  }
-
-  if (!items.length) {
-    projectListEl.innerHTML = `<div class="emptyState">No items found for the selected month.</div>`;
-    return;
-  }
-
-  const scope = scopeModeEl?.value || "project";
-
-  projectListEl.innerHTML = items.map(item => {
-    const targetValue =
-      scope === "project"
-        ? String(item.chillerSerialNumber || "")
-        : String(item.model || "");
-
-    const activeClass =
-      targetValue === String(selectedTarget || "")
-        ? " active"
-        : "";
-
-    if (scope === "project") {
-      return `
-        <div class="projectListItem${activeClass}" data-target="${escapeHtml(item.chillerSerialNumber)}">
-          <div class="projectListTitle">${escapeHtml(item.projectName || "-")}</div>
-          <div class="projectListMeta">
-            ${escapeHtml(item.chillerSerialNumber || "-")} | ${escapeHtml(item.materialNumber || "-")}
-          </div>
-          <div class="projectListMeta">
-            ${escapeHtml(item.model || "-")} • ${escapeHtml(String(item.runCount || 0))} run(s)
-          </div>
-        </div>
-      `;
-    }
-
-    return `
-      <div class="projectListItem${activeClass}" data-target="${escapeHtml(item.model)}">
-        <div class="projectListTitle">${escapeHtml(item.model || "-")}</div>
-        <div class="projectListMeta">
-          ${escapeHtml(String(item.projectCount || 0))} project(s)
-        </div>
-        <div class="projectListMeta">
-          ${escapeHtml(String(item.runCount || 0))} run(s)
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  projectListEl.querySelectorAll(".projectListItem").forEach(itemEl => {
-    itemEl.addEventListener("click", () => {
-      const target = itemEl.dataset.target || "";
-      const chosen = items.find(item =>
-        (scope === "project"
-          ? String(item.chillerSerialNumber || "")
-          : String(item.model || "")
-        ) === String(target)
-      );
-
-      if (chosen) onTargetClick(chosen).catch(console.error);
-    });
-  });
-}
-
-function renderSelectedProjectCharts(project) {
-  clearCharts();
-
-  const projectSegments = getProjectSegments(allSegmentsCache, project.chillerSerialNumber);
-  const qrKindView = qrKindViewEl?.value || "CHILLER";
-
-  if (qrKindView === "CHILLER") {
-    const chillerSegs = projectSegments.filter(seg =>
-      String(seg.qrKind || "").trim() === "CHILLER"
-    );
-
-    const data = buildProcessChartData(chillerSegs);
-    const canvas = createChartCard("CHILLER");
-
-    const chart = renderProcessChart(
-      canvas,
-      data,
-      `Line Balance - ${project.projectName || project.chillerSerialNumber} (CHILLER)`
-    );
-
-    if (chart) lineBalanceCharts.push(chart);
-    return;
-  }
-
-  const pvSegs = projectSegments.filter(seg =>
-    String(seg.qrKind || "").trim() === "PV"
-  );
-
-  const vesselMap = groupPvSegmentsByVesselType(pvSegs);
-
-  for (const [vesselType, segs] of vesselMap.entries()) {
-    const data = buildProcessChartData(segs);
-    const canvas = createChartCard(vesselType);
-
-    const chart = renderProcessChart(
-      canvas,
-      data,
-      `Line Balance - ${project.projectName || project.chillerSerialNumber} (${vesselType})`
-    );
-
-    if (chart) lineBalanceCharts.push(chart);
-  }
-}
-
 async function renderPage() {
-  allRunsCache = await loadRuns();
+  
+  const rawHeaders = await loadProjectHeadersFallbackFromRuns();
+  currentProjects = await loadProjectHeadersFallbackFromRuns();
 
-  const result = buildSegmentsFromRuns(allRunsCache);
-  allSegmentsCache = Array.isArray(result) ? result : result.segments || [];
+  console.log("rawHeaders:", rawHeaders);
+  console.log("currentProjects:", currentProjects);
 
-  currentProjects = buildProjects(allRunsCache);
   renderProjectList(currentProjects);
 
   if (!currentProjects.length) {
@@ -851,7 +502,9 @@ async function renderPage() {
   );
 
   const projectToShow = stillExists || currentProjects[0];
-  onProjectClick(projectToShow);
+  await onProjectClick(projectToShow);
+
+  console.log("loadProjectHeaders result:", currentProjects);
 }
 
 qrKindViewEl?.addEventListener("change", () => {

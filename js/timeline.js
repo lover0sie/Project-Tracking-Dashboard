@@ -1,24 +1,14 @@
 /* For tree view */
-
-
 import {
-  getFirestore,
+  collection,
   collectionGroup,
+  doc,
   getDocs,
+  getDoc,
   query,
   where,
   orderBy
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
-
-/* Firebase config */
-const firebaseConfig = {
-  apiKey: "AIzaSyBePrEYgwU4tD9h82n9PbjfxtTyQMXm6Kk",
-  authDomain: "qrcodetesting-4f86e.firebaseapp.com",
-  projectId: "qrcodetesting-4f86e",
-  storageBucket: "qrcodetesting-4f86e.firebasestorage.app",
-  messagingSenderId: "746921254909",
-  appId: "1:746921254909:web:7acce026b9d96c97880394"
-};
 
 import { db } from "./firebase.js";
 
@@ -46,7 +36,6 @@ export async function loadRuns(force = false) {
 
 /* NEW: load only one day (recommended for daily gantt 07:00–22:00 view) */
 /* dayKey format: "YYYY-MM-DD" (Malaysia date) */
- 
 export async function loadRunsForDay(dayKey, force = false) {
   if (!dayKey) return [];
   if (!force && cachedRunsByDay.has(dayKey)) return cachedRunsByDay.get(dayKey);
@@ -67,7 +56,6 @@ export async function loadRunsForDay(dayKey, force = false) {
 
 
  /* Optional helper: get runs that overlap gantt window for a day. */
-
 export function filterRunsOverlappingWindow(runs, windowStartMs, windowEndMs) {
   return (runs || []).filter(r => {
     const s = typeof r.startEpochMs === "number" ? r.startEpochMs : null;
@@ -80,20 +68,6 @@ export function filterRunsOverlappingWindow(runs, windowStartMs, windowEndMs) {
     const end = e ?? s; // if no end, treat as instant
     return end > windowStartMs && s < windowEndMs;
   });
-}
-
-function getPrevDayKey(dayKey) {
-  if (!dayKey) return "";
-
-  const [y, m, d] = dayKey.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() - 1);
-
-  const yy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-
-  return `${yy}-${mm}-${dd}`;
 }
 
 export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
@@ -174,6 +148,61 @@ export async function loadRunsForMonth(monthValue) {
     collectionGroup(db, "runs"),
     where("startEpochMs", ">=", range.startMs),
     where("startEpochMs", "<", range.endMs),
+    orderBy("startEpochMs", "asc")
+  );
+
+  const snap = await getDocs(q);
+  const runs = [];
+  snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
+  return runs;
+}
+
+/* Load only parent project docs */
+export async function loadProjectHeadersFallbackFromRuns() {
+  const snap = await getDocs(collectionGroup(db, "runs"));
+  const map = new Map();
+
+  snap.forEach(d => {
+    const run = d.data();
+    const serial = String(run.chillerSerialNumber || "").trim();
+    if (!serial) return;
+
+    if (!map.has(serial)) {
+      map.set(serial, {
+        chillerSerialNumber: serial,
+        projectName: run.projectName || "-",
+        materialNumber: run.materialNumber || "-",
+        model: run.model || "-",
+        qrKinds: new Set(),
+        runCount: 0
+      });
+    }
+
+    const row = map.get(serial);
+    row.runCount += 1;
+
+    if (run.qrKind) {
+      row.qrKinds.add(String(run.qrKind).trim());
+    }
+  });
+
+  return Array.from(map.values())
+    .map(item => ({
+      ...item,
+      qrKinds: Array.from(item.qrKinds)
+    }))
+    .sort((a, b) =>
+      String(a.projectName || "").localeCompare(String(b.projectName || ""))
+    );
+}
+
+/* Load runs only for one selected project */
+export async function loadRunsForProject(chillerSerialNumber) {
+  if (!chillerSerialNumber) return [];
+
+  const q = query(
+    collectionGroup(db, "runs"),
+    where("chillerSerialNumber", "==", chillerSerialNumber),
     orderBy("startEpochMs", "asc")
   );
 

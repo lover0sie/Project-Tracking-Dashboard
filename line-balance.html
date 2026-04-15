@@ -6,7 +6,7 @@
   <title>Line Balance Graph</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body>
+<body class="lineBalancePage">
   <header class="top">
     <div>
       <h2>Line Balance Graph</h2>
@@ -53,14 +53,16 @@
       </div>
 
       <div class="chartPanel">
-        <div id="lineBalanceCharts" class="lineBalanceCharts">
-          <div class="emptyState">Select a project to view line balance.</div>
-        </div>
+      <div id="lineBalanceCharts" class="lineBalanceCharts">
+        <div class="emptyState">Select a project to view line balance.</div>
       </div>
     </div>
+    </div>
+
+    
   </section>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <script type="module" src="js/line-balance.js"></script>
 </body>
 </html>

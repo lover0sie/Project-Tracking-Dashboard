@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 
-<body>
+<body class="dashboardPage">
   <div class="wrap">
     <!-- Keep the dashboard title and global actions in one header for quick navigation. -->
     <header class="top">
@@ -37,8 +37,6 @@
               <div class="hint">STATIONS:</div>
               <div id="legendStations" class="legendRow"></div>
             </div>
-
-            <div class="legendInlineDivider"></div>
 
             <div class="legendInlineSection statusSection">
               <div class="hint">STATUS:</div>
@@ -158,10 +156,22 @@
     await renderCurrentView();
   });
 
-  btnRefresh.addEventListener("click", async () => {
-    stopGanttLiveRefresh();     // avoid old timer during refresh
-    clearCache();
-    await renderCurrentView();
+  btnRefresh?.addEventListener("click", async () => {
+    const originalText = btnRefresh.textContent;
+
+    try {
+      btnRefresh.disabled = true;
+      btnRefresh.textContent = "Refreshing...";
+
+      stopGanttLiveRefresh();     // avoid old timer during refresh
+      clearCache();
+      await renderCurrentView();
+    } catch (err) {
+      console.error("Refresh failed:", err);
+    } finally {
+      btnRefresh.disabled = false;
+      btnRefresh.textContent = originalText || "Refresh";
+    }
   });
 
   dayPicker?.addEventListener("change", async () => {
