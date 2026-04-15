@@ -310,6 +310,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   container.innerHTML = `
     <div class="lbCustomChart">
       <div class="lbYAxis">
+        <div class="lbYAxisTitle">Duration (mins)</div>
         <div class="lbYAxisInner">
           ${yAxisHtml}
         </div>
@@ -329,6 +330,8 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
           </div>
         </div>
       </div>
+
+      <div class="lbXAxisTitle">Process No.</div>
     </div>
   `;
 
