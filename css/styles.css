@@ -1,6 +1,6 @@
 /* ==================== Design Tokens ==================== */
 :root{
-  /* Centralize sizing and color tokens here so tuning the whole UI stays easy. */
+  /* Shared sizing, color, and spacing values are defined here for easier tuning. */
   --bg:#f6f7fb;
   --card:#ffffff;
   --text:#111827;
@@ -18,7 +18,7 @@
   --colProject: 210px;
   --colProc: 90px;
   --colStatus: 95px;
-  --hourW: 60px; /* width of 1 hour column in daily view */
+  --hourW: 60px; 
   --colW: var(--dayW);
   --minorDiv: 1;
 
@@ -32,6 +32,7 @@
 .hidden { display:none !important; }
 
 /* ==================== Base Layout ==================== */
+/* Global page defaults are applied here before page-specific overrides are layered on. */
 *{ box-sizing:border-box; }
 body{
   margin:0;
@@ -58,6 +59,7 @@ html, body{
 }
 
 /* ==================== Page Header ==================== */
+/* Header spacing and title alignment are controlled here across dashboard pages. */
 .top{
   display:flex;
   align-items:flex-end;
@@ -76,6 +78,7 @@ h2{ margin:0; font-size:20px; font-weight:850; letter-spacing:.01em; }
 }
 
 /* ==================== Global Actions ==================== */
+/* Reusable button and link-button styling is kept here for consistent actions. */
 .actions{ display:flex; gap:10px; }
 button{
   padding:10px 14px;
@@ -120,6 +123,7 @@ a.btn.secondary:hover{
 }
 
 /* ==================== Process Description Page ==================== */
+/* The older process description blocks are styled here before the modern page override is applied later. */
 .procBlock{
   border:1px solid var(--border);
   border-radius: var(--radiusSm);
@@ -160,6 +164,7 @@ button.secondary{
 button.secondary:hover{ border-color:#cbd5e1; background:#fbfbfb; }
 
 /* ==================== Dashboard Card + Filters ==================== */
+/* Card shells, toolbar rows, and filter controls are grouped here. */
 .card{
   background:var(--card);
   border:1px solid var(--border);
@@ -218,6 +223,7 @@ select:focus{
 }
 
 /* ==================== Gantt: Wrapper and Grid ==================== */
+/* Gantt scroll behavior and grid sizing are configured here for daily and monthly views. */
 .ganttWrap{
   border:1px solid var(--border);
   border-radius: var(--radiusSm);
@@ -229,7 +235,7 @@ select:focus{
 }
 
 .ganttGrid{
-  width: max-content;   /* VERY IMPORTANT */
+  width: max-content;   
   min-width: 100%;
 }
 
@@ -288,6 +294,7 @@ select:focus{
 }
 
 /* ==================== Gantt: Sticky Header ==================== */
+/* Sticky header columns and timeline headers are positioned here. */
 .ganttHead{
   position: sticky;
   top: 0;
@@ -331,7 +338,7 @@ select:focus{
   position: relative;
 }
 
-/* Make month + day headers render as horizontal rows */
+/* Month and day headers are rendered as horizontal rows here. */
 .ganttMonthHead,
 .ganttDayHead {
   display: flex;
@@ -386,6 +393,7 @@ select:focus{
 
 
 /* ==================== Gantt: Sticky Body Columns ==================== */
+/* Left-side Gantt body columns are made sticky here so row labels remain visible. */
 .ganttCell{
   padding:3px 6px;
   border-right:1px solid var(--border);
@@ -406,7 +414,7 @@ select:focus{
   z-index: 30; 
 }
 
-/* Make each sticky column offset correctly */
+/* Sticky column offsets are defined here for the project, process, and status columns. */
 .ganttCell.project{ left: 0; z-index: 20; justify-content:flex-start; }
 .ganttCell.procNo{ left: var(--colProject); z-index: 20; }
 .ganttCell.status{ left: calc(var(--colProject) + var(--colProc)); z-index: 20; }
@@ -416,7 +424,7 @@ select:focus{
   background: #f8fafc; 
 }
 
-/* Process font size */
+/* Process text sizing is controlled here. */
 .ganttCell.procNo > div{
   font-size:11px;
 }
@@ -482,6 +490,7 @@ select:focus{
 }
 
 /* ==================== Gantt: Status Pill ==================== */
+/* Status badges are styled here for running, completed, on-hold, waiting, and standard states. */
 .statusPill{
   min-width: 64px;
   height: 26px;
@@ -536,6 +545,7 @@ select:focus{
 
 
 /* ==================== Gantt: Day/Month Header ==================== */
+/* Date header cells, today overlays, and header grid lines are styled here. */
 .monthHead, .dayHead{
   width: auto;
 }
@@ -1119,7 +1129,6 @@ select:focus{
   display:none !important;
 }
 
-/* Floating tooltip */
 /* Floating tooltip rendered into <body> so it won't be clipped by ganttWrap */
 .ganttTip{
   position: fixed;
@@ -1524,7 +1533,6 @@ select:focus{
   font-size: 9px;
 }
 
-/* ======= GROUPING ============= */
 
 .groupRow .project{
   background:#f9fafb;
@@ -1788,7 +1796,8 @@ select:focus{
 
 .dashboardPage .legendBlock {
   align-items: center;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
 }
 
 .dashboardPage .statusSection {
@@ -1796,10 +1805,72 @@ select:focus{
 }
 
 .dashboardPage .legendInlineSection {
+  flex: 1 1 0;
+  min-width: 0;
   padding: 6px 8px;
-  border: 1px solid #eef2f7;
+  gap: 6px;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
   border-radius: 8px;
-  background: #f8fafc;
+  background: #eff6ff;
+}
+
+.dashboardPage .legendInlineSection.statusSection {
+  flex: 0 0 auto;
+  border-color: #fed7aa;
+  border-left-color: #f97316;
+  background: #fff7ed;
+}
+
+.dashboardPage .legendInlineSection:not(.statusSection) .hint {
+  color: #1d4ed8;
+}
+
+.dashboardPage .legendInlineSection.statusSection .hint {
+  color: #c2410c;
+}
+
+.dashboardPage #legendStations .legItem,
+.dashboardPage #legendStatus .legItem {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+}
+
+.dashboardPage #legendStations,
+.dashboardPage #legendStatus {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.dashboardPage #legendStations .legItem,
+.dashboardPage #legendStatus .legItem {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.dashboardPage #legendStations .swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.dashboardPage #legendStatus .swatch {
+  width: 14px;
+  height: 7px;
+  border-radius: 3px;
+}
+
+@media (max-width: 900px) {
+  .dashboardPage .legendBlock {
+    flex-wrap: nowrap;
+  }
+
+  .dashboardPage .legendInlineSection,
+  .dashboardPage .legendInlineSection.statusSection {
+    flex: 1 1 0;
+  }
 }
 
 .dashboardPage .legendInlineDivider {
@@ -2294,8 +2365,6 @@ select:focus{
   min-width: 0;
 }
 
-/* ================ Gantt Chart for Station View ============ */
-
 /* ================= Station View: one lane per station ================= */
 
 .station-page {
@@ -2377,7 +2446,8 @@ select:focus{
 
 .station-page .legendBlock {
   align-items: center;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
 }
 
 .station-page .statusSection {
@@ -2385,10 +2455,72 @@ select:focus{
 }
 
 .station-page .legendInlineSection {
+  flex: 1 1 0;
+  min-width: 0;
   padding: 6px 8px;
-  border: 1px solid #eef2f7;
+  gap: 6px;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
   border-radius: 8px;
-  background: #f8fafc;
+  background: #eff6ff;
+}
+
+.station-page .legendInlineSection.statusSection {
+  flex: 0 0 auto;
+  border-color: #fed7aa;
+  border-left-color: #f97316;
+  background: #fff7ed;
+}
+
+.station-page .legendInlineSection:not(.statusSection) .hint {
+  color: #1d4ed8;
+}
+
+.station-page .legendInlineSection.statusSection .hint {
+  color: #c2410c;
+}
+
+.station-page #legendStations .legItem,
+.station-page #legendStatus .legItem {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+}
+
+.station-page #legendStations,
+.station-page #legendStatus {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.station-page #legendStations .legItem,
+.station-page #legendStatus .legItem {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.station-page #legendStations .swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.station-page #legendStatus .swatch {
+  width: 14px;
+  height: 7px;
+  border-radius: 3px;
+}
+
+@media (max-width: 900px) {
+  .station-page .legendBlock {
+    flex-wrap: nowrap;
+  }
+
+  .station-page .legendInlineSection,
+  .station-page .legendInlineSection.statusSection {
+    flex: 1 1 0;
+  }
 }
 
 .station-page .controlsRow {
