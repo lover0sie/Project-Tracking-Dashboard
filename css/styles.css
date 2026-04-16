@@ -3301,6 +3301,11 @@ select:focus{
   background: #f6bd02;
 }
 
+.lbLegendSwatch.total,
+.lbBar.total {
+  background: #8a032d;
+}
+
 .lbLegendLine {
   width: 18px;
   border-top: 2px dashed #ef4444;

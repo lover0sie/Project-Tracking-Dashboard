@@ -22,6 +22,21 @@ let tooltipEl = null;
 let selectedProjectRuns = [];
 let selectedProjectSegments = [];
 
+let lineBalanceView = {
+  showStandard: true, // default on
+  showActual: true,   // default on
+  showTotal: false    // default off
+};
+
+
+function getTotalDurationMs(seg) {
+  const startMs = seg?.start instanceof Date ? seg.start.getTime() : null;
+  const endMs = seg?.end instanceof Date ? seg.end.getTime() : null;
+
+  if (startMs == null || endMs == null) return 0;
+  return Math.max(0, endMs - startMs);
+}
+
 function normalizeProjectHeaders(rows) {
   return (Array.isArray(rows) ? rows : [])
     .map(row => ({
@@ -137,7 +152,9 @@ function buildProcessChartData(segments) {
 
     const fullLabel = getSegmentProcessLabel(seg);
     const processCode = getProcessCode(fullLabel);
+
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    const totalMin = getTotalDurationMs(seg) / 60000;
     const standardMin = getStandardMinutesFromLabel(fullLabel) || 0;
 
     if (!processMap.has(processCode)) {
@@ -145,6 +162,7 @@ function buildProcessChartData(segments) {
         label: processCode,
         fullLabel,
         actualMin: 0,
+        totalMin: 0,
         standardMin: 0,
         sortKey: getProcessSortKey(fullLabel)
       });
@@ -152,6 +170,7 @@ function buildProcessChartData(segments) {
 
     const row = processMap.get(processCode);
     row.actualMin += actualMin;
+    row.totalMin += totalMin;
     row.standardMin += standardMin;
   }
 
@@ -161,6 +180,7 @@ function buildProcessChartData(segments) {
       label: item.label,
       fullLabel: item.fullLabel,
       actual: Number(item.actualMin.toFixed(1)),
+      total: Number(item.totalMin.toFixed(1)),
       standard: Number(item.standardMin.toFixed(1))
     }));
 }
@@ -222,22 +242,62 @@ function createChartCard(titleText) {
 
   wrap.innerHTML = `
     <div class="lbChartTitle">${escapeHtml(displayTitle)}</div>
+
     <div class="lbLegend">
-      <span class="lbLegendItem">
+      <label class="lbLegendItem">
+        <input type="checkbox" class="lbToggleStandard" ${lineBalanceView.showStandard ? "checked" : ""}>
         <span class="lbLegendSwatch standard"></span>
         Standard Time
-      </span>
-      <span class="lbLegendItem">
+      </label>
+
+      <label class="lbLegendItem">
+        <input type="checkbox" class="lbToggleActual" ${lineBalanceView.showActual ? "checked" : ""}>
         <span class="lbLegendSwatch actual"></span>
         Actual Time
-      </span>
+      </label>
+
+      <label class="lbLegendItem">
+        <input type="checkbox" class="lbToggleTotal" ${lineBalanceView.showTotal ? "checked" : ""}>
+        <span class="lbLegendSwatch total"></span>
+        Total Duration
+      </label>
+
       <span class="lbLegendItem">
         <span class="lbLegendLine"></span>
         Takt Time (450 min)
       </span>
     </div>
+
     <div class="lbChartMount"></div>
   `;
+
+  const standardToggle = wrap.querySelector(".lbToggleStandard");
+  const actualToggle = wrap.querySelector(".lbToggleActual");
+  const totalToggle = wrap.querySelector(".lbToggleTotal");
+
+  function rerenderActiveProject() {
+    const activeProject = currentProjects.find(
+      p => String(p.chillerSerialNumber || "") === String(selectedProjectSerial || "")
+    );
+    if (activeProject) {
+      renderSelectedProjectCharts(activeProject);
+    }
+  }
+
+  standardToggle?.addEventListener("change", () => {
+    lineBalanceView.showStandard = standardToggle.checked;
+    rerenderActiveProject();
+  });
+
+  actualToggle?.addEventListener("change", () => {
+    lineBalanceView.showActual = actualToggle.checked;
+    rerenderActiveProject();
+  });
+
+  totalToggle?.addEventListener("change", () => {
+    lineBalanceView.showTotal = totalToggle.checked;
+    rerenderActiveProject();
+  });
 
   chartsContainerEl.appendChild(wrap);
   return wrap.querySelector(".lbChartMount");
@@ -251,9 +311,19 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   }
 
   const takt = Number(options.taktTime ?? 450);
+
+  const visibleSeries = [];
+  if (lineBalanceView.showStandard) visibleSeries.push("standard");
+  if (lineBalanceView.showActual) visibleSeries.push("actual");
+  if (lineBalanceView.showTotal) visibleSeries.push("total");
+
   const rawMax = Math.max(
     takt,
-    ...data.flatMap(d => [Number(d.actual || 0), Number(d.standard || 0)])
+    ...data.flatMap(d => [
+      lineBalanceView.showStandard ? Number(d.standard || 0) : 0,
+      lineBalanceView.showActual ? Number(d.actual || 0) : 0,
+      lineBalanceView.showTotal ? Number(d.total || 0) : 0
+    ])
   );
 
   const chartMax = Math.max(500, Math.ceil(rawMax / 50) * 50);
@@ -278,10 +348,39 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   const taktPct = (takt / chartMax) * 100;
 
   const colsHtml = data.map((d, idx) => {
-    const actualPct = (Number(d.actual || 0) / chartMax) * 100;
     const standardPct = (Number(d.standard || 0) / chartMax) * 100;
+    const actualPct = (Number(d.actual || 0) / chartMax) * 100;
+    const totalPct = (Number(d.total || 0) / chartMax) * 100;
+
     const standardValueClass = standardPct > 94 ? " inside" : "";
     const actualValueClass = actualPct > 94 ? " inside" : "";
+    const totalValueClass = totalPct > 94 ? " inside" : "";
+
+    let barsHtml = "";
+
+    if (lineBalanceView.showStandard) {
+      barsHtml += `
+        <div class="lbBar standard" style="height:${standardPct}%">
+          <span class="lbBarValue${standardValueClass}">${Number(d.standard || 0).toFixed(0)}</span>
+        </div>
+      `;
+    }
+
+    if (lineBalanceView.showActual) {
+      barsHtml += `
+        <div class="lbBar actual" style="height:${actualPct}%">
+          <span class="lbBarValue${actualValueClass}">${Number(d.actual || 0).toFixed(0)}</span>
+        </div>
+      `;
+    }
+
+    if (lineBalanceView.showTotal) {
+      barsHtml += `
+        <div class="lbBar total" style="height:${totalPct}%">
+          <span class="lbBarValue${totalValueClass}">${Number(d.total || 0).toFixed(0)}</span>
+        </div>
+      `;
+    }
 
     return `
       <div class="lbCol"
@@ -289,16 +388,12 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
           data-label="${escapeHtml(d.label || "")}"
           data-full-label="${escapeHtml(d.fullLabel || d.label || "")}"
           data-actual="${Number(d.actual || 0).toFixed(1)}"
-          data-standard="${Number(d.standard || 0).toFixed(1)}">
+          data-standard="${Number(d.standard || 0).toFixed(1)}"
+          data-total="${Number(d.total || 0).toFixed(1)}">
         
         <div class="lbColPlot">
           <div class="lbBarGroup">
-            <div class="lbBar standard" style="height:${standardPct}%">
-              <span class="lbBarValue${standardValueClass}">${Number(d.standard || 0).toFixed(0)}</span>
-            </div>
-            <div class="lbBar actual" style="height:${actualPct}%">
-              <span class="lbBarValue${actualValueClass}">${Number(d.actual || 0).toFixed(0)}</span>
-            </div>
+            ${barsHtml}
           </div>
         </div>
 
@@ -340,17 +435,24 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
       const fullLabel = col.dataset.fullLabel || col.dataset.label || "-";
       const actual = col.dataset.actual || "0.0";
       const standard = col.dataset.standard || "0.0";
+      const total = col.dataset.total || "0.0";
 
-      showTooltip(
-        `
-          <div class="lbTooltipTitle">${escapeHtml(fullLabel)}</div>
-          <div>Standard Time: ${escapeHtml(standard)} min</div>
-          <div>Actual Time: ${escapeHtml(actual)} min</div>
-          <div>Takt Time: 450 min</div>
-        `,
-        e.clientX,
-        e.clientY
-      );
+      let tooltipRows = `<div class="lbTooltipTitle">${escapeHtml(fullLabel)}</div>`;
+
+      if (lineBalanceView.showStandard) {
+        tooltipRows += `<div>Standard Time: ${escapeHtml(standard)} min</div>`;
+      }
+
+      if (lineBalanceView.showActual) {
+        tooltipRows += `<div>Actual Time: ${escapeHtml(actual)} min</div>`;
+      }
+
+      if (lineBalanceView.showTotal) {
+        tooltipRows += `<div>Total Duration: ${escapeHtml(total)} min</div>`;
+      }
+
+
+      showTooltip(tooltipRows, e.clientX, e.clientY);
     });
 
     col.addEventListener("mouseleave", hideTooltip);
@@ -519,5 +621,7 @@ qrKindViewEl?.addEventListener("change", () => {
     renderSelectedProjectCharts(activeProject);
   }
 });
+
+
 
 renderPage().catch(console.error);
