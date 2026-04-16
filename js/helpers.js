@@ -570,6 +570,10 @@ export function tsOrMsToDate(ts, ms) {
   return null;
 }
 
+function isValidDate(value) {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
 export function getMYTodayKey() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: TZ,
@@ -696,9 +700,20 @@ export function buildSegmentsFromRuns(runs) {
     else if (status === "on_hold") end = holdTime || new Date();
     else end = new Date(); // running
 
-    if (!serial || !station || !start) {
+    if (!serial || !station || !isValidDate(start)) {
       issues.push({ type: "missing_fields", id: r.id, serial, station });
       continue;
+    }
+
+    if (!isValidDate(end)) {
+      issues.push({
+        type: "missing_end_time",
+        id: r.id,
+        serial,
+        station,
+        status
+      });
+      end = status === "completed" ? new Date(start.getTime()) : new Date();
     }
 
     if (end && end.getTime() < start.getTime()) end = new Date(start.getTime());

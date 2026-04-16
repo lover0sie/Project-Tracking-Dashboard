@@ -787,6 +787,15 @@ function buildChillerGroups(segments){
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
+function hasValidSegmentDates(seg) {
+  return (
+    seg?.start instanceof Date &&
+    seg?.end instanceof Date &&
+    Number.isFinite(seg.start.getTime()) &&
+    Number.isFinite(seg.end.getTime())
+  );
+}
+
 function buildLanes(segs){
   // Sort by start time
   const sorted = segs.slice().sort((a,b) => a.start - b.start);
@@ -885,6 +894,7 @@ export async function renderStationOnlyView() {
     const rangeMax = endOfWorkDay(dayDate);
 
     const segsInWindow = segments.filter(s =>
+      hasValidSegmentDates(s) &&
       s.end.getTime() > rangeMin.getTime() &&
       s.start.getTime() < rangeMax.getTime()
     );
@@ -1915,6 +1925,7 @@ async function render() {
       const rangeMax = endOfWorkDay(dayDate);
 
       const segsInWindow = segments.filter(s =>
+        hasValidSegmentDates(s) &&
         s.end.getTime() > rangeMin.getTime() &&
         s.start.getTime() < rangeMax.getTime()
       );
@@ -1950,6 +1961,7 @@ async function render() {
       const rangeMax = endOfDay(monthEnd);
 
       const segsInMonth = segments.filter(s =>
+        hasValidSegmentDates(s) &&
         s.end.getTime() > rangeMin.getTime() &&
         s.start.getTime() < rangeMax.getTime()
       );
@@ -1990,6 +2002,7 @@ async function render() {
         
 
       const segsInWindow = segments.filter(s =>
+        hasValidSegmentDates(s) &&
         s.end.getTime() > rangeMin.getTime() &&
         s.start.getTime() < rangeMax.getTime()
       );
