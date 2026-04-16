@@ -111,7 +111,6 @@
   import { renderTree } from "./js/tree.js";
   import { clearCache } from "./js/timeline.js";
   import { renderGanttView, syncPickers, stopGanttLiveRefresh, updateGanttLeftHeaders } from "./js/gantt.js";
-  import { startVersionCheck } from "./js/version-check.js?v=2026-04-16-02";
 
   const btnRefresh = document.getElementById("btn-refresh");
   const viewMode = document.getElementById("viewMode");
@@ -149,7 +148,9 @@
   // Default view = Gantt
   currentView = "gantt";
   renderCurrentView();
-  startVersionCheck();
+  import(`./js/version-check.js?v=${Date.now()}`)
+    .then(({ startVersionCheck }) => startVersionCheck())
+    .catch(err => console.warn("Version check failed to start", err));
 
   viewMode?.addEventListener("change", async () => {
     currentView = viewMode.value;

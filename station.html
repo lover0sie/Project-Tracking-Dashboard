@@ -81,7 +81,6 @@
   <script type="module">
     import { clearCache } from "./js/timeline.js";
     import { renderStationOnlyView, stopGanttLiveRefresh } from "./js/gantt.js";
-    import { startVersionCheck } from "./js/version-check.js?v=2026-04-16-02";
 
     const btnRefresh = document.getElementById("btn-refresh");
     const dayPicker = document.getElementById("dayPicker");
@@ -91,7 +90,9 @@
     }
 
     renderPage();
-    startVersionCheck();
+    import(`./js/version-check.js?v=${Date.now()}`)
+      .then(({ startVersionCheck }) => startVersionCheck())
+      .catch(err => console.warn("Version check failed to start", err));
 
     btnRefresh?.addEventListener("click", async () => {
       stopGanttLiveRefresh();

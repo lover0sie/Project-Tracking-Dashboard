@@ -1,6 +1,6 @@
 /* App versioning checking */
 
-const APP_VERSION = "2026-04-16-07"; /* Update here */
+const APP_VERSION = "2026-04-16-08"; /* Update here */
 let versionTimer = null;
 const VERSION_REFRESHED_KEY = "projectDashboardRefreshedVersion";
 
@@ -62,6 +62,15 @@ function showUpdatePopup(latestVersion) {
         await Promise.all(cacheNames.map(name => caches.delete(name)));
       } catch (err) {
         console.warn("Cache clear failed", err);
+      }
+    }
+
+    if ("serviceWorker" in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(registration => registration.unregister()));
+      } catch (err) {
+        console.warn("Service worker unregister failed", err);
       }
     }
 

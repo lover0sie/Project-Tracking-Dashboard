@@ -44,5 +44,10 @@
 
   <!-- Keep process page behavior in a small dedicated module. -->
   <script type="module" src="js/processes.js"></script>
+  <script type="module">
+    import(`./js/version-check.js?v=${Date.now()}`)
+      .then(({ startVersionCheck }) => startVersionCheck())
+      .catch(err => console.warn("Version check failed to start", err));
+  </script>
 </body>
 </html>

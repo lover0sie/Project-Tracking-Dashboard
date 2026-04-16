@@ -94,5 +94,10 @@
 
 
   <script type="module" src="js/line-balance.js"></script>
+  <script type="module">
+    import(`./js/version-check.js?v=${Date.now()}`)
+      .then(({ startVersionCheck }) => startVersionCheck())
+      .catch(err => console.warn("Version check failed to start", err));
+  </script>
 </body>
 </html>
