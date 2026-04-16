@@ -579,9 +579,12 @@ function fitDailyToScreen(){
   const colStatus  = parseFloat(wrapStyle.getPropertyValue("--colStatus")) || 110;
 
   const wrapWidth = wrap.clientWidth;
+  const leftColumnsWidth = document.body.classList.contains("station-page")
+    ? colProc + colStatus
+    : colProject + colProc + colStatus;
 
   // timeline area width = wrap - left columns
-  const timelineWidth = Math.max(0, wrapWidth - (colProject + colProc + colStatus));
+  const timelineWidth = Math.max(0, wrapWidth - leftColumnsWidth);
 
   // compute hour width from the visible space so the full daily grid fits the viewport
   const hourW = Math.max(16, Math.floor(timelineWidth / hoursCount));
@@ -852,6 +855,7 @@ export async function renderStationOnlyView() {
   try {
     const dayPicker = el("dayPicker");
     const stationPicker = el("stationBalancePicker");
+    const stationTitle = el("stationViewTitle");
 
     const todayKey = getMYTodayKey();
     const dayKey = dayPicker?.value || todayKey;
@@ -862,6 +866,7 @@ export async function renderStationOnlyView() {
       bodyEl.innerHTML = "";
       monthHeadEl.innerHTML = "";
       dayHeadEl.innerHTML = "";
+      if (stationTitle) stationTitle.textContent = "Station";
 
       return;
     }
@@ -918,6 +923,12 @@ export async function renderStationOnlyView() {
     }
 
     const selectedStation = stationPicker?.value || "";
+    if (stationTitle) {
+      stationTitle.textContent = selectedStation
+        ? `Station: ${selectedStation}`
+        : "Station";
+    }
+
     const filteredSegs = selectedStation
       ? segsInWindow.filter(s => String(s.station || "").trim() === selectedStation)
       : segsInWindow;
@@ -1016,7 +1027,6 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
 
   return `
     <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}</div>
-    <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
 
     <div class="tipRow"><span class="tipLabel">Type:</span> ${escapeHtml(typeText)}</div>
     <div class="tipRow"><span class="tipLabel">Started By:</span> ${escapeHtml(seg.employeeName || "-")} (${escapeHtml(seg.employeeNumber || "-")})</div>
@@ -1179,20 +1189,64 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
     const procEntries = Array.from(procMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 
-    const rowCount = procEntries.length;
-
-    const procRows = procEntries.map(([processNo, segs], idx) => {
+    const procRows = procEntries.map(([processNo, segs]) => {
       const sortedSegs = [...segs].sort(
         (a, b) => a.start.getTime() - b.start.getTime()
       );
 
-      const segsWithWaiting = injectWaitingIntoLane(sortedSegs, rangeMin, rangeMax);
+      const segsWithWaiting = injectWaitingIntoLane(sortedSegs);
 
       const cur = latestSegment(sortedSegs) || null;
       const st = statusUi(
         cur?.status || (cur?.phase === "waiting" ? "waiting" : "")
       );
+      const processName =
+        sortedSegs.find(seg => seg.processLabel && seg.processLabel !== "Waiting")?.processLabel ||
+        cur?.processLabel ||
+        processNo;
 
+      /* ---------- STANDARD BARS ---------- */
+      const standardBars = sortedSegs
+        .filter(seg => seg.phase !== "waiting" && seg.status !== "waiting")
+        .map(seg => {
+          const stdSlices = buildStandardSlices(seg);
+          const isLate = isLateAgainstStandard(seg);
+
+          return stdSlices.map(slice => {
+            const stdStartMs = clamp(
+              slice.start.getTime(),
+              rangeMin.getTime(),
+              rangeMax.getTime()
+            );
+            const stdEndMs = clamp(
+              slice.end.getTime(),
+              rangeMin.getTime(),
+              rangeMax.getTime()
+            );
+
+            if (stdEndMs <= stdStartMs) return "";
+
+            const leftPx =
+              ((stdStartMs - rangeMin.getTime()) / 3600000) * hourW;
+
+            const widthPx = Math.max(
+              8,
+              ((stdEndMs - stdStartMs) / 3600000) * hourW
+            );
+
+            return `
+              <div class="bar standardBar ${isLate ? "standardLate" : ""}"
+                  style="left:${leftPx}px; width:${widthPx}px;"
+                  data-tip="${escapeAttr(
+                    standardTipText(seg, new Date(stdStartMs), new Date(stdEndMs))
+                  )}">
+              </div>
+            `;
+          }).join("");
+        })
+        .join("");
+
+      /* ---------- ACTUAL BARS ---------- */
       const bars = segsWithWaiting.map(seg => {
         return sliceSegForWaiting(seg)
           .filter(p => !(
@@ -1211,7 +1265,7 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
               ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
 
             const rawWidthPx =
-            ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW;
+              ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW;
 
             const widthPx = Math.max(1, rawWidthPx - 1);
 
@@ -1248,40 +1302,42 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
 
             return `
               <div class="bar ${barStationCls} ${statusCls}"
-                   style="left:${leftPx}px; width:${widthPx}px;"
-                   data-tip="${escapeAttr(tipText)}"></div>
+                  style="left:${leftPx}px; width:${widthPx}px;"
+                  data-tip="${escapeAttr(tipText)}"></div>
             `;
           })
           .join("");
       }).join("");
 
-      const stationCell = `
-        <div class="ganttCell project">
-          <div class="title">${idx === 0 ? escapeHtml(station) : ""}</div>
-        </div>
-      `;
-
       const hasAutoStopCandidate = sortedSegs.some(s => s.isAutoStopCandidate);
 
       return `
-        <div class="stationProcRow ${hasAutoStopCandidate ? 'autoStopHighlight' : ''}">
-          <div class="stationProcRow">
-            ${stationCell}
+        <div class="stationProcBlock ${hasAutoStopCandidate ? "autoStopHighlight" : ""}">
 
-            <div class="ganttCell procNo">
-              <div style="font-weight:900;">${escapeHtml(processNo)}</div>
-            </div>
-
-            <div class="ganttCell status">
-              <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
-            </div>
-
-            <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
-              ${timeBandsHtml}
-              ${stationGridLinesHtml}
-              ${bars}
-            </div>
+          <div class="ganttCell procNo stationProcessMerged">
+            <div class="stationProcessName">${escapeHtml(processName)}</div>
           </div>
+
+          <div class="ganttCell status stationLaneStatus standardLaneRow">
+            <span class="statusPill standard">Standard</span>
+          </div>
+
+          <div class="ganttTimeline dailyGrid stationLaneTimeline standardLaneRow" style="width:${totalWidthPx}px">
+            ${timeBandsHtml}
+            ${stationGridLinesHtml}
+            ${standardBars}
+          </div>
+
+          <div class="ganttCell status stationLaneStatus">
+            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+          </div>
+
+          <div class="ganttTimeline dailyGrid stationLaneTimeline" style="width:${totalWidthPx}px">
+            ${timeBandsHtml}
+            ${stationGridLinesHtml}
+            ${bars}
+          </div>
+
         </div>
       `;
     }).join("");

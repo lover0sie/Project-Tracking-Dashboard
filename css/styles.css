@@ -2450,13 +2450,38 @@ select:focus{
   min-width: 100%;
 }
 
+.station-page {
+  --colProc: 220px;
+}
+
+.stationViewTitle {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 12px 0 10px;
+  padding: 0 4px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .station-page .ganttHead,
 .station-page .stationProcRow {
-  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) minmax(0, 1fr);
+  grid-template-columns: var(--colProc) var(--colStatus) minmax(0, 1fr);
+}
+
+.station-page .ganttHead .ganttLeftHead:nth-child(1) {
+  left: 0;
+}
+
+.station-page .ganttHead .ganttLeftHead:nth-child(2) {
+  left: var(--colProc);
 }
 
 .station-page .ganttTimelineHead,
-.station-page .stationProcRow .ganttTimeline {
+.station-page .stationProcRow .ganttTimeline,
+.station-page .stationProcBlock .ganttTimeline {
   min-width: 0;
   width: 100% !important;
 }
@@ -2553,13 +2578,62 @@ select:focus{
   display: block;
 }
 
-.stationProcRow {
+.stationProcBlock {
   display: grid;
-  grid-template-columns: var(--colProject) var(--colProc) var(--colStatus) 1fr;
-  align-items: stretch;
-  border-bottom: 1px solid var(--ganttGridLine);
+  grid-template-columns: var(--colProc) var(--colStatus) minmax(0, 1fr);
+  grid-template-rows: 54px 54px;
+  position: relative;
+  background: #fff;
+  border-bottom: 1px solid #c8d1dd;
 }
 
+.stationProcBlock::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: #c8d1dd;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.stationProcBlock:last-child {
+  border-bottom: none;
+}
+
+.stationProcBlock:last-child::after {
+  content: none;
+}
+
+.stationProcRow {
+  display: grid;
+  grid-template-columns: var(--colProc) var(--colStatus) 1fr;
+  align-items: stretch;
+  border-bottom: 1px solid var(--ganttGridLine);
+  position: relative;
+}
+
+.stationProcBlock .stationProcRow:last-child {
+  border-bottom: none;
+}
+
+.station-page .stationProcRow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: #dfe5ee;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.stationProcBlock .stationProcRow:last-child::after {
+  content: none;
+}
 
 .stationProcRow:last-child{
   border-bottom: none;
@@ -2570,11 +2644,43 @@ select:focus{
   height: 54px;
 }
 
+.stationProcBlock > .ganttCell,
+.stationProcBlock > .ganttTimeline {
+  height: 54px;
+}
+
+.stationProcBlock .standardLaneRow {
+  border-bottom: 1px solid var(--ganttGridLine);
+}
+
+.stationProcessMerged {
+  grid-row: 1 / span 2;
+  height: 108px !important;
+  border-bottom: none;
+}
+
 .stationProcRow .ganttCell.procNo,
-.stationProcRow .ganttCell.status{
+.stationProcRow .ganttCell.status,
+.stationProcBlock > .ganttCell{
   position: relative;
   left: auto;
   z-index: 1;
+}
+
+.station-page .ganttCell.procNo {
+  justify-content: flex-start;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.stationProcessName {
+  width: 100%;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .stationMerged {
@@ -2902,6 +3008,8 @@ select:focus{
 }
 
 .autoStopHighlight > .stationProcRow,
+.autoStopHighlight > .stationLaneStatus,
+.autoStopHighlight > .stationProcessMerged,
 .autoStopHighlight .ganttCell {
   background: rgba(239, 68, 68, 0.12);
 }
@@ -3176,7 +3284,7 @@ select:focus{
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: 16px 12px;
+  gap: 6px 12px;
   align-items: end;
   width: 100%;
   height: 100%;
@@ -3220,7 +3328,7 @@ select:focus{
 
 .lbXAxisTitle {
   grid-column: 2;
-  margin-top: 4px;
+  margin-top: 0;
   color: #64748b;
   font-size: 10px;
   font-weight: 900;
@@ -3429,7 +3537,7 @@ select:focus{
   .lbCustomChart {
     --lbLabelH: 66px;
     grid-template-columns: 74px minmax(0, 1fr);
-    gap: 14px 8px;
+    gap: 6px 8px;
     min-height: 300px;
   }
 
@@ -3504,7 +3612,7 @@ select:focus{
   .lbCustomChart {
     --lbLabelH: 72px;
     grid-template-columns: 62px minmax(0, 1fr);
-    gap: 12px 6px;
+    gap: 6px 6px;
   }
 
   .lbYAxisInner {
