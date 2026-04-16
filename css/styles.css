@@ -3345,6 +3345,8 @@ select:focus{
 }
 
 .projectListPanel {
+  display: flex;
+  flex-direction: column;
   border: 1px solid #e3e8f0;
   border-radius: 8px;
   background: #ffffff;
@@ -3357,12 +3359,16 @@ select:focus{
 }
 
 .projectList {
-  height: calc(100% - 40px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f3f6fa;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-right: 6px;
+  padding: 0 8px 12px 0;
 }
 
 .projectList::-webkit-scrollbar {

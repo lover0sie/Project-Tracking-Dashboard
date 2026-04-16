@@ -607,7 +607,10 @@ export function buildHoldWindowsFromRun(run, now = new Date()) {
     const r = resumes[i];
     const resumeMs = Number(r?.resumedAtEpochMs);
 
-    const isOpen = !Number.isFinite(resumeMs);
+    // Fix open hold detection
+    const isOpen =
+      !Number.isFinite(resumeMs) &&
+      String(run.status).toLowerCase() === "on_hold";
     const rawEndMs = isOpen ? now.getTime() : resumeMs;
 
     // Important: keep open hold alive even when called at same timestamp
@@ -723,12 +726,12 @@ export function buildSegmentsFromRuns(runs) {
       start,
       end,
       status,
-      holdReason: r.holdReason || "",
-      remarks: r.remarks || "",
+      holdReason: status === "on_hold" ? (r.holdReason || "") : "",
+      remarks: status === "on_hold" ? (r.remarks || "") : "",
 
-      holdAt: holdTime || null,
+      holdAt: status === "on_hold" ? holdTime : null,
+      holdEpochMs: status === "on_hold" ? r.holdEpochMs : null,
       resumedAt: resumed || null,
-      holdEpochMs: r.holdEpochMs ?? null,
       resumedEpochMs: r.resumedEpochMs ?? null,
       holds: Array.isArray(r.holds) ? r.holds : [],
       resumes: Array.isArray(r.resumes) ? r.resumes : [],
