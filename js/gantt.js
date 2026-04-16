@@ -1157,7 +1157,6 @@ function renderSingleStationLineBalanceChart(data) {
 
 /* Render Gantt Chart according to station - use existing template */
 function renderGanttStation(rangeMin, rangeMax, segments) {
-  console.log("renderGanttStation called", segments?.length);
   if (!bodyEl || !dayHeadEl || !monthHeadEl) return;
 
   const hourW = getHourW();
@@ -1884,9 +1883,6 @@ async function render() {
 
       seg.isAutoStopCandidate = eligibleKeys.has(key);
     });
-
-    console.log("Preview:", preview.eligible);
-    console.log("Segments:", segments);
 
     console.log(
       "Auto-stop candidates:",

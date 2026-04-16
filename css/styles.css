@@ -3777,3 +3777,82 @@ select:focus{
   }
 }
 
+/* =========================== Search Bar Customization ===================== */
+
+.projectSearchWrap {
+  margin: 8px 0 14px;
+}
+
+.searchPill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #efefef;
+  border: 1px solid #4a90e2;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.18);
+}
+
+.searchIcon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  color: #3f8ee8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.searchIcon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.searchPillInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #666;
+  padding: 0;
+  box-shadow: none;
+}
+
+.searchPillInput::placeholder {
+  color: #8a8a8a;
+}
+
+.searchClearBtn {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #b0b0b0;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 50%;
+
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.searchClearBtn.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.searchClearBtn:hover {
+  color: #7f7f7f;
+}
+
+.searchClearBtn:focus-visible {
+  outline: none;
+  color: #5f5f5f;
+}

@@ -13,6 +13,9 @@ const projectListEl = document.getElementById("lbProjectList");
 const projectCountEl = document.getElementById("lbProjectCount");
 const qrKindViewEl = document.getElementById("lbQrKindView");
 const chartsContainerEl = document.getElementById("lineBalanceCharts");
+const projectSearchEl = document.getElementById("lbProjectSearch");
+const projectSearchClearEl = document.getElementById("lbProjectSearchClear");
+
 
 let selectedProjectSerial = "";
 let currentProjects = [];
@@ -21,12 +24,25 @@ let allSegmentsCache = [];
 let tooltipEl = null;
 let selectedProjectRuns = [];
 let selectedProjectSegments = [];
+let projectSearchTerm = "";
 
 let lineBalanceView = {
   showStandard: true, // default on
   showActual: true,   // default on
   showTotal: false    // default off
 };
+
+function updateSearchClearVisibility() {
+  if (!projectSearchEl || !projectSearchClearEl) return;
+
+  const hasText = projectSearchEl.value.trim().length > 0;
+
+  if (hasText) {
+    projectSearchClearEl.classList.add("show");
+  } else {
+    projectSearchClearEl.classList.remove("show");
+  }
+}
 
 
 function getTotalDurationMs(seg) {
@@ -465,9 +481,6 @@ function renderSelectedProjectCharts(project) {
   const projectSegments = selectedProjectSegments;
   const qrKindView = qrKindViewEl?.value || "CHILLER";
 
-  console.log("qrKindView:", qrKindViewEl?.value);
-  console.log("selectedProjectSegments for render:", selectedProjectSegments);
-
   if (qrKindView === "CHILLER") {
     const chillerSegs = projectSegments.filter(seg =>
       String(seg.qrKind || "").trim() === "CHILLER"
@@ -531,30 +544,49 @@ async function onProjectClick(project) {
 
   renderProjectList(currentProjects);
 
-  console.log("clicked project:", project);
+  
   const runs = await loadRunsForProject(project.chillerSerialNumber);
-  console.log("runs for project:", runs);
+
   const result = buildSegmentsFromRuns(runs);
-  console.log("buildSegmentsFromRuns result:", result);
+  
   selectedProjectSegments = Array.isArray(result) ? result : result.segments || [];
-  console.log("selectedProjectSegments:", selectedProjectSegments);
+
 
   renderSelectedProjectCharts(project);
+}
+
+function filterProjects(projects, searchTerm) {
+  const q = String(searchTerm || "").trim().toLowerCase();
+  if (!q) return Array.isArray(projects) ? projects : [];
+
+  return (Array.isArray(projects) ? projects : []).filter(project => {
+    const projectName = String(project.projectName || "").toLowerCase();
+    const serial = String(project.chillerSerialNumber || "").toLowerCase();
+    const materialNumber = String(project.materialNumber || "").toLowerCase();
+
+    return (
+      projectName.includes(q) ||
+      serial.includes(q) ||
+      materialNumber.includes(q)
+    );
+  });
 }
 
 function renderProjectList(projects) {
   if (!projectListEl) return;
 
+  const filteredProjects = filterProjects(projects, projectSearchTerm);
+
   if (projectCountEl) {
-    projectCountEl.textContent = String(projects.length);
+    projectCountEl.textContent = String(filteredProjects.length);
   }
 
-  if (!projects.length) {
-    projectListEl.innerHTML = `<div class="emptyState">No projects found.</div>`;
+  if (!filteredProjects.length) {
+    projectListEl.innerHTML = `<div class="emptyState">No matching projects found.</div>`;
     return;
   }
 
-  projectListEl.innerHTML = projects.map(project => {
+  projectListEl.innerHTML = filteredProjects.map(project => {
     const activeClass =
       String(project.chillerSerialNumber || "") === String(selectedProjectSerial || "")
         ? " active"
@@ -576,7 +608,7 @@ function renderProjectList(projects) {
   projectListEl.querySelectorAll(".projectListItem").forEach(itemEl => {
     itemEl.addEventListener("click", () => {
       const serial = itemEl.dataset.serial || "";
-      const chosen = projects.find(p =>
+      const chosen = filteredProjects.find(p =>
         String(p.chillerSerialNumber || "") === String(serial)
       );
 
@@ -590,8 +622,6 @@ async function renderPage() {
   const rawHeaders = await loadProjectHeadersFallbackFromRuns();
   currentProjects = await loadProjectHeadersFallbackFromRuns();
 
-  console.log("rawHeaders:", rawHeaders);
-  console.log("currentProjects:", currentProjects);
 
   renderProjectList(currentProjects);
 
@@ -609,7 +639,7 @@ async function renderPage() {
   const projectToShow = stillExists || currentProjects[0];
   await onProjectClick(projectToShow);
 
-  console.log("loadProjectHeaders result:", currentProjects);
+
 }
 
 qrKindViewEl?.addEventListener("change", () => {
@@ -622,6 +652,24 @@ qrKindViewEl?.addEventListener("change", () => {
   }
 });
 
+projectSearchClearEl?.addEventListener("click", () => {
+  projectSearchTerm = "";
 
+  if (projectSearchEl) {
+    projectSearchEl.value = "";
+    projectSearchEl.focus();
+  }
 
+  updateSearchClearVisibility();  
+  renderProjectList(currentProjects);
+});
+
+projectSearchEl?.addEventListener("input", () => {
+  projectSearchTerm = projectSearchEl.value || "";
+
+  updateSearchClearVisibility(); 
+  renderProjectList(currentProjects);
+});
+
+updateSearchClearVisibility();
 renderPage().catch(console.error);
