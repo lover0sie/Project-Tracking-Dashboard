@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Acknowledgement | Project Tracking Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body class="ackPage">
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h2>Acknowledgement</h2>
+        <div class="sub">Project Tracking Dashboard</div>
+      </div>
+
+      <div class="actions">
+        <a class="btn secondary" href="index.html">Back to Dashboard</a>
+      </div>
+    </header>
+
+    <main class="ackShell" aria-labelledby="ackTitle">
+      <section class="ackHero simpleAckHero">
+        <div class="ackEyebrow">Acknowledgement</div>
+        <h1 id="ackTitle">Thank you</h1>
+        <p>Thank you to everyone who supported and assisted giving ideas, direction, and advices for improvements to build this Dashboard.</p>
+
+        <ul class="ackNameList" aria-label="Acknowledged names">
+          <li>Henry</li>
+          <li>Tateoka-san</li>
+          <li>Najmi</li>
+          <li>Muaz</li>
+          <li>Syuhada</li>
+          <li>JJ</li>
+          <li>Lee</li>
+        </ul>
+
+        <div class="ackCredit">Created and designed by Adilah Syamim (2025 - 2026)</div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import(`./js/version-check.js?v=${Date.now()}`)
+      .then(({ startVersionCheck }) => startVersionCheck())
+      .catch(err => console.warn("Version check failed to start", err));
+  </script>
+</body>
+</html>

@@ -596,10 +596,7 @@ function renderProjectList(projects) {
       <div class="projectListItem${activeClass}" data-serial="${escapeHtml(project.chillerSerialNumber)}">
         <div class="projectListTitle">${escapeHtml(project.projectName || "-")}</div>
         <div class="projectListMeta">
-          ${escapeHtml(project.chillerSerialNumber || "-")} | ${escapeHtml(project.materialNumber || "-")}
-        </div>
-        <div class="projectListMeta">
-          ${escapeHtml(project.model || "-")} • ${escapeHtml((Array.isArray(project.qrKinds) ? project.qrKinds : []).join(", "))} • ${escapeHtml(String(project.runCount || 0))} run(s)
+          ${escapeHtml(project.model || "-")} | ${escapeHtml(project.chillerSerialNumber || "-")} | ${escapeHtml(project.materialNumber || "-")} | ${escapeHtml(String(project.runCount || 0))} run(s)
         </div>
       </div>
     `;
