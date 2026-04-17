@@ -240,6 +240,7 @@ export const STANDARD_TIME_MIN = {
   "12 - Bracket and attachment fitting and welding": 300,
   "12, 13 - Bracket, attachment, side plate, and base fitting and welding and copper tube brazing": 200,
   "19 - Top coat painting": 400,
+  "8A - Fitting internal plate": 300,
 
   "Piping shop": 300,
   "A - Insulation 1": 480,
