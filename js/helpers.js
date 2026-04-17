@@ -238,6 +238,7 @@ export const STANDARD_TIME_MIN = {
   "9, 10, 11 - Distribution box, tube support and bush, tubesheet fitting and welding": 500,
   "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding": 500,
   "12 - Bracket and attachment fitting and welding": 300,
+  "12, 13 - Bracket, attachment, side plate, and base fitting and welding and copper tube brazing": 200,
   "19 - Top coat painting": 400,
 
   "Piping shop": 300,
