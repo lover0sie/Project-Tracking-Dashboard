@@ -2885,6 +2885,7 @@ select:focus{
 
 .station-page {
   --colProc: 220px;
+  --stationLaneH: 42px;
 }
 
 .stationViewTitle {
@@ -3014,10 +3015,24 @@ select:focus{
 .stationProcBlock {
   display: grid;
   grid-template-columns: var(--colProc) var(--colStatus) minmax(0, 1fr);
-  grid-template-rows: 54px 54px;
+  grid-template-rows: var(--stationLaneH) var(--stationLaneH);
+  grid-auto-rows: var(--stationLaneH);
   position: relative;
   background: #fff;
   border-bottom: 1px solid #c8d1dd;
+  align-items: stretch;
+}
+
+.stationProcBlock::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--colProc);
+  width: 1px;
+  background: #dbe3ef;
+  z-index: 7;
+  pointer-events: none;
 }
 
 .stationProcBlock::after {
@@ -3074,22 +3089,25 @@ select:focus{
 
 .stationProcRow .ganttCell,
 .stationProcRow .ganttTimeline{
-  height: 54px;
+  height: var(--stationLaneH);
 }
 
 .stationProcBlock > .ganttCell,
 .stationProcBlock > .ganttTimeline {
-  height: 54px;
-}
-
-.stationProcBlock .standardLaneRow {
-  border-bottom: 1px solid var(--ganttGridLine);
+  height: var(--stationLaneH);
 }
 
 .stationProcessMerged {
   grid-row: 1 / span 2;
-  height: 108px !important;
   border-bottom: none;
+  border-right: none;
+  height: auto;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  text-align: center;
+  overflow: hidden;
 }
 
 .stationProcRow .ganttCell.procNo,
@@ -3100,6 +3118,18 @@ select:focus{
   z-index: 1;
 }
 
+.stationProcBlock > .stationLaneStatus,
+.stationProcBlock > .stationLaneTimeline {
+  border-bottom: 1px solid #dfe5ee;
+  box-shadow: inset 0 -1px 0 #dfe5ee;
+}
+
+.stationProcBlock > .stationLaneStatus:nth-last-child(2),
+.stationProcBlock > .stationLaneTimeline:last-child {
+  border-bottom: none;
+  box-shadow: none;
+}
+
 .station-page .ganttCell.procNo {
   justify-content: flex-start;
   padding: 0 12px;
@@ -3107,7 +3137,10 @@ select:focus{
 }
 
 .stationProcessName {
+  position: relative;
+  z-index: 1;
   width: 100%;
+  max-width: 100%;
   color: #111827;
   font-size: 11px;
   font-weight: 850;

@@ -784,6 +784,8 @@ function buildChillerGroups(segments){
 
 /* ========== Building Station View =============== */
 
+
+
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
@@ -1035,9 +1037,16 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
   
   const statusText = formatStatus(seg?.status || type || "-");
 
-  return `
-    <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}</div>
+  const serialText =
+  seg.qrKind === "PV"
+    ? seg.pvSerialNumber
+    : seg.qrKind === "CHILLER"
+    ? seg.chillerSerialNumber
+    : seg.serial;
 
+  return `
+    <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}&nbsp;(${escapeHtml(serialText || "-")})</div>
+    <div class="tipRow"><span class="tipLabel">Material No:</span> ${escapeHtml(seg.materialNumber || "-")}</div>
     <div class="tipRow"><span class="tipLabel">Type:</span> ${escapeHtml(typeText)}</div>
     <div class="tipRow"><span class="tipLabel">Started By:</span> ${escapeHtml(seg.employeeName || "-")} (${escapeHtml(seg.employeeNumber || "-")})</div>
     <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${escapeHtml(seg.resumedByName || "-")} (${escapeHtml(seg.resumedByNumber || "-")})</div>
@@ -1203,7 +1212,9 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         (a, b) => a.start.getTime() - b.start.getTime()
       );
 
-      const segsWithWaiting = injectWaitingIntoLane(sortedSegs);
+      const lanes = buildLanes(sortedSegs).map(laneSegs =>
+      injectWaitingIntoLane(laneSegs)
+    );
 
       const cur = latestSegment(sortedSegs) || null;
       const st = statusUi(
@@ -1214,34 +1225,28 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         cur?.processLabel ||
         processNo;
 
-      /* ---------- STANDARD BARS ---------- */
-      const standardBars = sortedSegs
-        .filter(seg => seg.phase !== "waiting" && seg.status !== "waiting")
-        .map(seg => {
+      const hasAutoStopCandidate = sortedSegs.some(s => s.isAutoStopCandidate);
+
+      const laneRowsHtml = lanes.map((laneSegs, laneIndex) => {
+        const realLaneSegs = laneSegs.filter(seg =>
+          seg.phase !== "waiting" && seg.status !== "waiting"
+        );
+
+        const laneCur = latestSegment(realLaneSegs) || null;
+        const st = statusUi(laneCur?.status);
+
+        const standardBars = realLaneSegs.map(seg => {
           const stdSlices = buildStandardSlices(seg);
           const isLate = isLateAgainstStandard(seg);
 
           return stdSlices.map(slice => {
-            const stdStartMs = clamp(
-              slice.start.getTime(),
-              rangeMin.getTime(),
-              rangeMax.getTime()
-            );
-            const stdEndMs = clamp(
-              slice.end.getTime(),
-              rangeMin.getTime(),
-              rangeMax.getTime()
-            );
+            const stdStartMs = clamp(slice.start.getTime(), rangeMin.getTime(), rangeMax.getTime());
+            const stdEndMs = clamp(slice.end.getTime(), rangeMin.getTime(), rangeMax.getTime());
 
             if (stdEndMs <= stdStartMs) return "";
 
-            const leftPx =
-              ((stdStartMs - rangeMin.getTime()) / 3600000) * hourW;
-
-            const widthPx = Math.max(
-              8,
-              ((stdEndMs - stdStartMs) / 3600000) * hourW
-            );
+            const leftPx = ((stdStartMs - rangeMin.getTime()) / 3600000) * hourW;
+            const widthPx = Math.max(8, ((stdEndMs - stdStartMs) / 3600000) * hourW);
 
             return `
               <div class="bar standardBar ${isLate ? "standardLate" : ""}"
@@ -1252,101 +1257,99 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
               </div>
             `;
           }).join("");
-        })
-        .join("");
+        }).join("");
 
-      /* ---------- ACTUAL BARS ---------- */
-      const bars = segsWithWaiting.map(seg => {
-        return sliceSegForWaiting(seg)
-          .filter(p => !(
-            p.end.getTime() <= rangeMin.getTime() ||
-            p.start.getTime() >= rangeMax.getTime()
-          ))
-          .map(p => {
-            const sliceStart = new Date(
-              Math.max(p.start.getTime(), rangeMin.getTime())
-            );
-            const sliceEnd = new Date(
-              Math.min(p.end.getTime(), rangeMax.getTime())
-            );
+        const bars = laneSegs.map(seg => {
+          return sliceSegForWaiting(seg)
+            .filter(p => !(
+              p.end.getTime() <= rangeMin.getTime() ||
+              p.start.getTime() >= rangeMax.getTime()
+            ))
+            .map(p => {
+              const sliceStart = new Date(Math.max(p.start.getTime(), rangeMin.getTime()));
+              const sliceEnd = new Date(Math.min(p.end.getTime(), rangeMax.getTime()));
 
-            const leftPx =
-              ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
-
-            const rawWidthPx =
-              ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW;
-
-            const widthPx = Math.max(1, rawWidthPx - 1);
-
-            const isHoldGap = p.type === "on_hold_gap";
-            const isWaiting =
-              p.type === "waiting" ||
-              seg.phase === "waiting" ||
-              seg.status === "waiting";
-
-            let tipText;
-            if (isWaiting) {
-              tipText = waitingTipTextBuilder(sliceStart, sliceEnd);
-            } else {
-              tipText = stationTipTextBuilder(
-                seg,
-                sliceStart,
-                sliceEnd,
-                isHoldGap ? "on_hold_gap" : "process",
-                p
+              const leftPx = ((sliceStart.getTime() - rangeMin.getTime()) / 3600000) * hourW;
+              const widthPx = Math.max(
+                1,
+                ((sliceEnd.getTime() - sliceStart.getTime()) / 3600000) * hourW - 1
               );
-            }
 
-            const barStationCls =
-              isHoldGap ? "st-holdgap" :
-              isWaiting ? "st-waiting" :
-              stationCls;
+              const isHoldGap = p.type === "on_hold_gap";
+              const isWaiting =
+                p.type === "waiting" ||
+                seg.phase === "waiting" ||
+                seg.status === "waiting";
 
-            const statusCls =
-              isHoldGap ? "status-holdgap" :
-              isWaiting ? "status-waiting" :
-              seg.status === "completed" ? "status-completed" :
-              seg.status === "on_hold" ? "status-onhold" :
-              "status-running";
+              const tipText = isWaiting
+                ? waitingTipTextBuilder(sliceStart, sliceEnd)
+                : stationTipTextBuilder(
+                    seg,
+                    sliceStart,
+                    sliceEnd,
+                    isHoldGap ? "on_hold_gap" : "process",
+                    p
+                  );
 
-            return `
-              <div class="bar ${barStationCls} ${statusCls}"
-                  style="left:${leftPx}px; width:${widthPx}px;"
-                  data-tip="${escapeAttr(tipText)}"></div>
-            `;
-          })
-          .join("");
-      }).join("");
+              const barStationCls =
+                isHoldGap ? "st-holdgap" :
+                isWaiting ? "st-waiting" :
+                stationCls;
 
-      const hasAutoStopCandidate = sortedSegs.some(s => s.isAutoStopCandidate);
+              const statusCls =
+                isHoldGap ? "status-holdgap" :
+                isWaiting ? "status-waiting" :
+                seg.status === "completed" ? "status-completed" :
+                seg.status === "on_hold" ? "status-onhold" :
+                "status-running";
 
-      return `
-        <div class="stationProcBlock ${hasAutoStopCandidate ? "autoStopHighlight" : ""}">
+              return `
+                <div class="bar ${barStationCls} ${statusCls}"
+                    style="left:${leftPx}px; width:${widthPx}px;"
+                    data-tip="${escapeAttr(tipText)}"></div>
+              `;
+            }).join("");
+        }).join("");
 
-          <div class="ganttCell procNo stationProcessMerged">
-            <div class="stationProcessName">${escapeHtml(processName)}</div>
+        return `
+          <div class="ganttCell status stationLaneStatus standardLaneRow"
+              style="grid-column: 2;">
+            <span class="statusPill standard">
+              Standard
+            </span>
           </div>
 
-          <div class="ganttCell status stationLaneStatus standardLaneRow">
-            <span class="statusPill standard">Standard</span>
-          </div>
-
-          <div class="ganttTimeline dailyGrid stationLaneTimeline standardLaneRow" style="width:${totalWidthPx}px">
+          <div class="ganttTimeline dailyGrid stationLaneTimeline standardLaneRow"
+              style="grid-column: 3; width:${totalWidthPx}px">
             ${timeBandsHtml}
             ${stationGridLinesHtml}
             ${standardBars}
           </div>
 
-          <div class="ganttCell status stationLaneStatus">
-            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+          <div class="ganttCell status stationLaneStatus"
+              style="grid-column: 2;">
+            <span class="statusPill ${st.cls}">
+              ${escapeHtml(st.text)}
+            </span>
           </div>
 
-          <div class="ganttTimeline dailyGrid stationLaneTimeline" style="width:${totalWidthPx}px">
+          <div class="ganttTimeline dailyGrid stationLaneTimeline"
+               style="grid-column: 3; width:${totalWidthPx}px">
             ${timeBandsHtml}
             ${stationGridLinesHtml}
             ${bars}
           </div>
+        `;
+      }).join("");
 
+      return `
+        <div class="stationProcBlock ${hasAutoStopCandidate ? "autoStopHighlight" : ""}">
+          <div class="ganttCell procNo stationProcessMerged"
+              style="grid-row: 1 / span ${lanes.length * 2}; grid-column: 1;">
+            <div class="stationProcessName">${escapeHtml(processName)}</div>
+          </div>
+
+          ${laneRowsHtml}
         </div>
       `;
     }).join("");

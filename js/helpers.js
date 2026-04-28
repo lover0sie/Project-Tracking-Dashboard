@@ -217,7 +217,6 @@ export function getStationKey(employeeData = state.employeeData){
 export const STANDARD_TIME_MIN = {
   "6 - Hole bevelling": 80,
   "7 - Connector welding": 100,
-  "8 - Fitting internal plate & GMAW": 100,
   "8A - Internal plate assembly": 200,
   "8B - Fitting internal plate": 300,
   "8C - GMAW C&B": 400,
@@ -233,6 +232,8 @@ export const STANDARD_TIME_MIN = {
   "17 - Hydrostatic testing": 300,
   "18, 19 - Primer painting (weld seam) and top coat painting": 600,
 
+  // Old process name data 
+  "8 - Fitting internal plate & GMAW": 100,
   "6, 7 - Hole bevelling and connector welding": 200,
   "6, 7, 8 - Hole bevelling, connector welding, fitting internal plate and GMAW C&B": 350,
   "9, 10, 11 - Distribution box, tube support and bush, tubesheet fitting and welding": 500,
