@@ -5,7 +5,7 @@
 /* Consist of functions to build segments and slices for on hold, running, break time, and process */
 
 import { loadRuns, loadRunsForDay, loadRunsForDayWithCarryForward } from "./timeline.js";
-import { exportExcelReport } from "./excel-export.js";
+import { exportExcelReport, exportStationViewExcel } from "./excel-export.js";
 import { db } from "./firebase.js";
 import { 
   getMYTodayKey, 
@@ -580,7 +580,7 @@ function fitDailyToScreen(){
 
   const wrapWidth = wrap.clientWidth;
   const leftColumnsWidth = document.body.classList.contains("station-page")
-    ? colProc + colStatus
+    ? colProc + colProject + colStatus
     : colProject + colProc + colStatus;
 
   // timeline area width = wrap - left columns
@@ -784,7 +784,42 @@ function buildChillerGroups(segments){
 
 /* ========== Building Station View =============== */
 
+export async function exportStationSelectedDateExcel() {
+  const dayPicker = el("dayPicker");
+  const stationPicker = el("stationBalancePicker");
 
+  const todayKey = getMYTodayKey();
+  const dayKey = dayPicker?.value || todayKey;
+  const selectedStation = "";
+
+  const runs = await loadRunsForDayWithCarryForward(dayKey);
+  const { segments } = buildSegmentsFromRuns(runs);
+
+  const dayDate = parseDayKeyToDate(dayKey);
+  const rangeMin = startOfWorkDay(dayDate);
+  const rangeMax = endOfWorkDay(dayDate);
+
+  const filteredSegments = segments
+    .filter(seg =>
+      hasValidSegmentDates(seg) &&
+      seg.end.getTime() > rangeMin.getTime() &&
+      seg.start.getTime() < rangeMax.getTime()
+    )
+
+    .filter(seg =>
+      seg.phase !== "waiting" &&
+      seg.status !== "waiting"
+    )
+    .sort((a, b) =>
+      String(a.processLabel || "").localeCompare(String(b.processLabel || ""), undefined, { numeric: true }) ||
+      a.start.getTime() - b.start.getTime()
+    );
+
+  exportStationViewExcel(filteredSegments, {
+    dayKey,
+    station: "All Stations"
+  });
+}
 
 /* Position bars by time */
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
@@ -1045,9 +1080,7 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
     : seg.serial;
 
   return `
-    <div class="tipTitle">${escapeHtml(seg.projectName || "PROJECT")}&nbsp;(${escapeHtml(serialText || "-")})</div>
-    <div class="tipRow"><span class="tipLabel">Material No:</span> ${escapeHtml(seg.materialNumber || "-")}</div>
-    <div class="tipRow"><span class="tipLabel">Type:</span> ${escapeHtml(typeText)}</div>
+    <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
     <div class="tipRow"><span class="tipLabel">Started By:</span> ${escapeHtml(seg.employeeName || "-")} (${escapeHtml(seg.employeeNumber || "-")})</div>
     <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${escapeHtml(seg.resumedByName || "-")} (${escapeHtml(seg.resumedByNumber || "-")})</div>
     <div class="tipRow"><span class="tipLabel">Manpower:</span> ${seg.manpower ?? "-"}</div>
@@ -1079,9 +1112,7 @@ function holdTipTextBuilder(seg, start, end, part) {
     : formatDateTime(end);
 
   return `
-    <div class="tipTitle">${escapeHtml(seg.projectName || "-")}</div>
-    <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
-
+    <div class="tipTitle">On Hold</div>
     <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(start))}</div>
     <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
     <div class="tipRow"><span class="tipLabel">Duration:</span> ${escapeHtml(formatDuration(durationMs))}</div>
@@ -1174,6 +1205,75 @@ function renderSingleStationLineBalanceChart(data) {
   });
 }
 
+function buildStationProjectCell(segs) {
+  const realSegs = segs.filter(seg =>
+    seg.phase !== "waiting" && seg.status !== "waiting"
+  );
+
+  const firstSeg = realSegs[0] || segs[0] || {};
+
+  const qrKind = String(firstSeg.qrKind || "").toUpperCase();
+
+  const typeText =
+    qrKind === "PV"
+      ? (firstSeg.vesselType || "-")
+      : (firstSeg.coolingType || "-");
+
+  const serialText =
+    qrKind === "PV"
+      ? (firstSeg.pvSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-")
+      : (firstSeg.chillerSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-");
+
+  const materialText = firstSeg.materialNumber || "-";
+
+  return `
+    <div class="stationProjectBlock">
+      <div class="stationProjectTitle">
+        ${escapeHtml(firstSeg.projectName || "-")}
+        <span class="stationType">(${escapeHtml(typeText)})</span>
+      </div>
+
+      <div class="stationMetaPill">
+        ${escapeHtml(serialText)} | ${escapeHtml(materialText)}
+      </div>
+
+      <div class="stationProcessName smallProcess">
+        ${escapeHtml(firstSeg.processLabel || firstSeg.processName || "-")}
+      </div>
+    </div>
+  `;
+}
+
+function buildStationProjectMiniCell(segs) {
+  const firstSeg = segs[0] || {};
+  const qrKind = String(firstSeg.qrKind || "").toUpperCase();
+
+  const typeText =
+    qrKind === "PV"
+      ? (firstSeg.vesselType || "-")
+      : (firstSeg.coolingType || "-");
+
+  const serialText =
+    qrKind === "PV"
+      ? (firstSeg.pvSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-")
+      : (firstSeg.chillerSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-");
+
+  const materialText = firstSeg.materialNumber || "-";
+
+  return `
+    <div class="stationProjectMini">
+      <div class="stationProjectName">
+        ${escapeHtml(firstSeg.projectName || "-")}
+        <span class="stationType">(${escapeHtml(typeText)})</span>
+      </div>
+
+      <div class="stationMetaPill">
+        ${escapeHtml(serialText)} | ${escapeHtml(materialText)}
+      </div>
+    </div>
+  `;
+}
+
 /* Render Gantt Chart according to station - use existing template */
 function renderGanttStation(rangeMin, rangeMax, segments) {
   if (!bodyEl || !dayHeadEl || !monthHeadEl) return;
@@ -1199,6 +1299,8 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
 
   const grouped = groupStationByProcess(segments);
   const timeBandsHtml = buildDailyTimeBands(rangeMin, rangeMax, hourW);
+
+  
 
   const stationBlocks = Array.from(grouped.entries())
   .sort((a, b) => a[0].localeCompare(b[0]))
@@ -1231,6 +1333,8 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         const realLaneSegs = laneSegs.filter(seg =>
           seg.phase !== "waiting" && seg.status !== "waiting"
         );
+
+        const projectCellHtml = buildStationProjectMiniCell(realLaneSegs);
 
         const laneCur = latestSegment(realLaneSegs) || null;
         const st = statusUi(laneCur?.status);
@@ -1311,43 +1415,46 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
             }).join("");
         }).join("");
 
-        return `
-          <div class="ganttCell status stationLaneStatus standardLaneRow"
-              style="grid-column: 2;">
-            <span class="statusPill standard">
-              Standard
-            </span>
-          </div>
+       return `
+        <div class="ganttCell project stationProjectCell stationProjectLaneCell"
+            style="grid-column: 2; grid-row: span 2;">
+          ${projectCellHtml}
+        </div>
 
-          <div class="ganttTimeline dailyGrid stationLaneTimeline standardLaneRow"
-              style="grid-column: 3; width:${totalWidthPx}px">
-            ${timeBandsHtml}
-            ${stationGridLinesHtml}
-            ${standardBars}
-          </div>
+        <div class="ganttCell status stationLaneStatus standardLaneRow"
+            style="grid-column: 3;">
+          <span class="statusPill standard">Standard</span>
+        </div>
 
-          <div class="ganttCell status stationLaneStatus"
-              style="grid-column: 2;">
-            <span class="statusPill ${st.cls}">
-              ${escapeHtml(st.text)}
-            </span>
-          </div>
+        <div class="ganttTimeline dailyGrid stationLaneTimeline standardLaneRow"
+            style="grid-column: 4; width:${totalWidthPx}px">
+          ${timeBandsHtml}
+          ${stationGridLinesHtml}
+          ${standardBars}
+        </div>
 
-          <div class="ganttTimeline dailyGrid stationLaneTimeline"
-               style="grid-column: 3; width:${totalWidthPx}px">
-            ${timeBandsHtml}
-            ${stationGridLinesHtml}
-            ${bars}
-          </div>
-        `;
+        <div class="ganttCell status stationLaneStatus stationProjectLaneEnd"
+            style="grid-column: 3;">
+          <span class="statusPill ${st.cls}">
+            ${escapeHtml(st.text)}
+          </span>
+        </div>
+
+        <div class="ganttTimeline dailyGrid stationLaneTimeline stationProjectLaneEnd"
+            style="grid-column: 4; width:${totalWidthPx}px">
+          ${timeBandsHtml}
+          ${stationGridLinesHtml}
+          ${bars}
+        </div>
+      `;
       }).join("");
 
       return `
         <div class="stationProcBlock ${hasAutoStopCandidate ? "autoStopHighlight" : ""}">
-          <div class="ganttCell procNo stationProcessMerged"
-              style="grid-row: 1 / span ${lanes.length * 2}; grid-column: 1;">
-            <div class="stationProcessName">${escapeHtml(processName)}</div>
-          </div>
+         <div class="ganttCell procNo stationProcessMerged"
+            style="grid-row: 1 / span ${lanes.length * 2}; grid-column: 1;">
+          <div class="stationProcessName">${escapeHtml(processName)}</div>
+        </div>
 
           ${laneRowsHtml}
         </div>
@@ -1373,8 +1480,6 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
 
 function renderGanttDaily(rangeMin, rangeMax, segments) {
 
-  
-  
   // disable monthly today highlight
   document.documentElement.style.setProperty("--todayLeft", "-9999px");
   document.querySelectorAll(".todayCol").forEach(el => el.classList.remove("todayCol"));
@@ -2375,6 +2480,12 @@ if (btnAutoStop) {
   });
 
 }
+
+const btnExportStationExcel = document.getElementById("btnExportStationExcel");
+
+btnExportStationExcel?.addEventListener("click", async () => {
+  await exportStationSelectedDateExcel();
+});
 
 
 bindFloatingTooltip();

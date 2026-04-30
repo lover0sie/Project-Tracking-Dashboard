@@ -324,3 +324,78 @@ export function exportExcelReport(runs) {
   const filename = `ProcessReport_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
+
+export function exportStationViewExcel(segments, options = {}) {
+  if (typeof XLSX === "undefined") {
+    alert("XLSX library not loaded. Check the xlsx script tag in station.html.");
+    return;
+  }
+
+  const {
+    dayKey = "",
+    station = "All Stations"
+  } = options;
+
+  const header = [
+    "Station",
+    "Process",
+    "Project Name",
+    "Serial Number",
+    "Material Number",
+    "Start Time and Date",
+    "End Time and Date",
+    "Status"
+  ];
+
+  const rows = [header];
+
+  segments.forEach(seg => {
+    const qrKind = String(seg.qrKind || "").toUpperCase();
+
+    const serialNumber =
+      qrKind === "PV"
+        ? (seg.pvSerialNumber || seg.serialNumber || seg.serial || "")
+        : (seg.chillerSerialNumber || seg.serialNumber || seg.serial || "");
+
+    const status = String(seg.status || "").toLowerCase();
+
+    rows.push([
+      seg.station || "",
+      seg.processLabel || seg.processName || "",
+      seg.projectName || "",
+      serialNumber,
+      seg.materialNumber || "",
+      `${formatExcelDate(seg.start)} ${formatExcelTime(seg.start)}`,
+      status === "running"
+        ? "Running"
+        : `${formatExcelDate(seg.end)} ${formatExcelTime(seg.end)}`,
+      seg.status || ""
+    ]);
+  });
+
+  if (rows.length === 1) {
+    alert("No station data found for selected date.");
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  ws["!cols"] = [
+  { wch: 16 }, // Station
+  { wch: 34 }, // Process
+  { wch: 28 }, // Project Name
+  { wch: 18 }, // Serial Number
+  { wch: 18 }, // Material Number
+  { wch: 24 }, // Start Time and Date
+  { wch: 24 }, // End Time and Date
+  { wch: 16 }  // Status
+];
+
+  XLSX.utils.book_append_sheet(wb, ws, "Station View");
+
+  const safeStation = String(station).replace(/[\\/:*?"<>|]/g, "_");
+  const filename = `StationView_${safeStation}_${dayKey}.xlsx`;
+
+  XLSX.writeFile(wb, filename);
+}

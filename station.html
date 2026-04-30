@@ -47,10 +47,15 @@
 
 
           
-          <div class="toolbar">
+          <div class="toolbar stationControlGroup">
             <div class="hint">STATION:</div>
-            <select id="stationBalancePicker"></select>
+            <div class="stationControlRow">
+              <select id="stationBalancePicker"></select>
 
+              <button id="btnExportStationExcel" class="btn primary">
+                Export Station Excel
+              </button>
+            </div>
             
         </div>
 
@@ -63,6 +68,7 @@
         <div class="ganttGrid stationMode">
           <div class="ganttHead">
             <div class="ganttLeftHead small">Process</div>
+            <div class="ganttLeftHead small">Project</div>
             <div class="ganttLeftHead small">Status</div>
 
             <div class="ganttTimelineHead">
@@ -84,7 +90,11 @@
 
   <script type="module">
     import { clearCache } from "./js/timeline.js";
-    import { renderStationOnlyView, stopGanttLiveRefresh } from "./js/gantt.js";
+    import { 
+      renderStationOnlyView, 
+      stopGanttLiveRefresh,
+      exportStationSelectedDateExcel
+    } from "./js/gantt.js";
 
     const btnRefresh = document.getElementById("btn-refresh");
     const dayPicker = document.getElementById("dayPicker");

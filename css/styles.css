@@ -2839,6 +2839,17 @@ select:focus{
   margin: 0;
 }
 
+.station-page .stationControlGroup {
+  min-width: min(360px, 100%);
+}
+
+.station-page .stationControlRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
 .station-page .pickerInput,
 .station-page #stationBalancePicker {
   height: 32px;
@@ -2849,9 +2860,36 @@ select:focus{
   font-weight: 800;
 }
 
+.station-page #stationBalancePicker {
+  flex: 1 1 160px;
+  min-width: 150px;
+}
+
 .station-page .pickerInput:hover,
 .station-page #stationBalancePicker:hover {
   border-color: #cbd5e1;
+}
+
+.station-page #btnExportStationExcel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid #1d4ed8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 850;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+}
+
+.station-page #btnExportStationExcel:hover {
+  border-color: #1e40af;
+  background: linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
 }
 
 .station-page .ganttWrap {
@@ -2884,7 +2922,9 @@ select:focus{
 }
 
 .station-page {
-  --colProc: 220px;
+  --colProc: 180px;
+  --colProject: 210px;
+  --colStatus: 100px;
   --stationLaneH: 42px;
 }
 
@@ -3041,18 +3081,14 @@ select:focus{
   left: 0;
   right: 0;
   bottom: 0;
-  height: 1px;
-  background: #c8d1dd;
-  z-index: 7;
+  height: 2px;
+  background: #b8c3d1;
+  z-index: 12;
   pointer-events: none;
 }
 
 .stationProcBlock:last-child {
   border-bottom: none;
-}
-
-.stationProcBlock:last-child::after {
-  content: none;
 }
 
 .stationProcRow {
@@ -3104,10 +3140,15 @@ select:focus{
   height: auto;
   align-self: stretch;
   align-items: center;
-  justify-content: center;
-  padding: 0 14px;
-  text-align: center;
+  justify-content: flex-start;
+  padding: 4px 14px;
+  text-align: left;
   overflow: hidden;
+}
+
+.stationProcBlock > .stationProcessMerged {
+  height: auto;
+  min-height: 100%;
 }
 
 .stationProcRow .ganttCell.procNo,
@@ -3124,7 +3165,49 @@ select:focus{
   box-shadow: inset 0 -1px 0 #dfe5ee;
 }
 
-.stationProcBlock > .stationLaneStatus:nth-last-child(2),
+.stationProjectLaneCell {
+  height: auto;
+  min-height: calc(var(--stationLaneH) * 2);
+  align-self: stretch;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 10px;
+  text-align: left;
+  border-bottom: 2px solid #d1dae6;
+  box-shadow: inset 0 -1px 0 #d1dae6;
+}
+
+.stationProjectLaneEnd {
+  border-bottom: 2px solid #d1dae6;
+  box-shadow: inset 0 -1px 0 #d1dae6;
+}
+
+.station-page .stationLaneTimeline.stationProjectLaneEnd::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #d1dae6;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.station-page .stationLaneStatus.stationProjectLaneEnd::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #d1dae6;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.stationProcBlock > .stationProjectLaneCell:last-of-type,
+.stationProcBlock > .stationLaneStatus:last-of-type,
 .stationProcBlock > .stationLaneTimeline:last-child {
   border-bottom: none;
   box-shadow: none;
@@ -3144,9 +3227,10 @@ select:focus{
   color: #111827;
   font-size: 11px;
   font-weight: 850;
-  line-height: 1.2;
+  line-height: 1.15;
   white-space: normal;
   overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .stationMerged {
@@ -3171,6 +3255,87 @@ select:focus{
 .stationProcRow .stationMerged {
   grid-row: span var(--rowCount);
   min-height: 100%;
+}
+
+.stationProjectBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  line-height: 1.25;
+}
+
+.stationProjectTitle {
+  font-weight: 800;
+  font-size: 13px;
+  color: #111827;
+}
+
+.stationType {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.stationMetaPill {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.smallProcess {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.station-page .ganttGrid,
+.station-page .ganttHead,
+.stationProcBlock {
+  grid-template-columns: var(--colProc) var(--colProject) var(--colStatus) 1fr;
+}
+
+.stationProjectMini {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  line-height: 1.25;
+  width: 100%;
+}
+
+.stationProjectName {
+  font-weight: 700;
+  font-size: 11px;
+  color: #111827;
+}
+
+.stationProjectName .stationType {
+  display: block;
+  margin-top: 1px;
+}
+
+.stationType {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.stationMetaPill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* ============== Line Balance Graph Charts ================= */
