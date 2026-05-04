@@ -870,17 +870,26 @@ function groupStationByProcess(segments) {
     const station = String(seg?.station || "UNKNOWN").trim() || "UNKNOWN";
     const processNo = getProcessNo(seg) || "-"; // keeps "18,19" as one key
 
+    const qrKind = String(seg.qrKind || "").toUpperCase();
+
+    const serialKey =
+      qrKind === "PV"
+        ? (seg.pvSerialNumber || seg.serialNumber || seg.serial || "-")
+        : (seg.chillerSerialNumber || seg.serialNumber || seg.serial || "-");
+
+    const processKey = `${processNo}__${serialKey}`;
+
     if (!stationMap.has(station)) {
       stationMap.set(station, new Map());
     }
 
     const procMap = stationMap.get(station);
 
-    if (!procMap.has(processNo)) {
-      procMap.set(processNo, []);
+    if (!procMap.has(processKey)) {
+      procMap.set(processKey, []);
     }
 
-    procMap.get(processNo).push(seg);
+    procMap.get(processKey).push(seg);
   }
 
   // sort every lane by time
@@ -1309,7 +1318,8 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
     const procEntries = Array.from(procMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 
-    const procRows = procEntries.map(([processNo, segs]) => {
+    const procRows = procEntries.map(([processKey, segs]) => {
+      const processNo = processKey.split("__")[0];
       const sortedSegs = [...segs].sort(
         (a, b) => a.start.getTime() - b.start.getTime()
       );
