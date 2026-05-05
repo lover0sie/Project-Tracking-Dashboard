@@ -3493,13 +3493,7 @@ select:focus{
 }
 
 .sectionTitle {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin: 0 0 10px;
-  padding: 0 0 10px;
-  background: #ffffff;
-  border-bottom: 1px solid #eef2f7;
+  margin: 0;
   font-size: 11px;
   font-weight: 800;
   color: #475569;
@@ -4280,14 +4274,125 @@ select:focus{
 /* =========================== Search Bar Customization ===================== */
 
 .projectSearchWrap {
-  margin: 8px 0 14px;
-}
-
-.searchPill {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.projectListHeader {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 0 0 10px;
+  background: #ffffff;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.filterPillBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #eef0f4;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #222;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.filterPillBtn:hover {
+  transform: translateY(-1px);
+  border-color: #d8dde6;
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.16);
+}
+
+.filterPillBtn.active {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.filterPillBtn:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.22);
+  outline-offset: 2px;
+}
+
+.filterPillIcon {
+  width: 15px;
+  height: 15px;
+  color: #2f343b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filterPillIcon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.filterSortWrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.filterSortMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  min-width: 230px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+}
+
+.filterSortMenu[hidden] {
+  display: none;
+}
+
+.filterSortMenu button {
   width: 100%;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filterSortMenu button:hover,
+.filterSortMenu button:focus-visible {
+  outline: none;
+  background: #f1f5f9;
+}
+
+.searchPill {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
   min-height: 44px;
   padding: 0 14px;
   border-radius: 999px;

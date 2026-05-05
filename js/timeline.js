@@ -159,11 +159,13 @@ export async function loadRunsForMonth(monthValue) {
 
 /* Load only parent project docs */
 export async function loadProjectHeadersFallbackFromRuns() {
+
   const snap = await getDocs(collectionGroup(db, "runs"));
   const map = new Map();
 
   snap.forEach(d => {
     const run = d.data();
+
     const serial = String(run.chillerSerialNumber || "").trim();
     if (!serial) return;
 
@@ -174,12 +176,22 @@ export async function loadProjectHeadersFallbackFromRuns() {
         materialNumber: run.materialNumber || "-",
         model: run.model || "-",
         qrKinds: new Set(),
-        runCount: 0
+        runCount: 0,
+        latestStart: 0,
+        firstStart: Infinity
       });
     }
 
     const row = map.get(serial);
     row.runCount += 1;
+
+    let startMs = Number(run.startEpochMs || 0);
+
+
+    if (startMs > 0) {
+      row.latestStart = Math.max(row.latestStart || 0, startMs);
+      row.firstStart = Math.min(row.firstStart || Infinity, startMs);
+    }
 
     if (run.qrKind) {
       row.qrKinds.add(String(run.qrKind).trim());
@@ -189,11 +201,9 @@ export async function loadProjectHeadersFallbackFromRuns() {
   return Array.from(map.values())
     .map(item => ({
       ...item,
-      qrKinds: Array.from(item.qrKinds)
-    }))
-    .sort((a, b) =>
-      String(a.projectName || "").localeCompare(String(b.projectName || ""))
-    );
+      qrKinds: Array.from(item.qrKinds),
+      firstStart: item.firstStart === Infinity ? 0 : item.firstStart
+    }));
 }
 
 /* Load runs only for one selected project */

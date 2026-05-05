@@ -15,8 +15,10 @@ const qrKindViewEl = document.getElementById("lbQrKindView");
 const chartsContainerEl = document.getElementById("lineBalanceCharts");
 const projectSearchEl = document.getElementById("lbProjectSearch");
 const projectSearchClearEl = document.getElementById("lbProjectSearchClear");
+const projectSortEl = document.getElementById("lbProjectSort");
+const projectSortMenuEl = document.getElementById("lbProjectSortMenu");
 
-
+let projectSortMode = "latest";
 let selectedProjectSerial = "";
 let currentProjects = [];
 let allRunsCache = [];
@@ -31,6 +33,43 @@ let lineBalanceView = {
   showActual: true,   // default on
   showTotal: false    // default off
 };
+
+function getProjectSortTime(project) {
+  return Number(
+    project.latestStart ||
+    project.updatedAtEpochMs ||
+    project.lastUpdatedEpochMs ||
+    project.startEpochMs ||
+    project.firstStart ||
+    0
+  );
+}
+
+function sortProjects(projects) {
+  const list = Array.isArray(projects) ? [...projects] : [];
+
+  return list.sort((a, b) => {
+    const aName = String(a.projectName || "").toLowerCase();
+    const bName = String(b.projectName || "").toLowerCase();
+
+    const aTime = getProjectSortTime(a);
+    const bTime = getProjectSortTime(b);
+
+    if (projectSortMode === "az") {
+      return aName.localeCompare(bName);
+    }
+
+    if (projectSortMode === "za") {
+      return bName.localeCompare(aName);
+    }
+
+    if (projectSortMode === "oldest") {
+      return aTime - bTime;
+    }
+
+    return bTime - aTime;
+  });
+}
 
 function updateSearchClearVisibility() {
   if (!projectSearchEl || !projectSearchClearEl) return;
@@ -61,7 +100,10 @@ function normalizeProjectHeaders(rows) {
       materialNumber: row.materialNumber || "-",
       model: row.model || "-",
       runCount: Number(row.runCount || 0),
-      qrKinds: Array.isArray(row.qrKinds) ? row.qrKinds : []
+      qrKinds: Array.isArray(row.qrKinds) ? row.qrKinds : [],
+
+      latestStart: Number(row.latestStart || 0),
+      firstStart: Number(row.firstStart || 0)
     }))
     .filter(row => row.chillerSerialNumber);
 }
@@ -102,6 +144,7 @@ function compareProcessSortKey(a, b) {
 }
 
 function buildProjects(runs) {
+  
   const map = new Map();
 
   for (const run of runs) {
@@ -115,26 +158,36 @@ function buildProjects(runs) {
         materialNumber: run.materialNumber || "-",
         model: run.model || "-",
         runCount: 0,
-        qrKinds: new Set()
+        qrKinds: new Set(),
+        latestStart: 0,
+        firstStart: Infinity
       });
     }
 
     const row = map.get(serial);
     row.runCount += 1;
 
+    const startMs = Number(run.startEpochMs || 0);
+
+    if (startMs) {
+      row.latestStart = Math.max(row.latestStart || 0, startMs);
+      row.firstStart = Math.min(row.firstStart || Infinity, startMs);
+    }
+
     if (run.qrKind) {
       row.qrKinds.add(String(run.qrKind).trim());
     }
+
+  
   }
 
   return Array.from(map.values())
-    .map(item => ({
-      ...item,
-      qrKinds: Array.from(item.qrKinds)
-    }))
-    .sort((a, b) =>
-      String(a.projectName || "").localeCompare(String(b.projectName || ""))
-    );
+
+  .map(item => ({
+    ...item,
+    qrKinds: Array.from(item.qrKinds),
+    firstStart: item.firstStart === Infinity ? 0 : item.firstStart
+  }));
 }
 
 function getProjectSegments(segments, chillerSerialNumber) {
@@ -575,7 +628,9 @@ function filterProjects(projects, searchTerm) {
 function renderProjectList(projects) {
   if (!projectListEl) return;
 
-  const filteredProjects = filterProjects(projects, projectSearchTerm);
+  const filteredProjects = sortProjects(
+    filterProjects(projects, projectSearchTerm)
+  );
 
   if (projectCountEl) {
     projectCountEl.textContent = String(filteredProjects.length);
@@ -612,13 +667,13 @@ function renderProjectList(projects) {
       if (chosen) onProjectClick(chosen);
     });
   });
+
 }
 
 async function renderPage() {
-  
   const rawHeaders = await loadProjectHeadersFallbackFromRuns();
-  currentProjects = await loadProjectHeadersFallbackFromRuns();
 
+  currentProjects = normalizeProjectHeaders(rawHeaders);
 
   renderProjectList(currentProjects);
 
@@ -635,8 +690,6 @@ async function renderPage() {
 
   const projectToShow = stillExists || currentProjects[0];
   await onProjectClick(projectToShow);
-
-
 }
 
 qrKindViewEl?.addEventListener("change", () => {
@@ -666,6 +719,40 @@ projectSearchEl?.addEventListener("input", () => {
 
   updateSearchClearVisibility(); 
   renderProjectList(currentProjects);
+});
+
+projectSortEl?.addEventListener("click", () => {
+  if (!projectSortMenuEl) return;
+
+  const willOpen = projectSortMenuEl.hidden;
+  projectSortMenuEl.hidden = !willOpen;
+  projectSortEl.setAttribute("aria-expanded", String(willOpen));
+  projectSortEl.classList.toggle("active", willOpen);
+});
+
+projectSortMenuEl?.querySelectorAll("[data-sort]").forEach(button => {
+  button.addEventListener("click", () => {
+    projectSortMode = button.dataset.sort || "latest";
+    projectSortMenuEl.hidden = true;
+    projectSortEl?.setAttribute("aria-expanded", "false");
+    projectSortEl?.classList.remove("active");
+    renderProjectList(currentProjects);
+  });
+});
+
+document.addEventListener("click", event => {
+  if (
+    !projectSortMenuEl ||
+    !projectSortEl ||
+    projectSortMenuEl.hidden ||
+    event.target.closest(".filterSortWrap")
+  ) {
+    return;
+  }
+
+  projectSortMenuEl.hidden = true;
+  projectSortEl.setAttribute("aria-expanded", "false");
+  projectSortEl.classList.remove("active");
 });
 
 updateSearchClearVisibility();

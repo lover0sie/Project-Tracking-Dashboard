@@ -227,6 +227,7 @@ export const STANDARD_TIME_MIN = {
   "13 - Unit side plate and base welding": 380,
   "14A - Tube slotting": 100,
   "14B - Tube expansion": 400,
+  "14C - Shell body slotting": 450,
   "15 - Primer painting": 180,
   "16 - Pneumatic testing": 120,
   "17 - Hydrostatic testing": 300,

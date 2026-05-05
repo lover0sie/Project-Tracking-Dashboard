@@ -46,7 +46,9 @@
 
     <div class="lineBalanceLayout">
       <div class="projectListPanel">
-        <div class="sectionTitle">All Projects</div>
+        <div class="projectListHeader">
+          <div class="sectionTitle">All Projects</div>
+        </div>
 
         <div class="projectSearchWrap">
           <div class="searchPill">
@@ -74,8 +76,41 @@
             >
               ×
             </button>
+
+          </div>
+
+          <div class="filterSortWrap">
+            <button
+              type="button"
+              id="lbProjectSort"
+              class="filterPillBtn"
+              aria-expanded="false"
+              aria-controls="lbProjectSortMenu"
+              aria-label="Sort projects"
+              title="Sort projects"
+            >
+              <span class="filterPillIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M4 7h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                  <circle cx="17" cy="7" r="2" stroke="currentColor" stroke-width="2"></circle>
+                  <path d="M20 17H10" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                  <circle cx="7" cy="17" r="2" stroke="currentColor" stroke-width="2"></circle>
+                  <path d="M4 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                  <path d="M12 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                </svg>
+              </span>
+            </button>
+
+            <div id="lbProjectSortMenu" class="filterSortMenu" hidden>
+              <button type="button" data-sort="latest">Latest update first</button>
+              <button type="button" data-sort="oldest">Oldest update first</button>
+              <button type="button" data-sort="az">Project in Ascending Order</button>
+              <button type="button" data-sort="za">Project in Descending Order</button>
+            </div>
           </div>
         </div>
+
+        
 
         <div id="lbProjectList" class="projectList">
           <div class="emptyState">No projects loaded yet.</div>
