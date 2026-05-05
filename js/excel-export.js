@@ -340,6 +340,7 @@ export function exportStationViewExcel(segments, options = {}) {
     "Station",
     "Process",
     "Project Name",
+    "Type",
     "Serial Number",
     "Material Number",
     "Start Time and Date",
@@ -352,6 +353,11 @@ export function exportStationViewExcel(segments, options = {}) {
   segments.forEach(seg => {
     const qrKind = String(seg.qrKind || "").toUpperCase();
 
+    const typeText =
+      qrKind === "PV"
+        ? (seg.vesselType || "")
+        : (seg.coolingType || "");
+
     const serialNumber =
       qrKind === "PV"
         ? (seg.pvSerialNumber || seg.serialNumber || seg.serial || "")
@@ -363,6 +369,7 @@ export function exportStationViewExcel(segments, options = {}) {
       seg.station || "",
       seg.processLabel || seg.processName || "",
       seg.projectName || "",
+      typeText,
       serialNumber,
       seg.materialNumber || "",
       `${formatExcelDate(seg.start)} ${formatExcelTime(seg.start)}`,
@@ -382,15 +389,16 @@ export function exportStationViewExcel(segments, options = {}) {
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
   ws["!cols"] = [
-  { wch: 16 }, // Station
-  { wch: 34 }, // Process
-  { wch: 28 }, // Project Name
-  { wch: 18 }, // Serial Number
-  { wch: 18 }, // Material Number
-  { wch: 24 }, // Start Time and Date
-  { wch: 24 }, // End Time and Date
-  { wch: 16 }  // Status
-];
+    { wch: 16 }, // Station
+    { wch: 34 }, // Process
+    { wch: 28 }, // Project Name
+    { wch: 18 }, // Type
+    { wch: 18 }, // Serial Number
+    { wch: 18 }, // Material Number
+    { wch: 24 }, // Start Time and Date
+    { wch: 24 }, // End Time and Date
+    { wch: 16 }  // Status
+  ];
 
   XLSX.utils.book_append_sheet(wb, ws, "Station View");
 
