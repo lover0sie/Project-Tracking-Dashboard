@@ -1318,28 +1318,38 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
     const procEntries = Array.from(procMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 
-    const procRows = procEntries.map(([processKey, segs]) => {
+    const processGroups = [];
+    for (const [processKey, segs] of procEntries) {
       const processNo = processKey.split("__")[0];
-      const sortedSegs = [...segs].sort(
-        (a, b) => a.start.getTime() - b.start.getTime()
-      );
+      let group = processGroups[processGroups.length - 1];
 
-      const lanes = buildLanes(sortedSegs).map(laneSegs =>
-      injectWaitingIntoLane(laneSegs)
-    );
+      if (!group || group.processNo !== processNo) {
+        group = { processNo, entries: [] };
+        processGroups.push(group);
+      }
 
-      const cur = latestSegment(sortedSegs) || null;
-      const st = statusUi(
-        cur?.status || (cur?.phase === "waiting" ? "waiting" : "")
-      );
-      const processName =
-        sortedSegs.find(seg => seg.processLabel && seg.processLabel !== "Waiting")?.processLabel ||
-        cur?.processLabel ||
-        processNo;
+      group.entries.push([processKey, segs]);
+    }
 
-      const hasAutoStopCandidate = sortedSegs.some(s => s.isAutoStopCandidate);
+    const procRows = processGroups.map(group => {
+      const renderedEntries = group.entries.map(([, segs]) => {
+        const sortedSegs = [...segs].sort(
+          (a, b) => a.start.getTime() - b.start.getTime()
+        );
 
-      const laneRowsHtml = lanes.map((laneSegs, laneIndex) => {
+        const lanes = buildLanes(sortedSegs).map(laneSegs =>
+          injectWaitingIntoLane(laneSegs)
+        );
+
+        const cur = latestSegment(sortedSegs) || null;
+        const processName =
+          sortedSegs.find(seg => seg.processLabel && seg.processLabel !== "Waiting")?.processLabel ||
+          cur?.processLabel ||
+          group.processNo;
+
+        const hasAutoStopCandidate = sortedSegs.some(s => s.isAutoStopCandidate);
+
+        const laneRowsHtml = lanes.map((laneSegs, laneIndex) => {
         const realLaneSegs = laneSegs.filter(seg =>
           seg.phase !== "waiting" && seg.status !== "waiting"
         );
@@ -1457,15 +1467,30 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
           ${bars}
         </div>
       `;
-      }).join("");
+        }).join("");
+
+        return {
+          hasAutoStopCandidate,
+          laneRowCount: lanes.length * 2,
+          processName,
+          rowsHtml: laneRowsHtml
+        };
+      });
+
+      const processRowSpan = renderedEntries.reduce(
+        (sum, entry) => sum + entry.laneRowCount,
+        0
+      );
+      const processName = renderedEntries.find(entry => entry.processName)?.processName || group.processNo;
+      const hasAutoStopCandidate = renderedEntries.some(entry => entry.hasAutoStopCandidate);
+      const laneRowsHtml = renderedEntries.map(entry => entry.rowsHtml).join("");
 
       return `
         <div class="stationProcBlock ${hasAutoStopCandidate ? "autoStopHighlight" : ""}">
-         <div class="ganttCell procNo stationProcessMerged"
-            style="grid-row: 1 / span ${lanes.length * 2}; grid-column: 1;">
-          <div class="stationProcessName">${escapeHtml(processName)}</div>
-        </div>
-
+          <div class="ganttCell procNo stationProcessMerged"
+              style="grid-column: 1; --processRowSpan: ${processRowSpan};">
+            <div class="stationProcessName">${escapeHtml(processName)}</div>
+          </div>
           ${laneRowsHtml}
         </div>
       `;

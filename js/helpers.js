@@ -286,6 +286,7 @@ const TZ = "Asia/Kuala_Lumpur";
 const START_HOUR = 8;
 const END_HOUR = 21;
 
+
 export function renderLegend(containerId, items) {
   const el = document.getElementById(containerId);
   if (!el) return;

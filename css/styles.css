@@ -3134,9 +3134,9 @@ select:focus{
 }
 
 .stationProcessMerged {
-  grid-row: 1 / span 2;
+  grid-row: 1 / span var(--processRowSpan, 2);
   border-bottom: none;
-  border-right: none;
+  border-right: 1px solid #dbe3ef;
   height: auto;
   align-self: stretch;
   align-items: center;
@@ -3144,7 +3144,9 @@ select:focus{
   padding: 4px 14px;
   text-align: left;
   overflow: hidden;
+  display: flex;
 }
+
 
 .stationProcBlock > .stationProcessMerged {
   height: auto;
@@ -3231,13 +3233,6 @@ select:focus{
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: normal;
-}
-
-.stationMerged {
-  display: flex;
-  align-items: center;
-  font-weight: 800;
-  border-bottom: 1px solid var(--ganttGridLine);
 }
 
 .stationGroup {
