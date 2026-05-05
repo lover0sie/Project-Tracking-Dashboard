@@ -13,8 +13,8 @@
   --radius:14px;
   --radiusSm:10px;
   --dayW: 80px;
-  --rowH: 32px;
-  --barH: 16px;
+  --rowH: 30px;
+  --barH: 15px;
   --colProject: 210px;
   --colProc: 90px;
   --colStatus: 95px;
@@ -773,7 +773,7 @@ select:focus{
 .unitBlock{
   display: grid;
   grid-template-columns: var(--colProject) 1fr;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px solid #c9d4e2;
   background: #fff;
 }
 
@@ -917,6 +917,48 @@ select:focus{
   top: 50%;
   transform: translateY(-50%);
   border-radius: 4px;
+}
+
+.unitLanePair {
+  display: grid;
+  grid-template-columns: var(--colProc) var(--colStatus) 1fr;
+  grid-template-rows: var(--rowH) var(--rowH);
+  border-bottom: 1px solid #dfe3e8;
+}
+
+.unitLaneRows .unitLanePair:last-child {
+  border-bottom: 0;
+}
+
+.unitLanePair > .standardLaneRow {
+  border-bottom: 1px solid #dfe7f1;
+}
+
+.mergedProcNo {
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.unitLanePair > .status:nth-of-type(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.unitLanePair > .ganttTimeline:nth-of-type(1) {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.unitLanePair > .status:nth-of-type(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.unitLanePair > .ganttTimeline:nth-of-type(2) {
+  grid-column: 3;
+  grid-row: 2;
 }
 
 
@@ -1616,12 +1658,17 @@ select:focus{
 
 .nowLine{
   position:absolute;
-  top:0;
-  bottom:0;
-  width:1px;
-  background:#ef4444;
-  box-shadow:0 0 6px rgba(239,68,68,0.6);
-  z-index:3;
+  top:-3px;
+  bottom:-3px;
+  width:2px;
+  background:#dc2626;
+  border-radius:999px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.75),
+    0 0 10px rgba(220,38,38,0.9),
+    0 0 22px rgba(220,38,38,0.55);
+  transform: translateX(-50%);
+  z-index:8;
   pointer-events:none;
 }
 
@@ -2998,6 +3045,12 @@ select:focus{
 
 .station-page .ganttTimeline .bar {
   z-index: 3;
+}
+
+.station-page .nowLine {
+  top: -6px;
+  bottom: -6px;
+  z-index: 16;
 }
 
 .stationTimeline{

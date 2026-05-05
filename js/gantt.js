@@ -55,6 +55,40 @@ let lastStationLineBalanceSegments = [];
 
 let zoomLevel = 0.8;
 
+function assignLane(segments) {
+  const lanes = [];
+
+  const sorted = [...segments].sort((a, b) => {
+    return a.start.getTime() - b.start.getTime();
+  });
+
+  for (const seg of sorted) {
+    const segStart = seg.start.getTime();
+    const segEnd = seg.end ? seg.end.getTime() : Date.now();
+
+    let placed = false;
+
+    for (const lane of lanes) {
+      const lastSeg = lane[lane.length - 1];
+      const lastEnd = lastSeg.end ? lastSeg.end.getTime() : Date.now();
+
+      if (segStart >= lastEnd) {
+        lane.push(seg);
+        seg.laneIndex = lanes.indexOf(lane);
+        placed = true;
+        break;
+      }
+    }
+
+    if (!placed) {
+      seg.laneIndex = lanes.length;
+      lanes.push([seg]);
+    }
+  }
+
+  return segments;
+}
+
 function normalize(str) {
   return String(str || "").toLowerCase().trim();
 }
@@ -360,10 +394,14 @@ function formatVariance(ms) {
 }
 
 /* Inject waiting into slice (renderGanttDaily) */
-function injectWaitingIntoLane(segs) {
-  const sorted = [...segs]
+function injectWaitingIntoLane(laneSegs, allUnitSegs = []) {
+  const sorted = [...laneSegs]
     .filter(Boolean)
     .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  const allRealSegs = [...allUnitSegs]
+    .filter(seg => seg.phase !== "waiting" && seg.status !== "waiting")
+    .filter(hasValidSegmentDates);
 
   const out = [];
   if (!sorted.length) return out;
@@ -375,24 +413,34 @@ function injectWaitingIntoLane(segs) {
     const next = sorted[i + 1];
     if (!next) continue;
 
-    const gapStart = cur.end.getTime();
-    const gapEnd = next.start.getTime();
+    const gapStartMs = cur.end.getTime();
+    const gapEndMs = next.start.getTime();
 
-    if (gapEnd > gapStart) {
-      out.push({
-        ...cur,
-        start: new Date(gapStart),
-        end: new Date(gapEnd),
-        status: "waiting",
-        phase: "waiting",
-        processLabel: "Waiting"
-      });
-    }
+    if (gapEndMs <= gapStartMs) continue;
+
+    const hasOtherActiveWork = allRealSegs.some(seg => {
+      if (seg === cur || seg === next) return false;
+
+      const s = seg.start.getTime();
+      const e = seg.end.getTime();
+
+      return e > gapStartMs && s < gapEndMs;
+    });
+
+    if (hasOtherActiveWork) continue;
+
+    out.push({
+      ...cur,
+      start: new Date(gapStartMs),
+      end: new Date(gapEndMs),
+      status: "waiting",
+      phase: "waiting",
+      processLabel: "Waiting"
+    });
   }
 
   return out;
 }
-
 /* Inject waiting into slice (renderGantt) */
 function injectWaitingIntoUnitSegs(segs) {
   if (!Array.isArray(segs) || !segs.length) return [];
@@ -833,18 +881,30 @@ function hasValidSegmentDates(seg) {
   );
 }
 
-function buildLanes(segs){
-  // Sort by start time
-  const sorted = segs.slice().sort((a,b) => a.start - b.start);
+function getLaneEndMs(seg) {
+  const status = String(seg?.status || "").toLowerCase().trim();
 
-  const lanes = []; // each lane is { endMs:number, segs:[] }
+  // If process is currently on hold, treat the lane as occupied until now
+  if (status === "on_hold") {
+    return Date.now();
+  }
+
+  return seg?.end?.getTime?.() || seg?.start?.getTime?.() || 0;
+}
+
+function buildLanes(segs) {
+  const sorted = segs.slice().sort((a, b) =>
+    a.start.getTime() - b.start.getTime()
+  );
+
+  const lanes = [];
 
   for (const seg of sorted) {
     const s = seg.start.getTime();
-    const e = seg.end.getTime();
+    const e = getLaneEndMs(seg);
 
-    // try place into an existing lane
     let placed = false;
+
     for (const lane of lanes) {
       if (s >= lane.endMs) {
         lane.segs.push(seg);
@@ -854,9 +914,11 @@ function buildLanes(segs){
       }
     }
 
-    // otherwise create a new lane
     if (!placed) {
-      lanes.push({ endMs: e, segs: [seg] });
+      lanes.push({
+        endMs: e,
+        segs: [seg]
+      });
     }
   }
 
@@ -1338,7 +1400,7 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         );
 
         const lanes = buildLanes(sortedSegs).map(laneSegs =>
-          injectWaitingIntoLane(laneSegs)
+          injectWaitingIntoLane(laneSegs, sortedSegs)
         );
 
         const cur = latestSegment(sortedSegs) || null;
@@ -1582,7 +1644,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
       
 
       const lanes = buildLanes(segs).map(laneSegs =>
-        injectWaitingIntoLane(laneSegs, rangeMin, rangeMax)
+        injectWaitingIntoLane(laneSegs, segs)
       );
       const laneCount = Math.max(1, lanes.length);
 
@@ -1681,39 +1743,31 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
                 
 
         /* Return two rows - one for standard, and one for actual */
-        return `
-          <div class="unitLaneRow standardLaneRow">
-            <div class="ganttCell procNo">
-              <div style="font-weight:900;">STD</div>
-            </div>
-
-            <div class="ganttCell status">
-              <span class="statusPill standard">Standard</span>
-            </div>
-
-            <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
-              ${timeBands}
-              ${standardBars}
-            </div>
+       return `
+        <div class="unitLanePair ${hasAutoStopCandidate ? 'autoStopHighlight' : ''}">
+          <div class="ganttCell procNo mergedProcNo">
+            <div style="font-weight:900;">${escapeHtml(procNo)}</div>
           </div>
 
-           <div class="unitLaneRow ${hasAutoStopCandidate ? 'autoStopHighlight' : ''}">
-            <div class="ganttCell procNo">
-              <div style="font-weight:900;">${escapeHtml(procNo)}</div>
-            </div>
-
-            <div class="ganttCell status">
-              <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
-            </div>
-
-            <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
-              ${timeBands}
-              ${bars}
-            </div>
+          <div class="ganttCell status standardLaneRow">
+            <span class="statusPill standard">Standard</span>
           </div>
 
-          
-        `;
+          <div class="ganttTimeline dailyGrid standardLaneRow" style="width:${totalWidthPx}px">
+            ${timeBands}
+            ${standardBars}
+          </div>
+
+          <div class="ganttCell status">
+            <span class="statusPill ${st.cls}">${escapeHtml(st.text)}</span>
+          </div>
+
+          <div class="ganttTimeline dailyGrid" style="width:${totalWidthPx}px">
+            ${timeBands}
+            ${bars}
+          </div>
+        </div>
+      `;
       }).join("");
 
       return `
