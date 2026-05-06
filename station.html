@@ -16,6 +16,7 @@
       </div>
 
       <div class="actions">
+        <button id="btn-refresh">Refresh</button>
         <a class="btn secondary" href="index.html">Back to Dashboard</a>
       </div>
     </header>
@@ -92,6 +93,7 @@
     import { clearCache } from "./js/timeline.js";
     import { 
       renderStationOnlyView, 
+      clearGanttCache,
       stopGanttLiveRefresh,
       exportStationSelectedDateExcel
     } from "./js/gantt.js";
@@ -109,9 +111,22 @@
       .catch(err => console.warn("Version check failed to start", err));
 
     btnRefresh?.addEventListener("click", async () => {
-      stopGanttLiveRefresh();
-      clearCache();
-      await renderPage();
+      const originalText = btnRefresh.textContent;
+
+      try {
+        btnRefresh.disabled = true;
+        btnRefresh.textContent = "Refreshing...";
+
+        stopGanttLiveRefresh();
+        clearCache();
+        clearGanttCache();
+        await renderPage();
+      } catch (err) {
+        console.error("Refresh failed:", err);
+      } finally {
+        btnRefresh.disabled = false;
+        btnRefresh.textContent = originalText || "Refresh";
+      }
     });
 
     dayPicker?.addEventListener("change", async () => {

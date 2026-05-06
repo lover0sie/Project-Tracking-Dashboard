@@ -2749,6 +2749,7 @@ select:focus{
   justify-content: flex-end;
 }
 
+.station-page .actions button,
 .station-page .actions .btn {
   height: 32px;
   padding: 0 10px;
@@ -2756,12 +2757,36 @@ select:focus{
   border-color: #d7dce5;
   background: #111827;
   color: #ffffff;
-  font-size: 10px;
+  font-family: inherit;
+  font-size: 11px !important;
   font-weight: 800;
+  line-height: 1;
   box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
+  justify-content: center;
 }
 
-.station-page .actions .btn:hover {
+.station-page .actions button {
+  appearance: none;
+}
+
+.station-page .actions .btn.secondary,
+.station-page .actions button.secondary,
+.station-page #btn-refresh {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #d9e1ec;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.04);
+}
+
+.station-page .actions .btn.secondary:hover,
+.station-page .actions button.secondary:hover,
+.station-page #btn-refresh:hover {
+  background: #fbfdff;
+  border-color: #b9c8dc;
+  color: #0f172a;
+}
+
+.station-page .actions .btn:not(.secondary):hover {
   background: #1f2937;
   border-color: #1f2937;
 }

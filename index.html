@@ -114,7 +114,7 @@
 <script type="module">
   import { renderTree } from "./js/tree.js";
   import { clearCache } from "./js/timeline.js";
-  import { renderGanttView, syncPickers, stopGanttLiveRefresh, updateGanttLeftHeaders } from "./js/gantt.js";
+  import { clearGanttCache, renderGanttView, syncPickers, stopGanttLiveRefresh, updateGanttLeftHeaders } from "./js/gantt.js";
 
   const btnRefresh = document.getElementById("btn-refresh");
   const viewMode = document.getElementById("viewMode");
@@ -170,6 +170,7 @@
 
       stopGanttLiveRefresh();     // avoid old timer during refresh
       clearCache();
+      clearGanttCache();
       await renderCurrentView();
     } catch (err) {
       console.error("Refresh failed:", err);

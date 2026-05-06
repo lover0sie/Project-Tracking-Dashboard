@@ -44,6 +44,11 @@ let cachedEvents = [];
 const cachedRunsByMonth = new Map();
 // Cache fetched runs to avoid hitting Firestore on every re-render.
 
+export function clearGanttCache() {
+  cachedEvents = [];
+  cachedRunsByMonth.clear();
+}
+
 /* Helpers for time */
 
 const TZ = "Asia/Kuala_Lumpur";
@@ -311,7 +316,7 @@ function startGanttLiveRefresh() {
   stopGanttLiveRefresh();
   ganttLiveTimer = setInterval(() => {
     renderGanttView();
-  }, 60000); // every 1 minute
+  }, 10000); // every 10 seconds
 }
 
 export function stopGanttLiveRefresh() {
