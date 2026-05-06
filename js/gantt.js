@@ -311,11 +311,19 @@ function getHoldDurationMsFromRun(r) {
 
 /* Gantt chart refresh start and stop */
 let ganttLiveTimer = null;
+let ganttLiveRefreshInFlight = false;
 
 function startGanttLiveRefresh() {
   stopGanttLiveRefresh();
-  ganttLiveTimer = setInterval(() => {
-    renderGanttView();
+  ganttLiveTimer = setInterval(async () => {
+    if (ganttLiveRefreshInFlight) return;
+
+    try {
+      ganttLiveRefreshInFlight = true;
+      await renderGanttView({ forceRefresh: true });
+    } finally {
+      ganttLiveRefreshInFlight = false;
+    }
   }, 10000); // every 10 seconds
 }
 
@@ -2019,7 +2027,7 @@ function escapeAttr(s) {
   return String(s ?? "").replaceAll('"', "&quot;");
 }
 
-async function render() {
+async function render({ forceRefresh = false } = {}) {
 
   try {
     let runs = [];
@@ -2039,7 +2047,7 @@ async function render() {
     }
 
     if (mode === "daily" || mode === "station") {
-      runs = await loadRunsForDayWithCarryForward(dayKey);
+      runs = await loadRunsForDayWithCarryForward(dayKey, forceRefresh);
     }
     else if (mode === "month") {
       const mp = el("monthPicker");
@@ -2049,7 +2057,7 @@ async function render() {
 
       const monthKey = `${yy}-${String(mm).padStart(2, "0")}`;
 
-      if (cachedRunsByMonth.has(monthKey)) {
+      if (!forceRefresh && cachedRunsByMonth.has(monthKey)) {
         runs = cachedRunsByMonth.get(monthKey);
       } else {
         const lastDay = new Date(yy, mm, 0).getDate();
@@ -2266,9 +2274,9 @@ if (btnExport) {
 }
 
 /* Start */
-export async function renderGanttView() {
+export async function renderGanttView({ forceRefresh = false } = {}) {
   console.log("GANTT RENDER CALLED");
-  await render();
+  await render({ forceRefresh });
 
   startGanttLiveRefresh();
 }
