@@ -312,6 +312,9 @@ function getHoldDurationMsFromRun(r) {
 /* Gantt chart refresh start and stop */
 let ganttLiveTimer = null;
 let ganttLiveRefreshInFlight = false;
+let lastGanttLiveFetchMs = 0;
+const GANTT_LIVE_RENDER_MS = 10000;
+const GANTT_LIVE_FETCH_MS = 60000;
 
 function startGanttLiveRefresh() {
   stopGanttLiveRefresh();
@@ -320,11 +323,18 @@ function startGanttLiveRefresh() {
 
     try {
       ganttLiveRefreshInFlight = true;
-      await renderGanttView({ forceRefresh: true });
+      const now = Date.now();
+      const forceRefresh = now - lastGanttLiveFetchMs >= GANTT_LIVE_FETCH_MS;
+
+      await renderGanttView({ forceRefresh });
+
+      if (forceRefresh) {
+        lastGanttLiveFetchMs = now;
+      }
     } finally {
       ganttLiveRefreshInFlight = false;
     }
-  }, 10000); // every 10 seconds
+  }, GANTT_LIVE_RENDER_MS);
 }
 
 export function stopGanttLiveRefresh() {
