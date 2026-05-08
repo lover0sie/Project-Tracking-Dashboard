@@ -731,6 +731,37 @@ function getDayW(){
   return Number(v.replace("px","")) || 120;
 }
 
+function cssPxVar(name, fallback = 0) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return Number(v.replace("px", "")) || fallback;
+}
+
+function fitMonthlyToScreen(dayCount) {
+  if (!ganttWrapEl || !dayCount) return getDayW();
+
+  const leftCols =
+    cssPxVar("--colProject") +
+    cssPxVar("--colProc") +
+    cssPxVar("--colStatus");
+
+  const availableTimelineW = Math.max(1, ganttWrapEl.clientWidth - leftCols - 2);
+  const fittedDayW = Math.max(18, Math.floor(availableTimelineW / dayCount));
+
+  document.documentElement.style.setProperty("--dayW", fittedDayW + "px");
+  return fittedDayW;
+}
+
+function setMonthlyTodayHighlight(days, dayW) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const todayIndex = days.findIndex(d => d.getTime() === today.getTime());
+  const todayLeft = todayIndex >= 0 ? `${todayIndex * dayW}px` : "-9999px";
+
+  document.documentElement.style.setProperty("--todayLeft", todayLeft);
+  return todayIndex;
+}
+
 function dateKey(d) {
   const dd = String(d.getDate()).padStart(2,"0");
   const mm = String(d.getMonth()+1).padStart(2,"0");
@@ -738,8 +769,16 @@ function dateKey(d) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+function monthDayLabel(d) {
+  return String(d.getDate()).padStart(2, "0");
+}
+
 function weekdayName(d) {
   return new Intl.DateTimeFormat("en-GB", { weekday:"long" }).format(d);
+}
+
+function weekdayShortName(d) {
+  return new Intl.DateTimeFormat("en-GB", { weekday:"short" }).format(d);
 }
 
 function buildHourHeader(){
@@ -1858,8 +1897,8 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
     const isToday = d.getTime() === today.getTime();
     return `
       <div class="dayCol ${isToday ? "today" : ""}">
-        <div class="d1">${dateKey(d)}</div>
-        <div class="d2">${weekdayName(d)}</div>
+        <div class="d1">${monthDayLabel(d)}</div>
+        <div class="d2">${weekdayShortName(d)}</div>
       </div>
     `;
   }).join("");
@@ -1871,12 +1910,7 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
   document.documentElement.style.setProperty("--minorDiv", "1"); // no half-day lines
   const totalWidthPx = days.length * dayW;
   const msPerDay = 24 * 60 * 60 * 1000;
-
-  const todayIndex = days.findIndex(d => d.getTime() === today.getTime());
-  if (todayIndex >= 0) {
-    const leftPx = todayIndex * dayW;
-    document.documentElement.style.setProperty("--todayLeft", leftPx + "px");
-  }
+  const todayIndex = setMonthlyTodayHighlight(days, dayW);
 
   monthHeadEl.style.width = totalWidthPx + "px";
   dayHeadEl.style.width = totalWidthPx + "px";
@@ -1927,13 +1961,11 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
         seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime())
       );
 
-      const segsWithWaiting = injectWaitingIntoUnitSegs(visibleSegs);
-
       const cur = latestSegment(visibleSegs) || null;
       const procNo = getProcessNo(cur?.processLabel);
       const st = statusUi(cur?.status);
 
-      const bars = segsWithWaiting
+      const bars = visibleSegs
         .filter(seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime()))
         .map(seg => {
           const parts = sliceSegForWaiting(seg);
@@ -2172,10 +2204,12 @@ async function render({ forceRefresh = false } = {}) {
       const [yy, mm] = (mp?.value || def).split("-").map(Number);
       const monthStart = new Date(yy, mm - 1, 1);
       const monthEnd = new Date(yy, mm, 0);
+      const days = buildDateRange(startOfDay(monthStart), endOfDay(monthEnd));
 
-      const dayW = getDayW();
+      const dayW = fitMonthlyToScreen(days.length);
       document.documentElement.style.setProperty("--colW", dayW + "px");
       document.documentElement.style.setProperty("--minorDiv", "1");
+      setMonthlyTodayHighlight(days, dayW);
 
       const rangeMin = startOfDay(monthStart);
       const rangeMax = endOfDay(monthEnd);
@@ -2192,17 +2226,16 @@ async function render({ forceRefresh = false } = {}) {
             No projects found for the selected month.
           </div>
         `;
-        monthHeadEl.innerHTML = buildMonthHeader(buildDateRange(rangeMin, rangeMax));
-        dayHeadEl.innerHTML = buildDateRange(rangeMin, rangeMax).map(d => `
+        monthHeadEl.innerHTML = buildMonthHeader(days);
+        dayHeadEl.innerHTML = days.map(d => `
           <div class="dayCol">
-            <div class="d1">${dateKey(d)}</div>
-            <div class="d2">${weekdayName(d)}</div>
+            <div class="d1">${monthDayLabel(d)}</div>
+            <div class="d2">${weekdayShortName(d)}</div>
           </div>
         `).join("");
         return;
       }
 
-      const days = buildDateRange(rangeMin, rangeMax);
       renderGantt(days, rangeMin, rangeMax, segsInMonth);
       return;
     }
@@ -2306,7 +2339,7 @@ export function updateGanttLeftHeaders() {
   }
 
   heads[0].textContent = "Unit";
-  heads[1].textContent = "Process No.";
+  heads[1].textContent = mode === "month" ? "Process No" : "Process No.";
   heads[2].textContent = "Status";
 }
 
