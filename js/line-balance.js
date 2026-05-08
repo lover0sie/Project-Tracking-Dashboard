@@ -17,6 +17,10 @@ const projectSearchEl = document.getElementById("lbProjectSearch");
 const projectSearchClearEl = document.getElementById("lbProjectSearchClear");
 const projectSortEl = document.getElementById("lbProjectSort");
 const projectSortMenuEl = document.getElementById("lbProjectSortMenu");
+const modeViewEl = document.getElementById("lbModeView");
+const countLabelEl = document.getElementById("lbCountLabel");
+const chillerSerialGroupEl = document.getElementById("lbChillerSerialGroup");
+
 
 let projectSortMode = "latest";
 let selectedProjectSerial = "";
@@ -27,6 +31,9 @@ let tooltipEl = null;
 let selectedProjectRuns = [];
 let selectedProjectSegments = [];
 let projectSearchTerm = "";
+let lineBalanceMode = "PROJECT";
+let currentModels = [];
+let selectedModel = "";
 
 let lineBalanceView = {
   showStandard: true, // default on
@@ -80,6 +87,25 @@ function updateSearchClearVisibility() {
     projectSearchClearEl.classList.add("show");
   } else {
     projectSearchClearEl.classList.remove("show");
+  }
+}
+
+function updateToolbarModeUi() {
+  const isModelBase = lineBalanceMode === "MODEL";
+
+  if (countLabelEl) {
+    countLabelEl.textContent = isModelBase ? "Total Models" : "Total Projects";
+  }
+
+  if (chillerSerialGroupEl) {
+    chillerSerialGroupEl.style.display = isModelBase ? "none" : "";
+  }
+
+  if (projectNameEl) {
+    const label = projectNameEl.closest(".toolbarGroup")?.querySelector("label");
+    if (label) {
+      label.textContent = isModelBase ? "Selected Model" : "Selected Project";
+    }
   }
 }
 
@@ -141,6 +167,38 @@ function compareProcessSortKey(a, b) {
     return (a?.major ?? 9999) - (b?.major ?? 9999);
   }
   return (a?.suffix || "").localeCompare(b?.suffix || "");
+}
+
+function buildModels(runs) {
+  const map = new Map();
+
+  for (const run of runs) {
+    const model = String(run.model || "").trim();
+    if (!model) continue;
+
+    if (!map.has(model)) {
+      map.set(model, {
+        model,
+        runCount: 0,
+        vesselTypes: new Set()
+      });
+    }
+
+    const row = map.get(model);
+
+    row.runCount++;
+
+    if (run.vesselType) {
+      row.vesselTypes.add(
+        String(run.vesselType).trim()
+      );
+    }
+  }
+
+  return Array.from(map.values()).map(item => ({
+    ...item,
+    vesselTypes: Array.from(item.vesselTypes)
+  }));
 }
 
 function buildProjects(runs) {
@@ -670,12 +728,169 @@ function renderProjectList(projects) {
 
 }
 
+async function onModelClick(modelRow) {
+  selectedModel = modelRow.model || "";
+
+  if (projectNameEl) {
+    projectNameEl.textContent = selectedModel || "-";
+  }
+
+  if (chillerSerialEl) {
+    chillerSerialEl.textContent = "All serial numbers";
+  }
+
+  renderModelList(currentModels);
+
+  const modelProjects = currentProjects.filter(project =>
+    String(project.model || "").trim() === String(selectedModel || "").trim()
+  );
+
+  const runsNested = await Promise.all(
+    modelProjects.map(project =>
+      loadRunsForProject(project.chillerSerialNumber)
+    )
+  );
+
+  const modelRuns = runsNested.flat();
+
+  const result = buildSegmentsFromRuns(modelRuns);
+
+  selectedProjectSegments =
+    Array.isArray(result)
+      ? result
+      : result.segments || [];
+
+  renderModelCharts(modelRow);
+}
+
+function renderModelCharts(modelRow) {
+  clearCharts();
+
+  const qrKindView = qrKindViewEl?.value || "PV";
+
+  if (qrKindView === "CHILLER") {
+    const chillerSegs = selectedProjectSegments.filter(seg =>
+      String(seg.qrKind || "").trim() === "CHILLER"
+    );
+
+    const data = buildProcessChartData(chillerSegs);
+    const mount = createChartCard(`${modelRow.model} — CHILLER`);
+
+    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+    return;
+  }
+
+  const pvSegs = selectedProjectSegments.filter(seg =>
+    String(seg.qrKind || "").trim() === "PV"
+  );
+
+  const vesselMap = groupPvSegmentsByVesselType(pvSegs);
+
+  if (!vesselMap.size) {
+    const mount = createChartCard(`${modelRow.model} — PV`);
+    mount.innerHTML = `<div class="emptyState">No PV data found for this model.</div>`;
+    return;
+  }
+
+  const preferredOrder = ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
+
+  const entries = Array.from(vesselMap.entries()).sort((a, b) => {
+    const ai = preferredOrder.indexOf(a[0]);
+    const bi = preferredOrder.indexOf(b[0]);
+
+    if (ai === -1 && bi === -1) return a[0].localeCompare(b[0]);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+
+  for (const [vesselType, segs] of entries) {
+    const data = buildProcessChartData(segs);
+    const mount = createChartCard(`${modelRow.model} — ${vesselType}`);
+
+    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+  }
+}
+
+function renderModelList(models) {
+  if (!projectListEl) return;
+
+  const list = Array.isArray(models) ? models : [];
+
+  if (projectCountEl) {
+    projectCountEl.textContent = String(list.length);
+  }
+
+  if (!list.length) {
+    projectListEl.innerHTML = `<div class="emptyState">No models found.</div>`;
+    return;
+  }
+
+  projectListEl.innerHTML = list.map(modelRow => {
+    const activeClass =
+      String(modelRow.model || "") === String(selectedModel || "")
+        ? " active"
+        : "";
+
+    return `
+      <div class="projectListItem${activeClass}" data-model="${escapeHtml(modelRow.model)}">
+        <div class="projectListTitle">${escapeHtml(modelRow.model || "-")}</div>
+        <div class="projectListMeta">
+          ${escapeHtml(String(modelRow.runCount || 0))} run(s)
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  projectListEl.querySelectorAll(".projectListItem").forEach(itemEl => {
+    itemEl.addEventListener("click", () => {
+      const model = itemEl.dataset.model || "";
+
+      const chosen = list.find(row =>
+        String(row.model || "") === String(model)
+      );
+
+      if (chosen) {
+        onModelClick(chosen);
+      }
+    });
+  });
+}
+
+function buildModelsFromProjects(projects) {
+
+  const map = new Map();
+
+  for (const project of projects) {
+
+    const model = String(project.model || "").trim();
+
+    if (!model) continue;
+
+    if (!map.has(model)) {
+      map.set(model, {
+        model,
+        runCount: 0,
+        projectCount: 0
+      });
+    }
+
+    const row = map.get(model);
+
+    row.projectCount++;
+
+    row.runCount += Number(project.runCount || 0);
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => a.model.localeCompare(b.model));
+}
+
 async function renderPage() {
   const rawHeaders = await loadProjectHeadersFallbackFromRuns();
 
   currentProjects = normalizeProjectHeaders(rawHeaders);
-
-  renderProjectList(currentProjects);
+  currentModels = buildModelsFromProjects(currentProjects);
 
   if (!currentProjects.length) {
     if (projectNameEl) projectNameEl.textContent = "-";
@@ -684,13 +899,35 @@ async function renderPage() {
     return;
   }
 
-  const stillExists = currentProjects.find(
-    p => String(p.chillerSerialNumber || "") === String(selectedProjectSerial || "")
-  );
+  if (lineBalanceMode === "PROJECT") {
+    renderProjectList(currentProjects);
 
-  const projectToShow = stillExists || currentProjects[0];
-  await onProjectClick(projectToShow);
+    const stillExists = currentProjects.find(
+      p => String(p.chillerSerialNumber || "") === String(selectedProjectSerial || "")
+    );
+
+    const projectToShow = stillExists || currentProjects[0];
+
+    await onProjectClick(projectToShow);
+  } else {
+    renderModelList(currentModels);
+
+    const stillExists = currentModels.find(
+      m => String(m.model || "") === String(selectedModel || "")
+    );
+
+    const modelToShow = stillExists || currentModels[0];
+
+    if (modelToShow) {
+      await onModelClick(modelToShow);
+    }
+  }
+
+  console.log("currentProjects", currentProjects);
+  console.log("currentModels", currentModels);
 }
+
+
 
 qrKindViewEl?.addEventListener("change", () => {
   const activeProject = currentProjects.find(
@@ -755,5 +992,19 @@ document.addEventListener("click", event => {
   projectSortEl.classList.remove("active");
 });
 
+modeViewEl?.addEventListener("change", () => {
+  lineBalanceMode = modeViewEl.value || "PROJECT";
+
+  document.querySelector(".sectionTitle").textContent =
+    lineBalanceMode === "PROJECT" ? "All Projects" : "All Models";
+
+  updateToolbarModeUi();
+
+  renderPage().catch(console.error);
+});
+
+
+updateToolbarModeUi();
 updateSearchClearVisibility();
 renderPage().catch(console.error);
+
