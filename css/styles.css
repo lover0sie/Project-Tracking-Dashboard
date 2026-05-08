@@ -84,6 +84,7 @@ button{
   padding:10px 14px;
   border-radius: var(--radiusSm);
   border:1px solid transparent;
+  font-family: inherit;
   font-size:14px;
   font-weight:800;
   cursor:pointer;
@@ -1872,16 +1873,25 @@ select:focus{
 }
 
 .dashboardPage #btnAutoStop {
-  background: #0f3a70;
-  border-color: #0f3a70;
+  background: #7f1d1d;
+  border-color: #7f1d1d;
   color: #ffffff;
-  box-shadow: 0 6px 14px rgba(15, 58, 112, 0.18);
+  box-shadow: 0 6px 14px rgba(127, 29, 29, 0.18);
 }
 
-.dashboardPage #btnAutoStop:hover {
-  background: #0b2f5d;
-  border-color: #0b2f5d;
-  box-shadow: 0 8px 18px rgba(15, 58, 112, 0.22);
+.dashboardPage #btnAutoStop:hover:not(:disabled) {
+  background: #6b1717;
+  border-color: #6b1717;
+  box-shadow: 0 8px 18px rgba(127, 29, 29, 0.24);
+}
+
+.dashboardPage #btnAutoStop:disabled {
+  background: #9f6b6b;
+  border-color: #9f6b6b;
+  color: #f8e7e7;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .dashboardPage #btn-export {
@@ -3007,19 +3017,19 @@ select:focus{
   flex: 0 0 auto;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #1d4ed8;
+  border: 1px solid #111827;
   border-radius: 8px;
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: #111827;
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 850;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+  font-size: var(--fontSm);
+  font-family: inherit;
+  font-weight: 800;
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
 }
 
 .station-page #btnExportStationExcel:hover {
-  border-color: #1e40af;
-  background: linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
+  border-color: #1f2937;
+  background: #1f2937;
 }
 
 .station-page .ganttWrap {
@@ -3558,6 +3568,30 @@ select:focus{
 .lineBalancePage > .top .btn.secondary:hover {
   border-color: #111827;
   background: #1f2937;
+}
+
+.station-page .actions .btn.secondary,
+.processPage .actions .btn.secondary,
+.lineBalancePage > .top .btn.secondary,
+.ackPage .actions .btn.secondary {
+  background: #e5e7eb;
+  border-color: #cbd5e1;
+  color: #111827;
+  font-family: inherit;
+  font-size: var(--fontSm) !important;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.station-page .actions .btn.secondary:hover,
+.processPage .actions .btn.secondary:hover,
+.lineBalancePage > .top .btn.secondary:hover,
+.ackPage .actions .btn.secondary:hover {
+  background: #d1d5db;
+  border-color: #94a3b8;
+  color: #0f172a;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
 }
 
 .lineBalancePage > .card {

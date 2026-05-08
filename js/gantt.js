@@ -2080,13 +2080,7 @@ async function render({ forceRefresh = false } = {}) {
     const todayKey = getMYTodayKey();
     const dayKey = picker?.value || todayKey;
 
-    if (!isPastCutoff()) {
-      btnAutoStop.disabled = true;
-      btnAutoStop.title = "Available after 5:30 PM";
-    } else {
-      btnAutoStop.disabled = false;
-      btnAutoStop.title = "";
-    }
+    updateAutoStopButtonState();
 
     if (mode === "daily" || mode === "station") {
       runs = await loadRunsForDayWithCarryForward(dayKey, forceRefresh);
@@ -2517,6 +2511,15 @@ window.addEventListener("resize", async () => {
 
 const btnAutoStop = document.getElementById("btnAutoStop");
 
+function updateAutoStopButtonState({ running = false } = {}) {
+  if (!btnAutoStop) return;
+
+  const available = isPastCutoff();
+  btnAutoStop.disabled = running || !available;
+  btnAutoStop.title = available ? "" : "Available after 5:30 PM";
+  btnAutoStop.textContent = running ? "Running..." : "Run Auto Stop";
+}
+
 function showAutoStopPopup({
   title = "Auto Stop",
   message = "",
@@ -2595,8 +2598,7 @@ if (btnAutoStop) {
 
     if (!ok) return;
 
-      btnAutoStop.disabled = true;
-      btnAutoStop.textContent = "Running...";
+      updateAutoStopButtonState({ running: true });
 
       const result = await autoStopRuns();
 
@@ -2619,8 +2621,7 @@ if (btnAutoStop) {
         tone: "danger"
       });
     } finally {
-      btnAutoStop.disabled = false;
-      btnAutoStop.textContent = "Run Auto Stop";
+      updateAutoStopButtonState();
     }
   });
 
