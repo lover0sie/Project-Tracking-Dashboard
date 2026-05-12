@@ -185,7 +185,7 @@ export const STATION_ALLOWED_CHILLER_TYPES = {
   "AC 1": ["WATER-COOLED"],
   "AC 2": ["WATER-COOLED"],
   "Insulation 1": ["AIR-COOLED", "WATER-COOLED"],
-  "Insulation 1": ["AIR-COOLED", "WATER-COOLED"],
+  "Insulation 2": ["AIR-COOLED", "WATER-COOLED"],
   "Packing": ["AIR-COOLED", "WATER-COOLED"],
 };
 
@@ -762,6 +762,13 @@ export function buildSegmentsFromRuns(runs) {
       pvSerialNumber: r.pvSerialNumber || "",
       vesselType: r.vesselType || "",
       coolingType: r.coolingType || "",
+
+      // added for insulation item merging
+      serialNumber: r.serialNumber || "",
+      insulationItemType: r.insulationItemType || "",
+      relatedQrKind: r.relatedQrKind || "",
+      relatedPvSerialNumber: r.relatedPvSerialNumber || "",
+      
 
       ongoing: (status === "running" || status === "on_hold"),
       durationMs: Math.max(0, durationMs),

@@ -705,8 +705,8 @@ function stationClass(station) {
   if (s.includes ("wc1")) return "st-wc1"; // WC Line 1
   if (s.includes ("wc2")) return "st-wc2"; // WC Line 2
   if (s.includes ("ac")) return "st-ac"; // AC Line
-  if (s.includes ("insulationab")) return "st-insulation1"; // Insulation AB 
-  if (s.includes ("insulationg")) return "st-insulation2"; // Insulation G
+  if (s.includes("insulationab") || s.includes("insulation1")) return "st-insulationab"; // Insulation AB
+  if (s.includes("insulationg") || s.includes("insulation2")) return "st-insulationg"; // Insulation G
   if (s.includes ("packing")) return "st-packing"; // Packing
   if (s.includes ("migwelding")) return "st-mig"; // Packing
 
@@ -831,15 +831,33 @@ function unitRank(unitType){
   return i >= 0 ? i : 999;
 }
 
-function unitInfoFromSeg(seg){
-  // PV
-  if (String(seg.qrKind || "").toUpperCase() === "PV") {
-    const unitType = String(seg.vesselType || "PV").toUpperCase().trim();
-    const unitSerial = seg.pvSerialNumber || seg.serial || "";
-    return { unitType, unitSerial };
+function unitInfoFromSeg(seg) {
+  const qrKind = String(seg.qrKind || "").toUpperCase().trim();
+  const insulationItemType = String(seg.insulationItemType || "").toUpperCase().trim();
+  const relatedQrKind = String(seg.relatedQrKind || "").toUpperCase().trim();
+
+  if (
+    qrKind === "CHILLER" &&
+    insulationItemType &&
+    relatedQrKind === "PV"
+  ) {
+    return {
+      unitType: String(seg.vesselType || insulationItemType).toUpperCase().trim(),
+      unitSerial: seg.pvSerialNumber || seg.relatedPvSerialNumber || seg.serialNumber || seg.serial || ""
+    };
   }
-  // CHILLER
-  return { unitType: "CHILLER", unitSerial: seg.chillerSerialNumber || seg.serial || "" };
+
+  if (qrKind === "PV") {
+    return {
+      unitType: String(seg.vesselType || "PV").toUpperCase().trim(),
+      unitSerial: seg.pvSerialNumber || seg.serialNumber || seg.serial || ""
+    };
+  }
+
+  return {
+    unitType: "CHILLER",
+    unitSerial: seg.chillerSerialNumber || seg.serialNumber || seg.serial || ""
+  };
 }
 
 
@@ -1180,12 +1198,13 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
 
   if (qrKind === "PV") {
     typeText = seg?.vesselType || "-";
+  } else if (qrKind === "CHILLER" && seg?.insulationItemType) {
+    typeText = seg?.vesselType || seg?.insulationItemType || "-";
   } else if (qrKind === "CHILLER") {
     typeText = seg?.coolingType || "-";
   } else {
     typeText = seg?.coolingType || seg?.vesselType || "-";
   }
-
   const isRunning =
     String(seg?.status || "").toLowerCase().trim() === "running";
 
@@ -1208,6 +1227,8 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
   const serialText =
   seg.qrKind === "PV"
     ? seg.pvSerialNumber
+    : seg.qrKind === "CHILLER" && seg.insulationItemType
+    ? (seg.pvSerialNumber || seg.relatedPvSerialNumber || seg.serialNumber || seg.serial)
     : seg.qrKind === "CHILLER"
     ? seg.chillerSerialNumber
     : seg.serial;
@@ -2446,7 +2467,7 @@ function showTipForBar(barEl){
     else if (barEl.classList.contains("st-ac")) tip.classList.add("st-ac");
     else if (barEl.classList.contains("st-insulationab")) tip.classList.add("st-insulationab");
     else if (barEl.classList.contains("st-insulationg")) tip.classList.add("st-insulationg");
-    else if (barEl.classList.contains("st-ipacking")) tip.classList.add("st-packing");
+    else if (barEl.classList.contains("st-packing")) tip.classList.add("st-packing");
     else if (barEl.classList.contains("st-mig")) tip.classList.add("st-mig");
   }
 

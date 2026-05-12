@@ -235,15 +235,45 @@ function buildTree(runs){
 
     const proj = map.get(groupKey);
 
-    const unitType =
-      String(r.qrKind || "").toUpperCase() === "PV"
-        ? (r.vesselType || "PV")
-        : "CHILLER";
+    const qrKind = String(r.qrKind || "").toUpperCase().trim();
+    const relatedQrKind = String(r.relatedQrKind || "").toUpperCase().trim();
+    const insulationItemType = String(r.insulationItemType || "").toUpperCase().trim();
 
-    const unitSerial =
-      String(r.qrKind || "").toUpperCase() === "PV"
-        ? (r.pvSerialNumber || "-")
-        : (r.chillerSerialNumber || "-");
+    let unitType = "CHILLER";
+    let unitSerial = r.chillerSerialNumber || "-";
+
+    // Insulation scanned with CHILLER QR, but belongs to PV item
+    if (
+      qrKind === "CHILLER" &&
+      relatedQrKind === "PV" &&
+      insulationItemType
+    ) {
+      unitType = r.vesselType || insulationItemType;
+      unitSerial =
+        r.pvSerialNumber ||
+        r.relatedPvSerialNumber ||
+        r.serialNumber ||
+        r.serial ||
+        "-";
+    }
+
+    // Normal PV
+    else if (qrKind === "PV") {
+      unitType = r.vesselType || "PV";
+      unitSerial =
+        r.pvSerialNumber ||
+        r.serialNumber ||
+        "-";
+    }
+
+    // Normal CHILLER
+    else {
+      unitType = "CHILLER";
+      unitSerial =
+        r.chillerSerialNumber ||
+        r.serialNumber ||
+        "-";
+    }
 
     const unitKey = `${unitType}||${unitSerial}`;
 
