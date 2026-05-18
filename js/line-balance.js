@@ -162,6 +162,11 @@ function getProcessSortKey(processName = "") {
   };
 }
 
+function getProcessDisplayName(processName = "") {
+  const label = String(processName || "").trim();
+  return label.replace(/^.+?\s*-\s*/, "").trim() || label;
+}
+
 function compareProcessSortKey(a, b) {
   if ((a?.major ?? 9999) !== (b?.major ?? 9999)) {
     return (a?.major ?? 9999) - (b?.major ?? 9999);
@@ -304,7 +309,7 @@ function buildProcessChartData(segments) {
   return Array.from(processMap.values())
     .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
     .map(item => ({
-      label: item.label,
+      label: getProcessDisplayName(item.fullLabel || item.label),
       fullLabel: item.fullLabel,
       actual: Number(item.actualMin.toFixed(1)),
       total: Number(item.totalMin.toFixed(1)),
@@ -553,7 +558,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
         </div>
       </div>
 
-      <div class="lbXAxisTitle">Process No.</div>
+      <div class="lbXAxisTitle">Process</div>
     </div>
   `;
 
