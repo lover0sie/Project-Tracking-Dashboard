@@ -16,7 +16,7 @@
 }
 
 .dashboardPage .top h2 {
-  font-size: 20px;
+  font-size: 26px;
   letter-spacing: 0;
 }
 
@@ -121,22 +121,22 @@
 }
 
 .dashboardPage #btn-export {
-  background: #111827;
-  border-color: #111827;
+  background: #0b41b5;
+  border-color: #0b41b5;
   color: #ffffff;
   box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
 }
 
 .dashboardPage #btn-export:hover {
-  background: #1f2937;
-  border-color: #1f2937;
+  background: #447df9;
+  border-color: #447df9;
 }
 
 .dashboardPage .card {
-  border-color: #e3e8f0;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .ganttTopBar {
@@ -173,8 +173,14 @@
 
 .dashboardPage .legendBlock {
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.dashboardPage .legendTopRow {
+  order: 2;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
 }
 
 .dashboardPage .statusSection {
@@ -184,6 +190,7 @@
 .dashboardPage .legendInlineSection {
   flex: 1 1 0;
   min-width: 0;
+  overflow: hidden;
   padding: 6px 8px;
   gap: 6px;
   border: 1px solid #bfdbfe;
@@ -194,6 +201,8 @@
 
 .dashboardPage .legendInlineSection.statusSection {
   flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
   border-color: #fed7aa;
   border-left-color: #f97316;
   background: #fff7ed;
@@ -201,6 +210,7 @@
 
 .dashboardPage .legendInlineSection:not(.statusSection) .hint {
   color: #1d4ed8;
+  width: 100%;
 }
 
 .dashboardPage .legendInlineSection.statusSection .hint {
@@ -217,8 +227,17 @@
 
 .dashboardPage #legendStations,
 .dashboardPage #legendStatus {
-  flex-wrap: nowrap;
   gap: 6px;
+  overflow: visible;
+}
+
+.dashboardPage #legendStations {
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.dashboardPage #legendStatus {
+  flex-wrap: nowrap;
 }
 
 .dashboardPage #legendStations .legItem,
@@ -227,9 +246,14 @@
   white-space: nowrap;
 }
 
+.dashboardPage #legendStations .legItem {
+  padding: 1px 4px;
+  font-size: 10px;
+}
+
 .dashboardPage #legendStations .swatch {
-  width: 14px;
-  height: 8px;
+  width: 12px;
+  height: 7px;
   border-radius: 999px;
 }
 
@@ -241,7 +265,7 @@
 
 @media (max-width: 900px) {
   .dashboardPage .legendBlock {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 
   .dashboardPage .legendInlineSection,
@@ -302,13 +326,12 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .dashboardPage .controlsRow {
-  padding-top: 8px;
-  border-top: 1px solid #eef2f7;
+  order: 1;
 }
 
 .dashboardPage .pickerGroup,
@@ -352,13 +375,36 @@
 .dashboardPage .ganttWrap {
   border-color: #e3e8f0;
   border-radius: 8px;
+  overflow-x: hidden;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+}
+
+.dashboardPage .ganttWrap.dailyMode,
+.dashboardPage .ganttWrap.monthMode {
+  overflow-x: hidden;
+}
+
+.dashboardPage .ganttGrid.dailyMode,
+.dashboardPage .ganttGrid.monthMode {
+  width: 100%;
+  min-width: 100%;
 }
 
 .filters {
   display: flex;
-  gap: 12px;
+  align-items: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 10px;
   flex-wrap: wrap;
+}
+
+.dashboardPage .filters > .controlActions {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
 }
 
 

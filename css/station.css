@@ -19,7 +19,7 @@
 }
 
 .station-page .top h2 {
-  font-size: 20px;
+  font-size: 26px;
   letter-spacing: 0;
 }
 
@@ -79,10 +79,10 @@
 }
 
 .station-page .card {
-  border-color: #e3e8f0;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .station-page .ganttTopBar {
@@ -112,8 +112,14 @@
 .station-page .legendBlock {
   width: 100%;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.station-page .legendTopRow {
+  order: 2;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
 }
 
 .station-page .statusSection {
@@ -123,6 +129,7 @@
 .station-page .legendInlineSection {
   flex: 1 1 0;
   min-width: 0;
+  overflow: hidden;
   padding: 6px 8px;
   gap: 6px;
   border: 1px solid #bfdbfe;
@@ -133,6 +140,8 @@
 
 .station-page .legendInlineSection.statusSection {
   flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
   border-color: #fed7aa;
   border-left-color: #f97316;
   background: #fff7ed;
@@ -140,10 +149,12 @@
 
 .station-page .legendInlineSection:not(.statusSection) .hint {
   color: #1d4ed8;
+  width: 100%;
 }
 
 .station-page .legendInlineSection.statusSection .hint {
   color: #c2410c;
+  width: 100%;
 }
 
 .station-page #legendStations .legItem,
@@ -156,8 +167,18 @@
 
 .station-page #legendStations,
 .station-page #legendStatus {
-  flex-wrap: nowrap;
   gap: 6px;
+  overflow: visible;
+}
+
+.station-page #legendStations {
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.station-page #legendStatus {
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
 .station-page #legendStations .legItem,
@@ -166,9 +187,14 @@
   white-space: nowrap;
 }
 
+.station-page #legendStations .legItem {
+  padding: 1px 4px;
+  font-size: 10px;
+}
+
 .station-page #legendStations .swatch {
-  width: 14px;
-  height: 8px;
+  width: 12px;
+  height: 7px;
   border-radius: 999px;
 }
 
@@ -180,7 +206,7 @@
 
 @media (max-width: 900px) {
   .station-page .legendBlock {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 
   .station-page .legendInlineSection,
@@ -195,8 +221,7 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 8px;
-  border-top: 1px solid #eef2f7;
+  order: 1;
 }
 
 .station-page .pickerSlot {
@@ -216,8 +241,9 @@
 }
 
 .station-page .stationControlGroup {
-  min-width: min(360px, 100%);
-  margin-left: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: 0;
 }
 
 .station-page .stationControlRow {
@@ -238,7 +264,7 @@
 }
 
 .station-page #stationBalancePicker {
-  flex: 1 1 160px;
+  flex: 0 1 220px;
   min-width: 150px;
 }
 
@@ -252,11 +278,14 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+
+  /* remove margin-left:auto */
+
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #111827;
+  border: 1px solid #0b41b5;
   border-radius: 8px;
-  background: #111827;
+  background: #0b41b5;
   color: #ffffff;
   font-size: var(--fontSm);
   font-family: inherit;
@@ -264,9 +293,21 @@
   box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
 }
 
+.station-page .stationControlRow #btn-refresh {
+  flex: 0 0 auto;
+  margin-left: auto; /* push whole button group right */
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: var(--fontSm);
+  font-weight: 800;
+  line-height: 1;
+}
+
 .station-page #btnExportStationExcel:hover {
-  border-color: #1f2937;
-  background: #1f2937;
+  border-color: #447df9;
+  background: #447df9;
 }
 
 .station-page .ganttWrap {
@@ -275,6 +316,10 @@
   overflow-x: hidden;
   overflow-y: auto;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+}
+
+.station-page .stationViewTitle {
+  display: none; /* Hidden */
 }
 
 .station-page .ganttHead,
@@ -300,7 +345,7 @@
 
 .station-page {
   --colProc: 180px;
-  --colProject: 210px;
+  --colProject: 280px;
   --colStatus: 100px;
   --stationLaneH: 42px;
 }
@@ -341,10 +386,17 @@
   background:
     repeating-linear-gradient(
       to right,
+      transparent,
+      transparent calc((var(--colW) / var(--minorDiv)) - 1px),
+      var(--ganttGridLine) calc((var(--colW) / var(--minorDiv)) - 1px),
+      var(--ganttGridLine) calc(var(--colW) / var(--minorDiv))
+    ),
+    repeating-linear-gradient(
+      to right,
       #fafafa,
       #fafafa calc(var(--colW) - 1px),
-      #c8d1dd calc(var(--colW) - 1px),
-      #c8d1dd var(--colW)
+      var(--ganttGridLine) calc(var(--colW) - 1px),
+      var(--ganttGridLine) var(--colW)
     );
 }
 
@@ -357,12 +409,7 @@
 }
 
 .stationGridLine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  z-index: 1;
-  pointer-events: none;
+  display: none;
 }
 
 .stationGridLine.major {
@@ -442,7 +489,7 @@
   grid-auto-rows: var(--stationLaneH);
   position: relative;
   background: #fff;
-  border-bottom: 1px solid #c8d1dd;
+  border-bottom: 0;
   align-items: stretch;
 }
 
@@ -453,7 +500,7 @@
   bottom: 0;
   left: var(--colProc);
   width: 1px;
-  background: #dbe3ef;
+  background: var(--ganttGridLine);
   z-index: 7;
   pointer-events: none;
 }
@@ -465,13 +512,13 @@
   right: 0;
   bottom: 0;
   height: 2px;
-  background: #b8c3d1;
-  z-index: 12;
+  background: #cbd5e1;
+  z-index: 9;
   pointer-events: none;
 }
 
-.stationProcBlock:last-child {
-  border-bottom: none;
+.stationProcBlock:last-child::after {
+  content: none;
 }
 
 .stationProcRow {
@@ -487,15 +534,7 @@
 }
 
 .station-page .stationProcRow::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: #dfe5ee;
-  z-index: 6;
-  pointer-events: none;
+  content: none;
 }
 
 .stationProcBlock .stationProcRow:last-child::after {
@@ -547,7 +586,7 @@
 .stationProcBlock > .stationLaneStatus,
 .stationProcBlock > .stationLaneTimeline {
   border-bottom: 1px solid #dfe5ee;
-  box-shadow: inset 0 -1px 0 #dfe5ee;
+  box-shadow: none;
 }
 
 .stationProjectLaneCell {
@@ -558,17 +597,17 @@
   justify-content: flex-start;
   padding: 0 10px;
   text-align: left;
-  border-bottom: 2px solid #d1dae6;
-  box-shadow: inset 0 -1px 0 #d1dae6;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: none;
 }
 
 .stationProjectLaneEnd {
-  border-bottom: 2px solid #d1dae6;
-  box-shadow: inset 0 -1px 0 #d1dae6;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: none;
 }
 
 .station-page .stationLaneTimeline.stationProjectLaneEnd::after {
-  content: "";
+  content: none;
   position: absolute;
   left: 0;
   right: 0;
@@ -580,7 +619,7 @@
 }
 
 .station-page .stationLaneStatus.stationProjectLaneEnd::after {
-  content: "";
+  content: none;
   position: absolute;
   left: 0;
   right: 0;

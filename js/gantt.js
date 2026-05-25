@@ -657,14 +657,11 @@ function fitDailyToScreen(){
   // timeline area width = wrap - left columns
   const timelineWidth = Math.max(0, wrapWidth - leftColumnsWidth);
 
-  // compute hour width from the visible space so the full daily grid fits the viewport
-  const hourW = Math.max(16, Math.floor(timelineWidth / hoursCount));
+  // Use the exact visible width so the final time column reaches the right edge.
+  const hourW = Math.max(16, timelineWidth / hoursCount);
 
-  document.documentElement.style.setProperty("--hourW", hourW + "px");
+  document.documentElement.style.setProperty("--hourW", `${hourW.toFixed(3)}px`);
 }
-
-
-
 
 /* Get the process number to display in the Process No. column */
 function getProcessNo(segOrLabel) {
@@ -745,9 +742,9 @@ function fitMonthlyToScreen(dayCount) {
     cssPxVar("--colStatus");
 
   const availableTimelineW = Math.max(1, ganttWrapEl.clientWidth - leftCols - 2);
-  const fittedDayW = Math.max(18, Math.floor(availableTimelineW / dayCount));
+  const fittedDayW = Math.max(18, availableTimelineW / dayCount);
 
-  document.documentElement.style.setProperty("--dayW", fittedDayW + "px");
+  document.documentElement.style.setProperty("--dayW", `${fittedDayW.toFixed(3)}px`);
   return fittedDayW;
 }
 
@@ -1906,6 +1903,9 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
       });
     }
   }
+  requestAnimationFrame(() => {
+    if (ganttWrapEl) ganttWrapEl.scrollLeft = 0;
+  });
 }
 
 function renderGantt(days, rangeMin, rangeMax, segments, dom) {
@@ -2075,6 +2075,9 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
       ganttWrapEl.scrollLeft = clamp(targetLeft, 0, maxScroll);
     });
   }
+  requestAnimationFrame(() => {
+    if (ganttWrapEl) ganttWrapEl.scrollLeft = 0;
+  });
 }
 
 function escapeHtml(s) {
@@ -2309,12 +2312,22 @@ export function syncPickers(){
   const daySlot = el("daySlot");
   const monthSlot = el("monthSlot");
   const btnToday = el("btnToday");
+  const dayPicker = el("dayPicker");
+  const monthPicker = el("monthPicker");
+  const todayKey = getMYTodayKey();
 
   if (daySlot) daySlot.classList.toggle("hidden", mode !== "daily");
   if (monthSlot) monthSlot.classList.toggle("hidden", mode !== "month");
 
-  // TODAY button only for month mode
-  if (btnToday) btnToday.classList.toggle("hidden", mode !== "month");
+  if (mode === "daily" && dayPicker && !dayPicker.value) {
+    dayPicker.value = todayKey;
+  }
+
+  if (mode === "month" && monthPicker && !monthPicker.value) {
+    monthPicker.value = todayKey.slice(0, 7);
+  }
+
+  if (btnToday) btnToday.classList.toggle("hidden", !["daily", "month"].includes(mode));
 }
 
 const stationBalancePicker = el("stationBalancePicker");

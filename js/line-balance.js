@@ -2,7 +2,7 @@ import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
   getStandardMinutesFromLabel,
-  getProcessCode
+  getProcessCode,
 } from "./helpers.js";
 
 import { loadProjectHeadersFallbackFromRuns, loadRunsForProject } from "./timeline.js";
@@ -124,7 +124,13 @@ function normalizeProjectHeaders(rows) {
       chillerSerialNumber: String(row.chillerSerialNumber || row.id || "").trim(),
       projectName: row.projectName || "-",
       materialNumber: row.materialNumber || "-",
-      model: row.model || "-",
+      model: String(
+        row.model ||
+        row.chillerModel ||
+        row.unitModel ||
+        row.modelName ||
+        "-"
+      ).trim(),
       runCount: Number(row.runCount || 0),
       qrKinds: Array.isArray(row.qrKinds) ? row.qrKinds : [],
 
@@ -172,6 +178,53 @@ function compareProcessSortKey(a, b) {
     return (a?.major ?? 9999) - (b?.major ?? 9999);
   }
   return (a?.suffix || "").localeCompare(b?.suffix || "");
+}
+
+function buildAverageProcessChartData(segments, denominator = null) {
+  const processMap = new Map();
+
+  for (const seg of segments) {
+    if (seg.phase === "waiting" || seg.status === "waiting") continue;
+
+    const fullLabel = getSegmentProcessLabel(seg);
+    const processCode = getProcessCode(fullLabel);
+
+    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    const totalMin = getTotalDurationMs(seg) / 60000;
+    const standardMin = getStandardMinutesFromLabel(fullLabel) || 0;
+
+    if (!processMap.has(processCode)) {
+      processMap.set(processCode, {
+        label: processCode,
+        fullLabel,
+        actualSum: 0,
+        totalSum: 0,
+        standardSum: 0,
+        count: 0,
+        sortKey: getProcessSortKey(fullLabel)
+      });
+    }
+
+    const row = processMap.get(processCode);
+
+    row.actualSum += actualMin;
+    row.totalSum += totalMin;
+    row.standardSum += standardMin;
+    row.count++;
+  }
+  return Array.from(processMap.values())
+    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
+    .map(row => {
+      const divisor = Number(denominator || row.count || 1);
+
+      return {
+        label: getProcessDisplayName(row.fullLabel),
+        fullLabel: row.fullLabel,
+        actual: Number((row.actualSum / divisor).toFixed(1)),
+        total: Number((row.totalSum / divisor).toFixed(1)),
+        standard: Number((row.standardSum / divisor).toFixed(1))
+      };
+    });
 }
 
 function buildModels(runs) {
@@ -407,10 +460,23 @@ function createChartCard(titleText) {
   const actualToggle = wrap.querySelector(".lbToggleActual");
   const totalToggle = wrap.querySelector(".lbToggleTotal");
 
-  function rerenderActiveProject() {
+  function rerenderActiveChart() {
+    if (lineBalanceMode === "MODEL") {
+      const activeModel = currentModels.find(
+        m => String(m.model || "") === String(selectedModel || "")
+      );
+
+      if (activeModel) {
+        renderModelCharts(activeModel);
+      }
+
+      return;
+    }
+
     const activeProject = currentProjects.find(
       p => String(p.chillerSerialNumber || "") === String(selectedProjectSerial || "")
     );
+
     if (activeProject) {
       renderSelectedProjectCharts(activeProject);
     }
@@ -418,17 +484,17 @@ function createChartCard(titleText) {
 
   standardToggle?.addEventListener("change", () => {
     lineBalanceView.showStandard = standardToggle.checked;
-    rerenderActiveProject();
+    rerenderActiveChart();
   });
 
   actualToggle?.addEventListener("change", () => {
     lineBalanceView.showActual = actualToggle.checked;
-    rerenderActiveProject();
+    rerenderActiveChart();
   });
 
   totalToggle?.addEventListener("change", () => {
     lineBalanceView.showTotal = totalToggle.checked;
-    rerenderActiveProject();
+    rerenderActiveChart();
   });
 
   chartsContainerEl.appendChild(wrap);
@@ -750,6 +816,7 @@ async function onModelClick(modelRow) {
     String(project.model || "").trim() === String(selectedModel || "").trim()
   );
 
+
   const runsNested = await Promise.all(
     modelProjects.map(project =>
       loadRunsForProject(project.chillerSerialNumber)
@@ -778,7 +845,7 @@ function renderModelCharts(modelRow) {
       String(seg.qrKind || "").trim() === "CHILLER"
     );
 
-    const data = buildProcessChartData(chillerSegs);
+    const data = buildAverageProcessChartData(chillerSegs, modelRow.projectCount);
     const mount = createChartCard(`${modelRow.model} — CHILLER`);
 
     renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
@@ -810,7 +877,7 @@ function renderModelCharts(modelRow) {
   });
 
   for (const [vesselType, segs] of entries) {
-    const data = buildProcessChartData(segs);
+   const data = buildAverageProcessChartData(segs, modelRow.projectCount);
     const mount = createChartCard(`${modelRow.model} — ${vesselType}`);
 
     renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
@@ -927,14 +994,23 @@ async function renderPage() {
       await onModelClick(modelToShow);
     }
   }
-
-  console.log("currentProjects", currentProjects);
-  console.log("currentModels", currentModels);
 }
 
 
 
 qrKindViewEl?.addEventListener("change", () => {
+  if (lineBalanceMode === "MODEL") {
+    const activeModel = currentModels.find(
+      m => String(m.model || "") === String(selectedModel || "")
+    );
+
+    if (activeModel) {
+      renderModelCharts(activeModel);
+    }
+
+    return;
+  }
+
   const activeProject = currentProjects.find(
     p => String(p.chillerSerialNumber || "") === String(selectedProjectSerial || "")
   );
@@ -1000,6 +1076,9 @@ document.addEventListener("click", event => {
 modeViewEl?.addEventListener("change", () => {
   lineBalanceMode = modeViewEl.value || "PROJECT";
 
+  selectedProjectSerial = "";
+  selectedModel = ""; // important
+
   document.querySelector(".sectionTitle").textContent =
     lineBalanceMode === "PROJECT" ? "All Projects" : "All Models";
 
@@ -1007,7 +1086,6 @@ modeViewEl?.addEventListener("change", () => {
 
   renderPage().catch(console.error);
 });
-
 
 updateToolbarModeUi();
 updateSearchClearVisibility();

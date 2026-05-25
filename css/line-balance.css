@@ -24,21 +24,25 @@
   padding: 24px;
 }
 
-.lineBalancePage > .top {
+.lineBalancePage .appShell {
+  height: calc(100vh - 48px);
+}
+
+.lineBalancePage .top {
   flex: 0 0 auto;
   align-items: center;
   margin: 0 0 18px;
 }
 
 .lineBalancePage h2 {
-  font-size: 20px;
+  font-size: 26px;
 }
 
 .lineBalancePage .sub {
   font-size: var(--fontSm);
 }
 
-.lineBalancePage > .top .btn.secondary {
+.lineBalancePage .top .btn.secondary {
   min-height: 38px;
   padding: 10px 16px;
   border-color: #d7dce5;
@@ -47,14 +51,14 @@
   box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
 }
 
-.lineBalancePage > .top .btn.secondary:hover {
+.lineBalancePage .top .btn.secondary:hover {
   border-color: #111827;
   background: #1f2937;
 }
 
 .station-page .actions .btn.secondary,
 .processPage .actions .btn.secondary,
-.lineBalancePage > .top .btn.secondary,
+.lineBalancePage .top .btn.secondary,
 .ackPage .actions .btn.secondary {
   background: #e5e7eb;
   border-color: #cbd5e1;
@@ -68,7 +72,7 @@
 
 .station-page .actions .btn.secondary:hover,
 .processPage .actions .btn.secondary:hover,
-.lineBalancePage > .top .btn.secondary:hover,
+.lineBalancePage .top .btn.secondary:hover,
 .ackPage .actions .btn.secondary:hover {
   background: #d1d5db;
   border-color: #94a3b8;
@@ -76,13 +80,14 @@
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
 }
 
-.lineBalancePage > .card {
+.lineBalancePage .card {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  padding: 18px;
-  border-radius: 18px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .lineBalanceToolbar {
@@ -704,11 +709,11 @@
 
 @media (max-width: 1100px) {
   .lineBalancePage {
-    overflow-y: auto;
+    overflow: hidden;
   }
 
-  .lineBalancePage > .card {
-    overflow: visible;
+  .lineBalancePage .card {
+    overflow: hidden;
   }
 
   .lineBalanceToolbar {
@@ -741,15 +746,16 @@
 
   .projectListPanel,
   .chartPanel {
-    height: auto;
+    height: 100%;
+    min-height: 0;
   }
 
   .projectListPanel {
-    min-height: 190px;
+    min-height: 0;
   }
 
   .chartPanel {
-    min-height: 420px;
+    min-height: 0;
   }
 }
 
@@ -784,7 +790,7 @@
   }
 
   .lineBalanceLayout {
-    grid-template-rows: minmax(170px, 28vh) minmax(380px, 1fr);
+    grid-template-rows: minmax(0, 28vh) minmax(0, 1fr);
   }
 
   .projectListPanel,
@@ -793,7 +799,7 @@
   }
 
   .chartPanel {
-    min-height: 380px;
+    min-height: 0;
   }
 
   .chartCard {
@@ -865,7 +871,7 @@
   }
 
   .lineBalanceLayout {
-    grid-template-rows: minmax(150px, 26vh) minmax(340px, 1fr);
+    grid-template-rows: minmax(0, 26vh) minmax(0, 1fr);
   }
 
   .projectListTitle {
@@ -877,7 +883,7 @@
   }
 
   .chartPanel {
-    min-height: 340px;
+    min-height: 0;
   }
 
   .chartCard {
@@ -1109,7 +1115,7 @@
 
 .station-page .actions .btn.secondary,
 .processPage .actions .btn.secondary,
-.lineBalancePage > .top .btn.secondary,
+.lineBalancePage .top .btn.secondary,
 .ackPage .actions .btn.secondary {
   background: #e5e7eb;
   border-color: #cbd5e1;
@@ -1123,7 +1129,7 @@
 
 .station-page .actions .btn.secondary:hover,
 .processPage .actions .btn.secondary:hover,
-.lineBalancePage > .top .btn.secondary:hover,
+.lineBalancePage .top .btn.secondary:hover,
 .ackPage .actions .btn.secondary:hover {
   background: #d1d5db;
   border-color: #94a3b8;

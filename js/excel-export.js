@@ -1,5 +1,11 @@
 /* Export the data from firebase to excel workbook */
 
+import {
+  buildSegmentsFromRuns,
+  getActualEffectiveDurationMs
+} from "./helpers.js";
+
+
 function tsOrMsToDate(ts, ms) {
   if (ts && typeof ts.toDate === "function") return ts.toDate();
 
@@ -38,29 +44,6 @@ function getDailyBreakWindows(baseDate) {
   ];
 }
 
-function getBreakOverlapMs(start, end) {
-  if (!start || !end || end <= start) return 0;
-
-  let total = 0;
-
-  let curDay = new Date(start);
-  curDay.setHours(0, 0, 0, 0);
-
-  const lastDay = new Date(end);
-  lastDay.setHours(0, 0, 0, 0);
-
-  while (curDay <= lastDay) {
-    const breaks = getDailyBreakWindows(curDay);
-
-    for (const b of breaks) {
-      total += overlapMs(start, end, b.start, b.end);
-    }
-
-    curDay.setDate(curDay.getDate() + 1);
-  }
-
-  return total;
-}
 
 function getHoldDurationMsFromRun(r) {
   const hold = tsOrMsToDate(r.holdAt, r.holdEpochMs);
@@ -128,78 +111,131 @@ export function exportExcelReport(runs) {
   }
 
   const rawHeader = [
-    "Project Name",
-    "Description",
-    "Serial Number",
-    "Type",
-    "Material Number",
-    "Process",
-    "Station",
-    "Manpower",
-    "Status",
-    "Start Date",
-    "Start Time",
-    "End Date",
-    "End Time",
-    "Elapsed Duration (Minutes)",
-    "Break Time (Minutes)",
-    "Effective Duration (Minutes)",
-    "Elapsed Duration (Hours)",
-    "Effective Duration (Hours)",
-    "Elapsed Man-Hours",
-    "Effective Man-Hours"
-  ];
+      "Project Name",
+      "Description",
+      "Serial Number",
+      "Type",
+      "Model",
+      "Material Number",
+      "Process",
+      "Station",
+      "Manpower",
+      "Status",
+      "Start Date",
+      "Start Time",
+      "End Date",
+      "End Time",
+      "Elapsed Duration (Minutes)",
+      "Break Time (Minutes)",
+      "Effective Duration (Minutes)",
+      "Elapsed Duration (Hours)",
+      "Effective Duration (Hours)",
+      "Elapsed Man-Hours",
+      "Effective Man-Hours"
+    ];
 
   const rawRows = [rawHeader];
+  const summaryHeader = [
+    "Station",
+    "Process",
+    "Runs",
+    "Total Elapsed Duration (Minutes)",
+    "Total Break Time (Minutes)",
+    "Total Effective Duration (Minutes)",
+    "Total Elapsed Duration (Hours)",
+    "Total Effective Duration (Hours)",
+    "Total Elapsed Man-Hours",
+    "Total Effective Man-Hours"
+  ];
   const summaryMap = new Map();
+  const result = buildSegmentsFromRuns(runs);
+  const segments =
+    Array.isArray(result)
+      ? result
+      : result.segments || [];
 
-  for (const r of runs) {
-    const start = tsOrMsToDate(r.startAt, r.startEpochMs);
-    const endCompleted = tsOrMsToDate(r.endAt, r.endEpochMs);
-    const holdTime = tsOrMsToDate(r.holdAt, r.holdEpochMs);
+  const modelBySerial = new Map();
 
-    const status = String(r.status || "").toLowerCase().trim();
+  for (const run of runs) {
+    const serial =
+      run.serialNumber ||
+      run.pvSerialNumber ||
+      run.chillerSerialNumber ||
+      "";
 
-    const effectiveEnd =
-      status === "completed"
-        ? endCompleted
-        : status === "on_hold"
-        ? (holdTime || new Date())
-        : new Date();
-
-    let elapsedMs = 0;
-    let breakMs = 0;
-    let holdMs = 0;
-    let effectiveMs = 0;
-
-    if (start && effectiveEnd) {
-      elapsedMs = Math.max(0, effectiveEnd.getTime() - start.getTime());
-      breakMs = getBreakOverlapMs(start, effectiveEnd);
-
-      if (status === "completed") {
-        holdMs = getHoldDurationMsFromRun(r);
-      }
-
-      effectiveMs = Math.max(0, elapsedMs - breakMs - holdMs);
+    if (serial && run.model) {
+      modelBySerial.set(String(serial).trim(), run.model);
     }
+  }
 
-    const elapsedMin = minutesFromMs(elapsedMs);
-    const breakMin = minutesFromMs(breakMs);
-    const effectiveMin = minutesFromMs(effectiveMs);
+  for (const r of segments) {
 
-    const elapsedHours = elapsedMs > 0 ? elapsedMs / 3600000 : 0;
-    const effectiveHours = effectiveMs > 0 ? effectiveMs / 3600000 : 0;
+    const start = r.start || null;
+    const effectiveEnd = r.end || null;
 
-    const elapsedManHours = manHoursFromMs(elapsedMs, r.manpower);
-    const effectiveManHours = manHoursFromMs(effectiveMs, r.manpower);
+    const elapsedMs =
+      start && effectiveEnd
+        ? Math.max(
+            0,
+            effectiveEnd.getTime() - start.getTime()
+          )
+        : 0;
+
+    const effectiveMs =
+      getActualEffectiveDurationMs(r);
+
+    const elapsedMin =
+      minutesFromMs(elapsedMs);
+
+    const effectiveMin =
+      minutesFromMs(effectiveMs);
+
+    const breakMin =
+      Math.max(
+        0,
+        elapsedMin - effectiveMin
+      );
+
+    const elapsedHours =
+      elapsedMs > 0
+        ? elapsedMs / 3600000
+        : 0;
+
+    const effectiveHours =
+      effectiveMs > 0
+        ? effectiveMs / 3600000
+        : 0;
+
+    const elapsedManHours =
+      manHoursFromMs(
+        elapsedMs,
+        r.manpower
+      );
+
+    const effectiveManHours =
+      manHoursFromMs(
+        effectiveMs,
+        r.manpower
+      );
 
     rawRows.push([
       r.projectName || "",
       r.description || "",
-      r.serialNumber || "",
+      r.serialNumber ||
+      r.pvSerialNumber ||
+      r.chillerSerialNumber ||
+      "",
       getUnitType(r),
+      r.model ||
+      modelBySerial.get(String(
+        r.serialNumber ||
+        r.pvSerialNumber ||
+        r.chillerSerialNumber ||
+        ""
+      ).trim()) ||
+      "",
       r.materialNumber || "",
-      r.processName || "",
+      r.processName || r.processLabel || "",
       r.station || "",
       Number(r.manpower || 0),
       r.status || "",
@@ -216,11 +252,13 @@ export function exportExcelReport(runs) {
       effectiveManHours.toFixed(2)
     ]);
 
-    const key = `${r.station || ""}__${r.processName || ""}`;
+    const key =
+      `${r.station || ""}__${r.processName || r.processLabel || ""}`;
+
     if (!summaryMap.has(key)) {
       summaryMap.set(key, {
         station: r.station || "",
-        process: r.processName || "",
+        process: r.processName || r.processLabel || "",
         runs: 0,
         totalElapsedMinutes: 0,
         totalBreakMinutes: 0,
@@ -233,6 +271,7 @@ export function exportExcelReport(runs) {
     }
 
     const row = summaryMap.get(key);
+
     row.runs += 1;
     row.totalElapsedMinutes += elapsedMin;
     row.totalBreakMinutes += breakMin;
@@ -243,18 +282,7 @@ export function exportExcelReport(runs) {
     row.totalEffectiveManHours += effectiveManHours;
   }
 
-  const summaryHeader = [
-    "Station",
-    "Process",
-    "Runs",
-    "Total Elapsed Minutes",
-    "Total Break Minutes",
-    "Total Effective Minutes",
-    "Total Elapsed Hours",
-    "Total Effective Hours",
-    "Total Elapsed Man-Hours",
-    "Total Effective Man-Hours"
-  ];
+    
 
   const summaryRows = [summaryHeader];
 
@@ -283,26 +311,27 @@ export function exportExcelReport(runs) {
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
 
   wsRaw["!cols"] = [
-    { wch: 24 },
-    { wch: 22 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 34 },
-    { wch: 14 },
-    { wch: 10 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 22 },
-    { wch: 20 },
-    { wch: 24 },
-    { wch: 22 },
-    { wch: 24 },
-    { wch: 20 },
-    { wch: 22 }
+    { wch: 24 }, // Project Name
+    { wch: 22 }, // Description
+    { wch: 16 }, // Serial Number
+    { wch: 14 }, // Type
+    { wch: 12 }, // Model
+    { wch: 16 }, // Material Number
+    { wch: 34 }, // Process
+    { wch: 14 }, // Station
+    { wch: 10 }, // Manpower
+    { wch: 12 }, // Status
+    { wch: 14 }, // Start Date
+    { wch: 14 }, // Start Time
+    { wch: 14 }, // End Date
+    { wch: 14 }, // End Time
+    { wch: 22 }, // Elapsed Duration (Minutes)
+    { wch: 20 }, // Break Time (Minutes)
+    { wch: 24 }, // Effective Duration (Minutes)
+    { wch: 22 }, // Elapsed Duration (Hours)
+    { wch: 24 }, // Effective Duration (Hours)
+    { wch: 20 }, // Elapsed Man-Hours
+    { wch: 22 } // Effective Man-Hours
   ];
 
   wsSummary["!cols"] = [

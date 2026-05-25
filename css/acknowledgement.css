@@ -19,7 +19,7 @@
 }
 
 .ackPage .top h2 {
-  font-size: 20px;
+  font-size: 26px;
   letter-spacing: 0;
 }
 
@@ -242,10 +242,16 @@
 }
 
 @media (max-width: 820px) {
-  .ackPage .top,
   .ackNote {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .ackPage .top {
+    align-items: center;
+    flex-direction: row;
+    justify-content: center;
+    text-align: center;
   }
 
   .ackGrid {

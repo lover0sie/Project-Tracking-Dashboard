@@ -3,17 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Line Balance Graph</title>
+  <title>Line Balance Chart</title>
   <link rel="stylesheet" href="css/common.css" />
   <link rel="stylesheet" href="css/line-balance.css" />
 </head>
 <body class="lineBalancePage">
+  <div class="appShell">
+    <nav class="sideNav" aria-label="Main navigation">
+      <div class="sideNavBrand">
+        <div class="sideNavTitle">Project Tracking</div>
+        <div class="sideNavSub">Dashboard views</div>
+      </div>
+      <div class="sideNavGroup">
+        <a class="sideNavLink" data-nav-item="project-gantt" href="index.html?view=gantt">Project Gantt</a>
+        <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
+        <a class="sideNavLink" data-nav-item="tree-view" href="index.html?view=tree">Tree View</a>
+        <a class="sideNavLink active" data-nav-item="line-balance" href="line-balance.html" aria-current="page">Line Balance</a>
+        <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
+        <a class="sideNavLink" data-nav-item="acknowledgement" href="acknowledgement.html">Acknowledgement</a>
+      </div>
+    </nav>
+
+  <div class="wrap">
   <header class="top">
     <div>
-      <h2>Line Balance Graph</h2>
-      <div class="sub">Select the mode (PROJECT or MODEL), then choose CHILLER or PV view</div>
-    </div>
-    <a class="btn secondary" href="index.html">Back to Dashboard</a>
+      <h2>Line Balance Chart</h2>
   </header>
 
   <section class="card">
@@ -132,6 +146,8 @@
       </div>
     </div>
   </section>
+  </div>
+  </div>
 
 
   <script type="module" src="js/line-balance.js"></script>

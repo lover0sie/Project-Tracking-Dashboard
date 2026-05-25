@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Project Tracking Dashboard</title>
+  <title>Project Gantt Chart</title>
 
   <link rel="stylesheet" href="css/common.css" />
   <link rel="stylesheet" href="css/gantt.css" />
@@ -11,26 +11,32 @@
 </head>
 
 <body class="dashboardPage">
+  <div class="appShell">
+    <nav class="sideNav" aria-label="Main navigation">
+      <div class="sideNavBrand">
+        <div class="sideNavTitle">Project Tracking</div>
+        <div class="sideNavSub">Dashboard views</div>
+      </div>
+      <div class="sideNavGroup">
+        <a class="sideNavLink" data-nav-item="project-gantt" href="index.html?view=gantt">Project Gantt</a>
+        <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
+        <a class="sideNavLink" data-nav-item="tree-view" href="index.html?view=tree">Tree View</a>
+        <a class="sideNavLink" data-nav-item="line-balance" href="line-balance.html">Line Balance</a>
+        <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
+        <a class="sideNavLink" data-nav-item="acknowledgement" href="acknowledgement.html">Acknowledgement</a>
+      </div>
+    </nav>
+
   <div class="wrap">
     <!-- Keep the dashboard title and global actions in one header for quick navigation. -->
     <header class="top">
       <div>
         <h2>
-          <a class="dashboardTitleLink" href="acknowledgement.html" aria-label="View acknowledgements">
-            Project Tracking Dashboard
+            Project Gantt Chart
           </a>
         </h2>
-        <div class="sub">Data extracted from <b>Firestore</b></div>
       </div>
 
-      <div class="actions">
-          <button id="btn-refresh">Refresh</button>
-          <a class="btn secondary" href="processes.html">Process Description</a>
-          <a class="btn secondary" href="station.html">Station View</a>
-          <a class="btn secondary" href="line-balance.html">Line Balance</a>
-          <button id="btnAutoStop">Run Auto Stop</button>
-          <button id="btn-export">Export Excel File</button>
-      </div>
     </header>
 
 
@@ -69,19 +75,17 @@
 
           <div class="filters">
             <div>
-              <label for="viewMode">View</label>
-              <select id="viewMode">
-                <option value="gantt">Gantt</option>
-                <option value="tree">Tree</option>
-              </select>
-            </div>
-
-            <div>
               <label for="dateMode">Date Range</label>
               <select id="dateMode">
                 <option value="daily">Daily</option>
                 <option value="month">Monthly</option>
               </select>
+            </div>
+
+            <div class="actions controlActions" aria-label="Dashboard actions">
+              <button id="btn-refresh">Refresh</button>
+              <button id="btnAutoStop">Run Auto Stop</button>
+              <button id="btn-export">Export Excel File</button>
             </div>
           </div>
         </div>
@@ -105,6 +109,7 @@
       </div>
     </section>
   </div>
+  </div>
 
   
 
@@ -119,27 +124,93 @@
   import { clearGanttCache, renderGanttView, syncPickers, stopGanttLiveRefresh, updateGanttLeftHeaders } from "./js/gantt.js";
 
   const btnRefresh = document.getElementById("btn-refresh");
-  const viewMode = document.getElementById("viewMode");
   const dayPicker = document.getElementById("dayPicker");
   const monthPicker = document.getElementById("monthPicker");
   const dateMode = document.getElementById("dateMode");
   const btnToday = document.getElementById("btnToday");
+  const btnAutoStop = document.getElementById("btnAutoStop");
+  const sideNavLinks = document.querySelectorAll(".sideNavLink[data-nav-item]");
+  const dashboardTitle = document.getElementById("dashboardTitle");
 
-  let currentView = viewMode?.value || "gantt";
+  let currentView = "gantt";
+
+  function getDashboardNavKey() {
+    return currentView === "tree" ? "tree-view" : "project-gantt";
+  }
+
+  function updateSideNavActive() {
+    const activeKey = getDashboardNavKey();
+
+    sideNavLinks.forEach(link => {
+      const isActive = link.dataset.navItem === activeKey;
+      link.classList.toggle("active", isActive);
+
+      if (isActive) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  }
+
+  function updateDashboardTitle() {
+    if (!dashboardTitle) return;
+    dashboardTitle.textContent = currentView === "tree" ? "Tree View" : "Project Gantt Chart";
+  }
+
+  function updateViewActions() {
+    btnAutoStop?.classList.toggle("hidden", currentView === "tree");
+  }
+
+  function localDateInputValue(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function applyRouteParams() {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("view");
+    const date = params.get("date");
+
+    if (["gantt", "tree"].includes(view)) {
+      currentView = view;
+    } else {
+      currentView = "gantt";
+    }
+
+    if (dateMode && ["daily", "month", "monthly"].includes(date)) {
+      dateMode.value = date === "monthly" ? "month" : date;
+    }
+  }
+
+  function syncRouteToControls() {
+    const params = new URLSearchParams(window.location.search);
+    params.set("view", currentView);
+    params.set("date", dateMode?.value || "daily");
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, "", nextUrl);
+  }
 
   function setTreeHeaders() {
     document.getElementById("timelineHead")?.classList.add("hidden");
     document.querySelector(".ganttHead")?.classList.add("hidden");
+    document.querySelector(".legendTopRow")?.classList.add("hidden");
   }
 
   function setGanttHeaders() {
     document.getElementById("timelineHead")?.classList.remove("hidden");
     document.querySelector(".ganttHead")?.classList.remove("hidden");
+    document.querySelector(".legendTopRow")?.classList.remove("hidden");
   }
 
   async function renderCurrentView() {
     syncPickers();
     updateGanttLeftHeaders();
+    updateDashboardTitle();
+    updateViewActions();
+    updateSideNavActive();
 
     if (currentView === "tree") {
       stopGanttLiveRefresh();
@@ -151,17 +222,11 @@
     }
   } 
 
-  // Default view = Gantt
-  currentView = "gantt";
+  applyRouteParams();
   renderCurrentView();
   import(`./js/version-check.js?v=${Date.now()}`)
     .then(({ startVersionCheck }) => startVersionCheck())
     .catch(err => console.warn("Version check failed to start", err));
-
-  viewMode?.addEventListener("change", async () => {
-    currentView = viewMode.value;
-    await renderCurrentView();
-  });
 
   btnRefresh?.addEventListener("click", async () => {
     const originalText = btnRefresh.textContent;
@@ -191,6 +256,7 @@
   });
 
   dateMode?.addEventListener("change", async () => {
+    syncRouteToControls();
     await renderCurrentView();
   });
 
@@ -206,9 +272,15 @@
 
   btnToday?.addEventListener("click", async () => {
     const today = new Date();
-    const monthStr = today.toISOString().slice(0, 7);
+    const dayStr = localDateInputValue(today);
+    const monthStr = dayStr.slice(0, 7);
 
-    if (monthPicker) monthPicker.value = monthStr;
+    if (dateMode?.value === "month") {
+      if (monthPicker) monthPicker.value = monthStr;
+    } else if (dayPicker) {
+      dayPicker.value = dayStr;
+    }
+
     await renderCurrentView();
   });
 
