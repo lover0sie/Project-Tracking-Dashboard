@@ -8,6 +8,8 @@ const el = id => document.getElementById(id);
 const bodyEl = el("ganttBody");
 const monthHeadEl = document.getElementById("ganttMonthHead");
 const dayHeadEl = document.getElementById("ganttDayHead");
+const ganttWrapEl = document.querySelector(".ganttWrap");
+const ganttGridEl = document.querySelector(".ganttGrid");
 
 const UNIT_ORDER = ["CHILLER","EVAPORATOR","CONDENSER","OIL SEPARATOR","ECONOMIZER"];
 
@@ -192,6 +194,16 @@ function getSelectedMonthKey() {
   return picker?.value || "";
 }
 
+function setTreeViewClasses(mode) {
+  ganttWrapEl?.classList.remove("dailyMode", "monthMode", "stationMode");
+  ganttGridEl?.classList.remove("dailyMode", "monthMode", "stationMode");
+
+  ganttWrapEl?.classList.add("treeMode");
+  ganttGridEl?.classList.add("treeMode");
+  ganttWrapEl?.classList.toggle("treeMonthMode", mode === "month");
+  ganttGridEl?.classList.toggle("treeMonthMode", mode === "month");
+}
+
 function statusUi(status){
   const s = String(status || "").toLowerCase().trim();
   if (s === "completed") return { text: "Completed", cls: "completed" };
@@ -293,6 +305,7 @@ function buildTree(runs){
 
 export async function renderTree() {
   const mode = el("dateMode")?.value || "daily";
+  setTreeViewClasses(mode);
 
   let allRuns = await loadRuns();
   let runs = [];
@@ -307,7 +320,12 @@ export async function renderTree() {
     runs = filterRunsByRange(allRuns, rangeMin, rangeMax);
 
   } else {
-    const monthKey = getSelectedMonthKey();
+    const monthPicker = el("monthPicker");
+    const todayKey = getMYTodayKey();
+    const defaultMonthKey = todayKey.slice(0, 7);
+    const monthKey = getSelectedMonthKey() || defaultMonthKey;
+
+    if (monthPicker && !monthPicker.value) monthPicker.value = monthKey;
 
     if (!monthKey) {
       runs = [];

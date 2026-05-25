@@ -1,0 +1,279 @@
+﻿/* Process description page styles. */
+
+/* ==================== Process Description Page ==================== */
+/* The older process description blocks are styled here before the modern page override is applied later. */
+.procBlock{
+  border:1px solid var(--border);
+  border-radius: var(--radiusSm);
+  padding:12px;
+  margin-bottom:12px;
+  background:#fff;
+}
+.procTitle{
+  font-weight:900;
+  margin-bottom:8px;
+}
+
+.procOl{
+  margin:0;
+  padding-left: 18px;
+  color:#374151;
+  line-height:1.65;
+  font-weight:600;
+}
+
+.pill{
+  margin-left:8px;
+  font-size:11px;
+  font-weight:900;
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:#f8fafc;
+  color:#334155;
+}
+
+
+button.secondary{
+  background:#fff;
+  color:#111827;
+  border-color:var(--border);
+}
+button.secondary:hover{ border-color:#cbd5e1; background:#fbfbfb; }
+
+
+/* ==================== Process Lists ==================== */
+.procUl{
+  margin:0;
+  padding-left: 18px;
+  line-height:1.8;
+  font-weight:600;
+  color:#374151;
+}
+
+.procUl li{
+  margin-bottom:4px;
+}
+
+
+
+/* =============== Process Description Page  ============ */
+
+.processPage {
+  background: #f6f7fb;
+}
+
+.processPage .wrap {
+  max-width: none;
+}
+
+.processPage .top {
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+.processPage .top h2 {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.processPage .sub {
+  color: #64748b;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.processPage .actions {
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.processPage .actions .btn {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border-color: #d7dce5;
+  background: #111827;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
+}
+
+.processPage .actions .btn:hover {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+
+.processPage .card {
+  border-color: #e3e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.processPage .toolbar {
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e3e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.processPage .toolbar .hint,
+.processPage .filters label {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.processPage .filters {
+  align-items: flex-end;
+}
+
+.processPage .filters select {
+  height: 32px;
+  border-color: #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 800;
+}
+
+.processPage .filters select:hover {
+  border-color: #cbd5e1;
+}
+
+.processWrap {
+  border: 1px solid #e3e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* scroll area */
+.processContainer {
+  height: 100%;
+  max-height: none;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* optional: nicer scrollbar */
+.processContainer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.processContainer::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.processContainer::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.processPage .procBlock {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+
+.processPage .procTitle {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 10px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid #eef2f7;
+  background: #ffffff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+
+.processPage .procUl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.processPage .procUl li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #f9fafc;
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.processPage .procNoBadge {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  border: 1px solid #d7dce5;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.processPage .procStepText {
+  min-width: 0;
+}
+
+
+.station-page .actions .btn.secondary,
+.processPage .actions .btn.secondary,
+.lineBalancePage > .top .btn.secondary,
+.ackPage .actions .btn.secondary {
+  background: #e5e7eb;
+  border-color: #cbd5e1;
+  color: #111827;
+  font-family: inherit;
+  font-size: var(--fontSm) !important;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.station-page .actions .btn.secondary:hover,
+.processPage .actions .btn.secondary:hover,
+.lineBalancePage > .top .btn.secondary:hover,
+.ackPage .actions .btn.secondary:hover {
+  background: #d1d5db;
+  border-color: #94a3b8;
+  color: #0f172a;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
+}

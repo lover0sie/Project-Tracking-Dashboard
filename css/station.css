@@ -1,0 +1,780 @@
+﻿/* Station page styles. */
+
+/* ================= Station View: one lane per station ================= */
+
+.station-page {
+  background: #f6f7fb;
+  --colProject: 170px;
+  --colProc: 72px;
+  --colStatus: 82px;
+}
+
+.station-page .wrap {
+  max-width: none;
+}
+
+.station-page .top {
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+.station-page .top h2 {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.station-page .sub {
+  color: #64748b;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.station-page .actions {
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.station-page .actions button,
+.station-page .actions .btn {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border-color: #d7dce5;
+  background: #111827;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 11px !important;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
+  justify-content: center;
+}
+
+.station-page .actions button {
+  appearance: none;
+}
+
+.station-page .actions .btn.secondary,
+.station-page .actions button.secondary,
+.station-page #btn-refresh {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #d9e1ec;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.04);
+}
+
+.station-page .actions .btn.secondary:hover,
+.station-page .actions button.secondary:hover,
+.station-page #btn-refresh:hover {
+  background: #fbfdff;
+  border-color: #b9c8dc;
+  color: #0f172a;
+}
+
+.station-page .actions .btn:not(.secondary):hover {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+
+.station-page .card {
+  border-color: #e3e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.station-page .ganttTopBar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  position: relative;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e3e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.station-page .ganttTopBar .hint,
+.station-page .pickerLabel {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.station-page .legendBlock {
+  width: 100%;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.station-page .statusSection {
+  margin-left: 0;
+}
+
+.station-page .legendInlineSection {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  gap: 6px;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.station-page .legendInlineSection.statusSection {
+  flex: 0 0 auto;
+  border-color: #fed7aa;
+  border-left-color: #f97316;
+  background: #fff7ed;
+}
+
+.station-page .legendInlineSection:not(.statusSection) .hint {
+  color: #1d4ed8;
+}
+
+.station-page .legendInlineSection.statusSection .hint {
+  color: #c2410c;
+}
+
+.station-page #legendStations .legItem,
+.station-page #legendStatus .legItem {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+}
+
+.station-page #legendStations,
+.station-page #legendStatus {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.station-page #legendStations .legItem,
+.station-page #legendStatus .legItem {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.station-page #legendStations .swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.station-page #legendStatus .swatch {
+  width: 14px;
+  height: 7px;
+  border-radius: 3px;
+}
+
+@media (max-width: 900px) {
+  .station-page .legendBlock {
+    flex-wrap: nowrap;
+  }
+
+  .station-page .legendInlineSection,
+  .station-page .legendInlineSection.statusSection {
+    flex: 1 1 0;
+  }
+}
+
+.station-page .controlsRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
+}
+
+.station-page .pickerSlot {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.station-page .pickerGroup,
+.station-page .controlsRow > .toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: 0;
+}
+
+.station-page .stationControlGroup {
+  min-width: min(360px, 100%);
+  margin-left: auto;
+}
+
+.station-page .stationControlRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.station-page .pickerInput,
+.station-page #stationBalancePicker {
+  height: 32px;
+  border-color: #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 800;
+}
+
+.station-page #stationBalancePicker {
+  flex: 1 1 160px;
+  min-width: 150px;
+}
+
+.station-page .pickerInput:hover,
+.station-page #stationBalancePicker:hover {
+  border-color: #cbd5e1;
+}
+
+.station-page #btnExportStationExcel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  font-size: var(--fontSm);
+  font-family: inherit;
+  font-weight: 800;
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
+}
+
+.station-page #btnExportStationExcel:hover {
+  border-color: #1f2937;
+  background: #1f2937;
+}
+
+.station-page .ganttWrap {
+  border-color: #e3e8f0;
+  border-radius: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+}
+
+.station-page .ganttHead,
+.station-page #ganttDayHead,
+.station-page #ganttMonthHead {
+  border-bottom-color: var(--ganttGridLine);
+}
+
+.station-page #ganttDayHead .dayCol,
+.station-page #ganttMonthHead .monthCell {
+  border-right-color: #c8d1dd;
+}
+
+.station-page .ganttCell,
+.station-page .ganttLeftHead {
+  border-right-color: var(--ganttGridLine);
+}
+
+.ganttWrap.stationMode .ganttGrid{
+  width: 100%;
+  min-width: 100%;
+}
+
+.station-page {
+  --colProc: 180px;
+  --colProject: 210px;
+  --colStatus: 100px;
+  --stationLaneH: 42px;
+}
+
+.stationViewTitle {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 12px 0 10px;
+  padding: 0 4px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.station-page .ganttHead,
+.station-page .stationProcRow {
+  grid-template-columns: var(--colProc) var(--colStatus) minmax(0, 1fr);
+}
+
+.station-page .ganttHead .ganttLeftHead:nth-child(1) {
+  left: 0;
+}
+
+.station-page .ganttHead .ganttLeftHead:nth-child(2) {
+  left: var(--colProc);
+}
+
+.station-page .ganttTimelineHead,
+.station-page .stationProcRow .ganttTimeline,
+.station-page .stationProcBlock .ganttTimeline {
+  min-width: 0;
+  width: 100% !important;
+}
+
+.station-page .ganttTimeline.dailyGrid {
+  background:
+    repeating-linear-gradient(
+      to right,
+      #fafafa,
+      #fafafa calc(var(--colW) - 1px),
+      #c8d1dd calc(var(--colW) - 1px),
+      #c8d1dd var(--colW)
+    );
+}
+
+.station-page .ganttTimeline.dailyGrid::after {
+  content: none;
+}
+
+.station-page .ganttTimeline .timeBand {
+  z-index: 0;
+}
+
+.stationGridLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.stationGridLine.major {
+  background: var(--ganttGridLine);
+}
+
+.stationGridLine.minor {
+  background: rgba(223, 229, 238, 0.65);
+}
+
+.station-page .ganttTimeline .bar {
+  z-index: 3;
+}
+
+.station-page .nowLine {
+  top: -6px;
+  bottom: -6px;
+  z-index: 16;
+}
+
+.stationTimeline{
+  position: relative;
+}
+
+.stationTimeline .bar{
+  top: 18px;
+  height: 30px;
+}
+
+.stationCell .title{
+  font-size:12px;
+  font-weight:800;
+  color:#111827;
+  line-height:1.2;
+}
+
+.stationCell .meta{
+  margin-top:2px;
+  font-size:12px;
+  color:#6b7280;
+}
+
+.stationProcCell{
+  font-size:12px;
+  font-weight:700;
+  text-align:center;
+}
+
+.stationStatusCell{
+  text-align:center;
+}
+
+.stationGroup{
+  display: grid;
+  grid-template-columns: var(--colProject) 1fr;
+  border-bottom: 1px solid var(--ganttGridLine);
+  background: #fff;
+}
+
+.stationGroupLabel{
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  font-weight: 800;
+  border-right: 1px solid var(--ganttGridLine);
+  background: #fff;
+}
+
+.stationGroupRows{
+  display: block;
+}
+
+.stationProcBlock {
+  display: grid;
+  grid-template-columns: var(--colProc) var(--colStatus) minmax(0, 1fr);
+  grid-template-rows: var(--stationLaneH) var(--stationLaneH);
+  grid-auto-rows: var(--stationLaneH);
+  position: relative;
+  background: #fff;
+  border-bottom: 1px solid #c8d1dd;
+  align-items: stretch;
+}
+
+.stationProcBlock::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--colProc);
+  width: 1px;
+  background: #dbe3ef;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.stationProcBlock::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #b8c3d1;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.stationProcBlock:last-child {
+  border-bottom: none;
+}
+
+.stationProcRow {
+  display: grid;
+  grid-template-columns: var(--colProc) var(--colStatus) 1fr;
+  align-items: stretch;
+  border-bottom: 1px solid var(--ganttGridLine);
+  position: relative;
+}
+
+.stationProcBlock .stationProcRow:last-child {
+  border-bottom: none;
+}
+
+.station-page .stationProcRow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: #dfe5ee;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.stationProcBlock .stationProcRow:last-child::after {
+  content: none;
+}
+
+.stationProcRow:last-child{
+  border-bottom: none;
+}
+
+.stationProcRow .ganttCell,
+.stationProcRow .ganttTimeline{
+  height: var(--stationLaneH);
+}
+
+.stationProcBlock > .ganttCell,
+.stationProcBlock > .ganttTimeline {
+  height: var(--stationLaneH);
+}
+
+.stationProcessMerged {
+  grid-row: 1 / span var(--processRowSpan, 2);
+  border-bottom: none;
+  border-right: 1px solid #dbe3ef;
+  height: auto;
+  align-self: stretch;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 4px 14px;
+  text-align: left;
+  overflow: hidden;
+  display: flex;
+}
+
+
+.stationProcBlock > .stationProcessMerged {
+  height: auto;
+  min-height: 100%;
+}
+
+.stationProcRow .ganttCell.procNo,
+.stationProcRow .ganttCell.status,
+.stationProcBlock > .ganttCell{
+  position: relative;
+  left: auto;
+  z-index: 1;
+}
+
+.stationProcBlock > .stationLaneStatus,
+.stationProcBlock > .stationLaneTimeline {
+  border-bottom: 1px solid #dfe5ee;
+  box-shadow: inset 0 -1px 0 #dfe5ee;
+}
+
+.stationProjectLaneCell {
+  height: auto;
+  min-height: calc(var(--stationLaneH) * 2);
+  align-self: stretch;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 10px;
+  text-align: left;
+  border-bottom: 2px solid #d1dae6;
+  box-shadow: inset 0 -1px 0 #d1dae6;
+}
+
+.stationProjectLaneEnd {
+  border-bottom: 2px solid #d1dae6;
+  box-shadow: inset 0 -1px 0 #d1dae6;
+}
+
+.station-page .stationLaneTimeline.stationProjectLaneEnd::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #d1dae6;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.station-page .stationLaneStatus.stationProjectLaneEnd::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #d1dae6;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.stationProcBlock > .stationProjectLaneCell:last-of-type,
+.stationProcBlock > .stationLaneStatus:last-of-type,
+.stationProcBlock > .stationLaneTimeline:last-child {
+  border-bottom: none;
+  box-shadow: none;
+}
+
+.station-page .ganttCell.procNo {
+  justify-content: flex-start;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.stationProcessName {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 100%;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.15;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.stationGroup {
+  display: block;
+}
+
+
+.stationMerged {
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  border-right: 1px solid var(--ganttGridLine);
+}
+
+.stationProcRow .stationMerged {
+  grid-row: span var(--rowCount);
+  min-height: 100%;
+}
+
+.stationProjectBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  line-height: 1.25;
+}
+
+.stationProjectTitle {
+  font-weight: 800;
+  font-size: 13px;
+  color: #111827;
+}
+
+.stationType {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.stationMetaPill {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.smallProcess {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.station-page .ganttGrid,
+.station-page .ganttHead,
+.stationProcBlock {
+  grid-template-columns: var(--colProc) var(--colProject) var(--colStatus) 1fr;
+}
+
+.stationProjectMini {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  line-height: 1.25;
+  width: 100%;
+}
+
+.stationProjectName {
+  font-weight: 700;
+  font-size: 11px;
+  color: #111827;
+}
+
+.stationProjectName .stationType {
+  display: block;
+  margin-top: 1px;
+}
+
+.stationType {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.stationMetaPill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ============== Line Balance Graph Charts ================= */
+.stationLineBalanceWrap {
+  width: 100%;
+  height: 220px;
+  margin: 10px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.stationLineBalanceCanvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.lineBalancePanel {
+  width: 100%;
+  height: 250px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+#stationLineBalanceChart {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.station-page .actions .btn.secondary,
+.processPage .actions .btn.secondary,
+.lineBalancePage > .top .btn.secondary,
+.ackPage .actions .btn.secondary {
+  background: #e5e7eb;
+  border-color: #cbd5e1;
+  color: #111827;
+  font-family: inherit;
+  font-size: var(--fontSm) !important;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.station-page .actions .btn.secondary:hover,
+.processPage .actions .btn.secondary:hover,
+.lineBalancePage > .top .btn.secondary:hover,
+.ackPage .actions .btn.secondary:hover {
+  background: #d1d5db;
+  border-color: #94a3b8;
+  color: #0f172a;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
+}

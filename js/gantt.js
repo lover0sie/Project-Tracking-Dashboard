@@ -2169,6 +2169,9 @@ async function render({ forceRefresh = false } = {}) {
     const wrap = document.querySelector(".ganttWrap");
     const grid = document.querySelector(".ganttGrid");
 
+    wrap?.classList.remove("treeMode", "treeMonthMode");
+    grid?.classList.remove("treeMode", "treeMonthMode");
+
     wrap?.classList.toggle("dailyMode", mode === "daily");
     wrap?.classList.toggle("monthMode", mode === "month");
     wrap?.classList.toggle("stationMode", mode === "station");
