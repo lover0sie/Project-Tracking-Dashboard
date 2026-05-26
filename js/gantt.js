@@ -16,6 +16,7 @@ import {
   getActualEffectiveDurationMs,
   getBreakOverlapMs,
   sliceSegForWaiting,
+  getStandardMinutes,
   STANDARD_TIME_MIN,
   LEGEND_STATIONS, 
   LEGEND_STATUS, 
@@ -162,10 +163,10 @@ function parseDayKeyToDate(dayKey) {
   return new Date(y, m - 1, d);
 }
 
-/* Get the standard time in minutes */
+/* Get the standard time in minutes
 function getStandardMinutes(processLabel) {
   return Number(STANDARD_TIME_MIN[processLabel] || 0);
-}
+} */
 
 export function formatDateTime(d){
   if(!d) return "-";
@@ -221,7 +222,12 @@ function normalizeHoldReason(reason){
 
 /* Build standard slices taking into account on holds */
 function buildStandardSlices(seg) {
-  const stdMin = getStandardMinutes(seg?.processLabel);
+  const stdMin = getStandardMinutes({
+      processLabel: seg.processLabel,
+      model: seg.model,
+      qrKind: seg.qrKind,
+      vesselType: seg.vesselType || "ALL"
+    });
   if (!stdMin || !seg?.start) return [];
 
   let remainingMs = stdMin * 60000;
@@ -392,7 +398,12 @@ function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
 
 /* Get the time difference between standard and actual process */
 function getVarianceMs(seg) {
-  const stdMin = getStandardMinutes(seg?.processLabel);
+  const stdMin = getStandardMinutes({
+    processLabel: seg.processLabel,
+    model: seg.model,
+    qrKind: seg.qrKind,
+    vesselType: seg.vesselType || "ALL"
+  });
   if (!stdMin || !seg?.start) return null;
 
   const stdMs = stdMin * 60000;
@@ -606,7 +617,12 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
 
 /* Build tooltip for the standard time */
 function standardTipText(seg, stdStart, stdEnd) {
-  const stdMin = getStandardMinutes(seg?.processLabel);
+  const stdMin = getStandardMinutes({
+      processLabel: seg.processLabel,
+      model: seg.model,
+      qrKind: seg.qrKind,
+      vesselType: seg.vesselType || "ALL"
+    });
   const stdMs = stdMin * 60000;
 
   const actualEffectiveMs = getActualEffectiveDurationMs(seg);
@@ -2533,7 +2549,7 @@ function bindFloatingTooltip(){
 
 window.addEventListener("resize", async () => {
   // Main dashboard page
-  if (el("dateMode")) {
+  if (el("dateMode") && !document.body.classList.contains("tree-page")) {
     fitDailyToScreen();
     await render();
     return;

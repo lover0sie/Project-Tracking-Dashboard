@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tree View</title>
+
+  <link rel="stylesheet" href="css/common.css" />
+  <link rel="stylesheet" href="css/gantt.css" />
+  <link rel="stylesheet" href="css/index.css" />
+</head>
+
+<body class="dashboardPage tree-page">
+  <div class="appShell">
+    <nav class="sideNav" aria-label="Main navigation">
+      <div class="sideNavBrand">
+        <div class="sideNavTitle">Project Tracking</div>
+        <div class="sideNavSub">Dashboard views</div>
+      </div>
+      <div class="sideNavGroup">
+        <a class="sideNavLink" data-nav-item="project-gantt" href="index.html">Project Gantt</a>
+        <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
+        <a class="sideNavLink" data-nav-item="tree-view" href="tree.html">Tree View</a>
+        <a class="sideNavLink" data-nav-item="line-balance" href="line-balance.html">Line Balance</a>
+        <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
+        <a class="sideNavLink" data-nav-item="acknowledgement" href="acknowledgement.html">Acknowledgement</a>
+      </div>
+    </nav>
+
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <h2 id="dashboardTitle">Tree View</h2>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="toolbar ganttTopBar">
+          <div class="controlsRow">
+            <div class="pickerSlot">
+              <div id="daySlot" class="pickerGroup">
+                <div class="pickerLabel">Day</div>
+                <input type="date" id="dayPicker" class="pickerInput" />
+              </div>
+
+              <div id="monthSlot" class="pickerGroup hidden">
+                <div class="pickerLabel">Month</div>
+                <input type="month" id="monthPicker" class="pickerInput" />
+              </div>
+
+              <button id="btnToday" class="secondary hidden">Today</button>
+            </div>
+
+            <div class="filters">
+              <div>
+                <label for="dateMode">Date Range</label>
+                <select id="dateMode">
+                  <option value="daily">Daily</option>
+                  <option value="month">Monthly</option>
+                </select>
+              </div>
+
+              <div class="actions controlActions" aria-label="Tree view actions">
+                <button id="btn-refresh">Refresh</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ganttWrap treeMode">
+          <div class="ganttGrid treeMode">
+            <div class="ganttHead hidden">
+              <div class="ganttLeftHead">Unit</div>
+              <div class="ganttLeftHead small">Process No.</div>
+              <div class="ganttLeftHead small">Status</div>
+
+              <div class="ganttTimelineHead">
+                <div id="ganttMonthHead" class="ganttMonthHead"></div>
+                <div id="ganttDayHead" class="ganttDayHead"></div>
+              </div>
+            </div>
+
+            <div id="ganttBody"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module">
+    import { renderTree } from "./js/tree.js";
+    import { clearCache } from "./js/timeline.js";
+    import { clearGanttCache, stopGanttLiveRefresh, syncPickers } from "./js/gantt.js";
+
+    const btnRefresh = document.getElementById("btn-refresh");
+    const dayPicker = document.getElementById("dayPicker");
+    const monthPicker = document.getElementById("monthPicker");
+    const dateMode = document.getElementById("dateMode");
+    const btnToday = document.getElementById("btnToday");
+    const sideNavLinks = document.querySelectorAll(".sideNavLink[data-nav-item]");
+
+    function updateSideNavActive() {
+      sideNavLinks.forEach(link => {
+        const isActive = link.dataset.navItem === "tree-view";
+        link.classList.toggle("active", isActive);
+
+        if (isActive) {
+          link.setAttribute("aria-current", "page");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+    }
+
+    function localDateInputValue(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function applyRouteParams() {
+      const params = new URLSearchParams(window.location.search);
+      const date = params.get("date");
+
+      if (dateMode && ["daily", "month", "monthly"].includes(date)) {
+        dateMode.value = date === "monthly" ? "month" : date;
+      }
+    }
+
+  function syncRouteToControls() {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("view");
+    params.set("date", dateMode?.value || "daily");
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, "", nextUrl);
+    }
+
+    async function renderCurrentView() {
+      stopGanttLiveRefresh();
+      syncPickers();
+      updateSideNavActive();
+      await renderTree();
+    }
+
+    applyRouteParams();
+    renderCurrentView();
+    import(`./js/version-check.js?v=${Date.now()}`)
+      .then(({ startVersionCheck }) => startVersionCheck())
+      .catch(err => console.warn("Version check failed to start", err));
+
+    btnRefresh?.addEventListener("click", async () => {
+      const originalText = btnRefresh.textContent;
+
+      try {
+        btnRefresh.disabled = true;
+        btnRefresh.textContent = "Refreshing...";
+
+        clearCache();
+        clearGanttCache();
+        await renderCurrentView();
+      } catch (err) {
+        console.error("Refresh failed:", err);
+      } finally {
+        btnRefresh.disabled = false;
+        btnRefresh.textContent = originalText || "Refresh";
+      }
+    });
+
+    dayPicker?.addEventListener("change", async () => {
+      await renderCurrentView();
+    });
+
+    monthPicker?.addEventListener("change", async () => {
+      await renderCurrentView();
+    });
+
+    dateMode?.addEventListener("change", async () => {
+      syncRouteToControls();
+      await renderCurrentView();
+    });
+
+    btnToday?.addEventListener("click", async () => {
+      const today = new Date();
+      const dayStr = localDateInputValue(today);
+      const monthStr = dayStr.slice(0, 7);
+
+      if (dateMode?.value === "month") {
+        if (monthPicker) monthPicker.value = monthStr;
+      } else if (dayPicker) {
+        dayPicker.value = dayStr;
+      }
+
+      await renderCurrentView();
+    });
+
+    window.addEventListener("beforeunload", () => {
+      stopGanttLiveRefresh();
+    });
+  </script>
+</body>
+</html>

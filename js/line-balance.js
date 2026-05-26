@@ -1,7 +1,7 @@
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
-  getStandardMinutesFromLabel,
+  getStandardMinutes,
   getProcessCode,
 } from "./helpers.js";
 
@@ -191,7 +191,12 @@ function buildAverageProcessChartData(segments, denominator = null) {
 
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
     const totalMin = getTotalDurationMs(seg) / 60000;
-    const standardMin = getStandardMinutesFromLabel(fullLabel) || 0;
+    const standardMin = getStandardMinutes({
+      processLabel: seg.processLabel,
+      model: seg.model,
+      qrKind: seg.qrKind,
+      vesselType: seg.vesselType || "ALL"
+    });
 
     if (!processMap.has(processCode)) {
       processMap.set(processCode, {
@@ -340,7 +345,12 @@ function buildProcessChartData(segments) {
 
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
     const totalMin = getTotalDurationMs(seg) / 60000;
-    const standardMin = getStandardMinutesFromLabel(fullLabel) || 0;
+    const standardMin = getStandardMinutes({
+      processLabel: seg.processLabel,
+      model: seg.model,
+      qrKind: seg.qrKind,
+      vesselType: seg.vesselType || "ALL"
+    });
 
     if (!processMap.has(processCode)) {
       processMap.set(processCode, {

@@ -1,218 +1,50 @@
 /* Helpers shared across different js */
 
-/* Array mapping START */
+export const STANDARD_TIME_MIN_DETAIL = {
+  "ZUWV": {
+    "CHILLER": {
+      "ALL": {
+        "C - Major components assembly": 243.9,
+        "D - Steel pipe welding": 1494.61,
+        "E - Copper pipe brazing": 449.24,
+        "F - Control box and wiring": 723.15,
+        "G - Piping insulation": 171.8
+      }
+    },
 
-// Station -> vessel type -> processes 
-export const PROCESS_BY_LINE = {
-  "PV 1": [
-      "1 - Plasma cutting to bevelling",
-      "2 - Shotblast to rolling",
-      "3 - Longtidunal SAW",
-      "4 - Rerolling",
-      "5 - Circumference SAW (Two shells joining)",
-      "6 - Hole bevelling",
-      "7 - Connector welding",
-      "8A - Internal plate assembly",
-      "8B - Fitting internal plate",
-      "8C - GMAW C&B",
-      "9 - Fitting and welding distribution box",
-      "10 - Tube support, bush fitting, and tube sheet fitting",
-      "11 - Tubesheet welding",
-      "12 - Bracket and attachment welding, copper tube brazing",
-      "13 - Unit side plate and base welding",
-      "14A - Tube slotting",
-      "14B - Tube expansion"
-    
-  ],
+    "PV": {
+      "EVAPORATOR": {
+        "6 - Hole bevelling": 60,
+        "7 - Connector welding": 264.83,
+        "8A - Internal plate assembly": 119.13,
+        "8B - Fitting internal plate": 119.13,
+        "9 - Fitting and welding distribution box": 268.97,
+        "10 - Tube support, bush fitting, and tube sheet fitting": 165.4,
+        "11 - Tubesheet welding": 221.2,
+        "12 - Bracket and attachment welding, copper tube brazing": 121.7,
+        "13 - Unit side plate and base welding": 243.77,
+        "14A - Tube slotting": 276.1,
+        "14B - Tube expansion": 276.1,
+        "15 - Primer painting": 115,
+        "16 - Pneumatic testing": 30,
+        "17 - Hydrostatic testing": 215.6,
+        "18, 19 - Primer painting (weld seam) and top coat painting": 115
+        
+      },
+    } 
+  }, 
 
-  "PV 2": [
-    
-      "1 - Plasma cutting to bevelling",
-      "2 - Shotblast to rolling",
-      "3 - Longtidunal SAW",
-      "4 - Rerolling",
-      "5 - Circumference SAW (Two shells joining)",
-      "6 - Hole bevelling",
-      "7 - Connector welding",
-      "8A - Internal plate assembly",
-      "8B - Fitting internal plate",
-      "8C - GMAW C&B",
-      "9 - Fitting and welding distribution box",
-      "10 - Tube support, bush fitting, and tube sheet fitting",
-      "11 - Tubesheet welding",
-      "12 - Bracket and attachment welding, copper tube brazing",
-      "13 - Unit side plate and base welding",
-      "14A - Tube slotting",
-      "14B - Tube expansion"
-  ],
-
-
-  "Sub Assy": {
-    "ECONOMIZER": [
-      "6, 7 - Hole bevelling and connector welding",
-      "8, 9, 10, 11 - Internal plate distribution box tube support and bush fitting and welding",
-      "12 - Bracket and attachment fitting and welding",
-    ],
-
-    
-    "OIL SEPARATOR": [
-      "6, 7 - Hole bevelling and connector welding",
-      "8, 9, 10, 11 - Internal plate distribution box tube support and bush fitting and welding",
-      "12 - Bracket and attachment fitting and welding",
-    ]
-  },
-
-   "Pneumatic": {
-    "EVAPORATOR": [
-      "15 - Primer painting",
-      "16 - Pneumatic testing",
-      "17 - Hydrostatic testing",
-      "18, 19 - Primer painting (weld seam) and top coat painting"
-    ],
-    
-    "CONDENSER": [
-      "15 - Primer painting",
-      "16 - Pneumatic testing",
-      "17 - Hydrostatic testing",
-      "18, 19 - Primer painting (weld seam) and top coat painting"
-    ],
-
-    "OIL SEPARATOR": [
-      "15 - Primer painting",
-      "16 - Pneumatic testing",
-      "18, 19 - Primer painting (weld seam) and top coat painting"
-    ],
-
-    "ECONOMIZER": [
-      "15 - Primer painting",
-      "16 - Pneumatic testing",
-      "18, 19 - Primer painting (weld seam) and top coat painting"
-    ]
+  "HXE-TG": {
+    "PV": {
+      "EVAPORATOR": {
+        "9 - Fitting and welding distribution box": 250
+      },
+      "CONDENSER": {
+        "9 - Fitting and welding distribution box": 280
+      }
+    }
   }
 };
-
-export const PROCESS_BY_CHILLER = {
-
-  "WC 1": {
-    "WATER-COOLED": [
-      "Major components assembly",
-      "Steel pipe welding",
-      "Copper pipe brazing",
-      "Control and starter box wiring"
-    ]
-  },
-
-  "WC 2": {
-    "WATER-COOLED": [
-      "Major components assembly",
-      "Steel pipe welding",
-      "Copper pipe brazing",
-      "Control and starter box wiring"
-    ]
-  },
-
-   "AC 1": {
-    "AIR-COOLED": [
-      "Major components assembly",
-      "Steel pipe welding",
-      "Copper pipe brazing",
-      "Control and starter box wiring"
-    ]
-  },
-
-   "AC 2": {
-    "AIR-COOLED": [
-      "Major components assembly",
-      "Steel pipe welding",
-      "Copper pipe brazing",
-      "Control and starter box wiring"
-    ]
-  },
-
-  "Insulation 1": {
-    "AIR-COOLED": [
-      "Insulation 1",
-      "Insulation 2"
-    ],
-
-    "WATER-COOLED": [
-      "Insulation 1",
-      "Insulation 2"
-    ]
-  },
-
-  "Insulation 2": {
-    "AIR-COOLED": [
-      "Insulation 1",
-      "Insulation 2"
-    ],
-
-    "WATER-COOLED": [
-      "Insulation 1",
-      "Insulation 2"
-    ]
-  },
-
-  "Packing": {
-    "AIR-COOLED":[
-      "Packing"
-    ],
-
-    "WATER-COOLED":[
-      "Packing"
-    ]
-  }
-  
-};
-
-// Allowed vessels to stations
-export const STATION_ALLOWED_VESSELS = {
-  "PV 1": ["EVAPORATOR", "CONDENSER"],
-  "PV 2": ["EVAPORATOR", "CONDENSER"],
-  "Sub Assy": ["ECONOMIZER", "OIL SEPARATOR"],
-  "Pneumatic": [
-    "EVAPORATOR",
-    "CONDENSER",
-    "ECONOMIZER",
-    "OIL SEPARATOR"
-  ]
-};
-
-export const STATION_ALLOWED_CHILLER_TYPES = {
-  "Piping Shop": ["AIR-COOLED"],
-  "WC 1": ["WATER-COOLED"],
-  "WC 2": ["WATER-COOLED"],
-  "AC 1": ["WATER-COOLED"],
-  "AC 2": ["WATER-COOLED"],
-  "Insulation 1": ["AIR-COOLED", "WATER-COOLED"],
-  "Insulation 2": ["AIR-COOLED", "WATER-COOLED"],
-  "Packing": ["AIR-COOLED", "WATER-COOLED"],
-};
-
-// A normalized station key to match with state.js (PROCESS_BY_LINE)
-export function getStationKey(employeeData = state.employeeData){
-  const raw = String(
-    employeeData?.station ||
-    employeeData?.lineStation ||
-    employeeData?.processLine ||
-    ""
-  ).trim().toUpperCase();
-
-  const map = {
-    "PV1": "PV 1",
-    "PV 1": "PV 1",
-    "PV2": "PV 2",
-    "PV 2": "PV 2",
-    "SUBASSY" : "Sub Assy",
-    "SUB ASSY": "Sub Assy",
-    "PNEUMATIC": "Pneumatic"
-  };
-
-  return map[raw] || "";
-}
-
-
-/* Array mapping END */
 
 export const STANDARD_TIME_MIN = {
   "6 - Hole bevelling": 80,
@@ -299,23 +131,107 @@ export function renderLegend(containerId, items) {
   `).join("");
 }
 
-export function getStandardMinutesFromLabel(processLabel) {
+export function getStandardMinutes({
+  processLabel,
+  model = "",
+  qrKind = "",
+  vesselType = ""
+}) {
+
   if (!processLabel) return 0;
 
   const label = String(processLabel).trim();
+  const cleanModel = String(model || "").trim().toUpperCase();
+  const cleanQrKind = String(qrKind || "").trim().toUpperCase();
+  const cleanVesselType =
+    String(vesselType || "ALL").trim().toUpperCase();
 
-  // direct match
+  // ===== DETAIL STANDARD =====
+  const modelData =
+    STANDARD_TIME_MIN_DETAIL[cleanModel];
+
+  const kindData =
+    modelData?.[cleanQrKind];
+
+  // Exact vessel match
+  if (
+    kindData?.[cleanVesselType]?.[label] != null
+  ) {
+    return kindData[cleanVesselType][label];
+  }
+
+  // CHILLER ALL fallback
+  if (
+    kindData?.ALL?.[label] != null
+  ) {
+    return kindData.ALL[label];
+  }
+
+  // ===== GLOBAL FALLBACK =====
+
+  // Exact global match
+  if (
+    STANDARD_TIME_MIN[label] != null
+  ) {
+    return STANDARD_TIME_MIN[label];
+  }
+
+  // startsWith safety fallback
+  const foundKey =
+    Object.keys(STANDARD_TIME_MIN)
+    .find(k => label.startsWith(k));
+
+  if (foundKey) {
+    return STANDARD_TIME_MIN[foundKey];
+  }
+  
+
+  return 0;
+}
+
+export function getStandardMinutesFromLabel(processLabel, model = "") {
+  if (!processLabel) return 0;
+
+  const label = String(processLabel).trim();
+  const cleanModel = String(model || "").trim().toUpperCase();
+
+  // 1. Model-specific exact match
+  if (
+    STANDARD_TIME_MIN_DETAIL[cleanModel] &&
+    STANDARD_TIME_MIN_DETAIL[cleanModel][label] != null
+  ) {
+    return STANDARD_TIME_MIN_DETAIL[cleanModel][label];
+  }
+
+  // 2. Model-specific startsWith fallback
+  if (STANDARD_TIME_MIN_DETAIL[cleanModel]) {
+
+    const foundModelKey =
+      Object.keys(STANDARD_TIME_MIN_DETAIL[cleanModel])
+      .find(k => label.startsWith(k));
+
+    if (foundModelKey) {
+      return STANDARD_TIME_MIN_DETAIL[cleanModel][foundModelKey];
+    }
+
+  }
+
+  // 3. Old global exact match
   if (STANDARD_TIME_MIN[label] != null) {
     return STANDARD_TIME_MIN[label];
   }
 
-  // fallback: try startsWith match (for safety)
-  const foundKey = Object.keys(STANDARD_TIME_MIN).find(k =>
-    label.startsWith(k)
-  );
+  // 4. Old global startsWith fallback
+  const foundKey =
+    Object.keys(STANDARD_TIME_MIN)
+    .find(k => label.startsWith(k));
 
-  return foundKey ? STANDARD_TIME_MIN[foundKey] : 0;
+  return foundKey
+    ? STANDARD_TIME_MIN[foundKey]
+    : 0;
 }
+
+
 
 export function getProcessNo(seg) {
   const label = String(seg?.processLabel || "").trim();
@@ -736,6 +652,7 @@ export function buildSegmentsFromRuns(runs) {
       materialNumber: r.materialNumber || "",
       description: r.description || "",
       station,
+      model: r.model || "",
       phase: "process",
       processLabel: r.processName || "-",
       manpower: Number(r.manpower ?? 0) || 0,
