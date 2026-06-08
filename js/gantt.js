@@ -1184,13 +1184,6 @@ function formatStatus(text) {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function getEffectiveDurationMs(seg) {
-  if (typeof seg?.effectiveDurationMs === "number") return seg.effectiveDurationMs;
-  if (typeof seg?.durationMs === "number") return seg.durationMs;
-  if (seg?.start && seg?.end) return Math.max(0, seg.end.getTime() - seg.start.getTime());
-  return 0;
-}
-
 function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
   const partType = part?.type || type || "";
 
@@ -1232,7 +1225,7 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
     (effectiveEnd?.getTime?.() || 0) - (realFrom?.getTime?.() || 0)
   );
 
-  const totalEffectiveMs = getEffectiveDurationMs(seg);
+  const totalEffectiveMs = getActualEffectiveDurationMs(seg);
 
   
   const statusText = formatStatus(seg?.status || type || "-");
