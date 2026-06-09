@@ -7,6 +7,11 @@ import {
 
 import { db } from "./firebase.js";
 
+function getTodayCutoffMs(hour, minute, now = new Date()) {
+  const cutoff = new Date(now);
+  cutoff.setHours(hour, minute, 0, 0);
+  return cutoff.getTime();
+}
 
 function normalizeProcessName(name) {
   return String(name || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -42,23 +47,15 @@ function getTodayKey(date = new Date()) {
 }
 
 function getAutoStopType(now = new Date()) {
-  if (isPastTime(21, 30, now)) return "night_shift_end";
+  if (isPastTime(21, 0, now)) return "night_shift_end";
   if (isPastTime(17, 30, now)) return "shift_end";
   return null;
 }
 
-const now = new Date();
-const stopType = getAutoStopType(now);
-
 export async function autoStopRuns() {
   const now = getNow();
-  const nowMs = now.getTime();
-  const todayKey = getTodayKey(now);
   const stopType = getAutoStopType(now);
 
-  if (!stopType) {
-    return { checked: 0, updated: 0, skippedExcluded: 0, reason: null };
-  }
 
   const snap = await getDocs(collectionGroup(db, "runs"));
 
@@ -69,38 +66,44 @@ export async function autoStopRuns() {
   for (const docSnap of snap.docs) {
     const run = docSnap.data();
     checked++;
-    
+
     if (String(run.status || "").trim().toLowerCase() !== "running") continue;
 
-    // Skip painting processes
     if (isExcludedFromAutoHold(run.processName)) {
       skippedExcluded++;
       continue;
     }
 
-    // Prevent repeated auto-hold for same cutoff
-    if (stopType === "shift_end" && run.autoStopType === "shift_end") continue;
-    if (stopType === "night_shift_end" && run.autoStopType === "night_shift_end") continue;
+    const runStopType = getRunAutoStopType(run, now);
+
+    if (!runStopType) continue;
+
+    if (run.autoStopType === runStopType) continue;
+
+    const cutoffMs =
+      runStopType === "shift_end"
+        ? getTodayCutoffMs(17, 30, now)
+        : getTodayCutoffMs(21, 0, now);
 
     const remarks =
-    stopType === "shift_end"
-      ? `Auto hold after 5:30 PM cutoff at ${now.toLocaleString("en-MY")}`
-      : `Auto hold after 9:00 PM cutoff at ${now.toLocaleString("en-MY")}`;
+      runStopType === "shift_end"
+        ? `Auto hold after 5:30 PM cutoff at ${now.toLocaleString("en-MY")}`
+        : `Auto hold after 9:00 PM cutoff at ${now.toLocaleString("en-MY")}`;
 
     await updateDoc(docSnap.ref, {
       status: "on_hold",
       holds: arrayUnion({
-        holdAtEpochMs: nowMs,
+        holdAtEpochMs: cutoffMs,
         holdReason: "end_of_shift",
         remarks,
         byName: "SYSTEM",
         byNumber: "SYSTEM"
       }),
       holdReason: "end_of_shift",
-      holdEpochMs: nowMs,
+      holdEpochMs: cutoffMs,
       autoStopped: true,
-      autoStopType: stopType,
-      autoStopAtEpochMs: nowMs
+      autoStopType: runStopType,
+      autoStopAtEpochMs: cutoffMs
     });
 
     updated++;
@@ -136,16 +139,20 @@ export async function previewAutoStopRuns() {
     // skip excluded processes
     if (isExcludedFromAutoHold(r.processName)) return;
 
+    const runStopType = getRunAutoStopType(r, now);
+
+    if (!runStopType) return;
+
     // prevent repeat auto-stop
-    if (stopType === "shift_end" && r.autoStopType === "shift_end") return;
-    if (stopType === "night_shift_end" && r.autoStopType === "night_shift_end") return;
+    if (r.autoStopType === runStopType) return;
 
     eligible.push({
       id: docSnap.id,
       serialNumber: r.serialNumber,
       processName: r.processName,
       projectName: r.projectName,
-      station: r.station
+      station: r.station,
+      autoStopType: runStopType
     });
   });
 
@@ -153,4 +160,33 @@ export async function previewAutoStopRuns() {
     eligible,
     reason: stopType
   };
+}
+
+function getRunAutoStopType(run, now = new Date()) {
+  const todayKey = getTodayKey(now);
+
+  if (run.runDate !== todayKey) return null;
+
+  const startMs = run.startEpochMs;
+  if (!startMs) return null;
+
+  const start = new Date(startMs);
+
+  const startMinutes = getMinutesOfDay(start);
+  const nowMinutes = getMinutesOfDay(now);
+
+  const cutoff530 = 17 * 60 + 30;
+  const cutoff900 = 21 * 60;
+
+  // Started before 5:30 PM → auto hold at/after 5:30 PM
+  if (startMinutes < cutoff530 && nowMinutes >= cutoff530) {
+    return "shift_end";
+  }
+
+  // Started after 5:30 PM and before 9:00 PM → auto hold at/after 9:00 PM
+  if (startMinutes >= cutoff530 && startMinutes < cutoff900 && nowMinutes >= cutoff900) {
+    return "night_shift_end";
+  }
+
+  return null;
 }
