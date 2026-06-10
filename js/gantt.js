@@ -707,7 +707,9 @@ function latestSegment(segs){
 
 /* Update here if there are more stations! */
 function stationClass(station) {
-  const s = String(station || "").toLowerCase().replace(/\s+/g,"");
+  const raw = String(station || "").toLowerCase();
+  const s = raw.replace(/\s+/g,"");
+  const hasToken = token => new RegExp(`(^|[^a-z0-9])${token}([^a-z0-9]|$)`).test(raw);
 
   if (s.includes("pv1")) return "st-pv1"; // PV 1
   if (s.includes("pv2")) return "st-pv2"; // PV 2
@@ -717,7 +719,7 @@ function stationClass(station) {
   if (s.includes ("pneumatic")) return "st-pneumatic"; // Pneumatic + Paint booth + Hydro
   if (s.includes ("wc1")) return "st-wc1"; // WC Line 1
   if (s.includes ("wc2")) return "st-wc2"; // WC Line 2
-  if (s.includes ("ac")) return "st-ac"; // AC Line
+  if (hasToken("ac") || s.includes("acline")) return "st-ac"; // AC Line
   if (s.includes("insulationab") || s.includes("insulation1")) return "st-insulationab"; // Insulation AB
   if (s.includes("insulationg") || s.includes("insulation2")) return "st-insulationg"; // Insulation G
   if (s.includes ("packing")) return "st-packing"; // Packing
