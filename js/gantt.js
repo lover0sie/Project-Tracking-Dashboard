@@ -944,9 +944,7 @@ export async function exportStationSelectedDateExcel() {
 
   const filteredSegments = segments
     .filter(seg =>
-      hasValidSegmentDates(seg) &&
-      seg.end.getTime() > rangeMin.getTime() &&
-      seg.start.getTime() < rangeMax.getTime()
+      hasDisplayPartInRange(seg, rangeMin, rangeMax)
     )
 
     .filter(seg =>
@@ -985,6 +983,19 @@ function getLaneEndMs(seg) {
   }
 
   return seg?.end?.getTime?.() || seg?.start?.getTime?.() || 0;
+}
+
+function hasDisplayPartInRange(seg, rangeMin, rangeMax) {
+  if (!hasValidSegmentDates(seg)) return false;
+
+  return sliceSegForWaiting(seg).some(part =>
+    part?.start instanceof Date &&
+    part?.end instanceof Date &&
+    Number.isFinite(part.start.getTime()) &&
+    Number.isFinite(part.end.getTime()) &&
+    part.end.getTime() > rangeMin.getTime() &&
+    part.start.getTime() < rangeMax.getTime()
+  );
 }
 
 function buildLanes(segs) {
@@ -1097,9 +1108,7 @@ export async function renderStationOnlyView() {
     const rangeMax = endOfWorkDay(dayDate);
 
     const segsInWindow = segments.filter(s =>
-      hasValidSegmentDates(s) &&
-      s.end.getTime() > rangeMin.getTime() &&
-      s.start.getTime() < rangeMax.getTime()
+      hasDisplayPartInRange(s, rangeMin, rangeMax)
     );
 
     fitDailyToScreen();
@@ -1729,8 +1738,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
 
    const unitRows = units.map(u => {
       const segs = u.segs.filter(seg =>
-          seg.end.getTime() > rangeMin.getTime() &&
-          seg.start.getTime() < rangeMax.getTime()
+          hasDisplayPartInRange(seg, rangeMin, rangeMax)
         );
       
 
@@ -1990,7 +1998,7 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
 
     const unitRows = units.map(u => {
       const visibleSegs = u.segs.filter(
-        seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime())
+        seg => hasDisplayPartInRange(seg, rangeMin, rangeMax)
       );
 
       const cur = latestSegment(visibleSegs) || null;
@@ -1998,7 +2006,7 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
       const st = statusUi(cur?.status);
 
       const bars = visibleSegs
-        .filter(seg => !(seg.end.getTime() <= rangeMin.getTime() || seg.start.getTime() >= rangeMax.getTime()))
+        .filter(seg => hasDisplayPartInRange(seg, rangeMin, rangeMax))
         .map(seg => {
           const parts = sliceSegForWaiting(seg);
 
@@ -2209,9 +2217,7 @@ async function render({ forceRefresh = false } = {}) {
       const rangeMax = endOfWorkDay(dayDate);
 
       const segsInWindow = segments.filter(s =>
-        hasValidSegmentDates(s) &&
-        s.end.getTime() > rangeMin.getTime() &&
-        s.start.getTime() < rangeMax.getTime()
+        hasDisplayPartInRange(s, rangeMin, rangeMax)
       );
 
       fitDailyToScreen();
@@ -2247,9 +2253,7 @@ async function render({ forceRefresh = false } = {}) {
       const rangeMax = endOfDay(monthEnd);
 
       const segsInMonth = segments.filter(s =>
-        hasValidSegmentDates(s) &&
-        s.end.getTime() > rangeMin.getTime() &&
-        s.start.getTime() < rangeMax.getTime()
+        hasDisplayPartInRange(s, rangeMin, rangeMax)
       );
 
       if (!segsInMonth.length) {
@@ -2287,9 +2291,7 @@ async function render({ forceRefresh = false } = {}) {
         
 
       const segsInWindow = segments.filter(s =>
-        hasValidSegmentDates(s) &&
-        s.end.getTime() > rangeMin.getTime() &&
-        s.start.getTime() < rangeMax.getTime()
+        hasDisplayPartInRange(s, rangeMin, rangeMax)
       );
 
       fitDailyToScreen();

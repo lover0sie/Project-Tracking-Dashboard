@@ -70,6 +70,21 @@ export function filterRunsOverlappingWindow(runs, windowStartMs, windowEndMs) {
   });
 }
 
+function getLatestHoldEpochMs(run) {
+  const holds = Array.isArray(run?.holds) ? run.holds : [];
+
+  for (let i = holds.length - 1; i >= 0; i--) {
+    const holdMs = Number(holds[i]?.holdAtEpochMs);
+    if (Number.isFinite(holdMs)) return holdMs;
+  }
+
+  if (typeof run?.holdEpochMs === "number" && Number.isFinite(run.holdEpochMs)) {
+    return run.holdEpochMs;
+  }
+
+  return null;
+}
+
 export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
   if (!dayKey) return [];
 
@@ -105,10 +120,7 @@ export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
       if (status === "running") {
         endMs = Date.now();
       } else if (status === "on_hold") {
-        endMs =
-          typeof r.holdEpochMs === "number"
-            ? r.holdEpochMs
-            : Date.now();
+        endMs = getLatestHoldEpochMs(r);
       }
     }
 

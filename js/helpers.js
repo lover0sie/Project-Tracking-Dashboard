@@ -307,6 +307,79 @@ function getDailyBreakWindows(baseDate) {
 }
 
 /* Create waiting and on hold process based on the status */
+const HOLD_DISPLAY_START_HOUR = 7;
+const HOLD_DISPLAY_END_HOUR = 22;
+
+function localDayKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function workWindowStart(date) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    HOLD_DISPLAY_START_HOUR,
+    0,
+    0,
+    0
+  );
+}
+
+function workWindowEnd(date) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    HOLD_DISPLAY_END_HOUR,
+    0,
+    0,
+    0
+  );
+}
+
+function laterDate(a, b) {
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
+function earlierDate(a, b) {
+  return a.getTime() <= b.getTime() ? a : b;
+}
+
+function buildHoldDisplayParts(window) {
+  const holdStart = window.start instanceof Date ? window.start : new Date(window.start);
+  const holdEnd = window.end instanceof Date ? window.end : new Date(window.end);
+
+  if (!(holdStart instanceof Date) || isNaN(holdStart.getTime())) return [];
+  if (!(holdEnd instanceof Date) || isNaN(holdEnd.getTime())) return [];
+  if (holdEnd <= holdStart) return [];
+
+  if (localDayKey(holdStart) === localDayKey(holdEnd)) {
+    return [{ start: holdStart, end: holdEnd }];
+  }
+
+  const parts = [];
+  const firstEnd = workWindowEnd(holdStart);
+  const firstStart = laterDate(holdStart, workWindowStart(holdStart));
+
+  if (firstEnd > firstStart) {
+    parts.push({ start: firstStart, end: firstEnd });
+  }
+
+  const lastStart = workWindowStart(holdEnd);
+  const lastEnd = earlierDate(holdEnd, workWindowEnd(holdEnd));
+
+  if (lastEnd > lastStart) {
+    parts.push({ start: lastStart, end: lastEnd });
+  }
+
+  return parts;
+}
+
 export function sliceSegForWaiting(seg) {
   const parts = [];
   const s = seg.start;
@@ -329,11 +402,7 @@ export function sliceSegForWaiting(seg) {
 
   for (const w of windows) {
     const holdStart = w.start instanceof Date ? w.start : new Date(w.start);
-
-    // KEY FIX:
-    const holdEnd = w.isOpen
-      ? new Date()
-      : (w.end instanceof Date ? w.end : new Date(w.end));
+    const holdEnd = w.end instanceof Date ? w.end : new Date(w.end);
 
     if (!(holdStart instanceof Date) || isNaN(holdStart)) continue;
     if (!(holdEnd instanceof Date) || isNaN(holdEnd)) continue;
@@ -347,14 +416,16 @@ export function sliceSegForWaiting(seg) {
       });
     }
 
-    parts.push({
-      type: "on_hold_gap",
-      start: holdStart,
-      end: holdEnd,
-      holdReason: w.holdReason || "",
-      remarks: w.remarks || "",
-      isOpen: !!w.isOpen
-    });
+    for (const displayPart of buildHoldDisplayParts(w)) {
+      parts.push({
+        type: "on_hold_gap",
+        start: displayPart.start,
+        end: displayPart.end,
+        holdReason: w.holdReason || "",
+        remarks: w.remarks || "",
+        isOpen: !!w.isOpen
+      });
+    }
 
     cursor = holdEnd;
   }
@@ -644,7 +715,10 @@ export function buildSegmentsFromRuns(runs) {
         ? r.durationMs
         : (start && end ? (end.getTime() - start.getTime()) : 0);
 
-    const holdWindows = buildHoldWindowsFromRun(r, end);
+    const holdWindows = buildHoldWindowsFromRun(
+      r,
+      status === "on_hold" ? new Date() : end
+    );
 
     segments.push({
       serial,
