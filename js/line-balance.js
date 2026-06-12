@@ -20,6 +20,10 @@ const projectSortMenuEl = document.getElementById("lbProjectSortMenu");
 const modeViewEl = document.getElementById("lbModeView");
 const countLabelEl = document.getElementById("lbCountLabel");
 const chillerSerialGroupEl = document.getElementById("lbChillerSerialGroup");
+const modelDateFromGroupEl = document.getElementById("lbModelDateFromGroup");
+const modelDateToGroupEl = document.getElementById("lbModelDateToGroup");
+const modelDateFromEl = document.getElementById("lbModelDateFrom");
+const modelDateToEl = document.getElementById("lbModelDateTo");
 
 
 let projectSortMode = "latest";
@@ -34,6 +38,9 @@ let projectSearchTerm = "";
 let lineBalanceMode = "PROJECT";
 let currentModels = [];
 let selectedModel = "";
+let modelDateFrom = "";
+let modelDateTo = "";
+let modelDateBoundsInitialized = false;
 
 let lineBalanceView = {
   showStandard: true, // default on
@@ -107,6 +114,24 @@ function updateToolbarModeUi() {
       label.textContent = isModelBase ? "Selected Model" : "Selected Project";
     }
   }
+
+  modelDateFromGroupEl?.classList.toggle("hidden", !isModelBase);
+  modelDateToGroupEl?.classList.toggle("hidden", !isModelBase);
+}
+
+function setModelDateControlsLoading(isLoading) {
+  if (modelDateFromEl) modelDateFromEl.disabled = isLoading;
+  if (modelDateToEl) modelDateToEl.disabled = isLoading;
+}
+
+function renderModelFilterLoading() {
+  if (projectListEl) {
+    projectListEl.innerHTML = `<div class="emptyState">Loading models for selected date range...</div>`;
+  }
+
+  if (chartsContainerEl) {
+    chartsContainerEl.innerHTML = `<div class="emptyState">Loading line balance for selected date range...</div>`;
+  }
 }
 
 
@@ -138,6 +163,138 @@ function normalizeProjectHeaders(rows) {
       firstStart: Number(row.firstStart || 0)
     }))
     .filter(row => row.chillerSerialNumber);
+}
+
+function parseDateStartMs(value) {
+  if (!value) return null;
+
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+}
+
+function formatDateInputValue(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+
+  const date = new Date(ms);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getProjectDateBounds(projects) {
+  let earliestMs = Infinity;
+  let latestMs = 0;
+
+  for (const project of projects || []) {
+    const firstStart = Number(project?.firstStart || 0);
+    const latestStart = Number(project?.latestStart || 0);
+
+    if (firstStart > 0) earliestMs = Math.min(earliestMs, firstStart);
+    if (latestStart > 0) latestMs = Math.max(latestMs, latestStart);
+  }
+
+  return {
+    earliestMs: earliestMs === Infinity ? null : earliestMs,
+    latestMs: latestMs || null
+  };
+}
+
+function applyModelDateBounds(projects) {
+  const { earliestMs, latestMs } = getProjectDateBounds(projects);
+  const earliestValue = formatDateInputValue(earliestMs);
+  const latestValue = formatDateInputValue(latestMs);
+
+  if (modelDateFromEl) {
+    modelDateFromEl.placeholder = earliestValue || "From";
+    if (earliestValue) modelDateFromEl.min = earliestValue;
+    if (latestValue) modelDateFromEl.max = latestValue;
+  }
+
+  if (modelDateToEl) {
+    modelDateToEl.placeholder = latestValue || "To";
+    if (earliestValue) modelDateToEl.min = earliestValue;
+    if (latestValue) modelDateToEl.max = latestValue;
+  }
+
+  if (!modelDateBoundsInitialized) {
+    if (modelDateFromEl && earliestValue && !modelDateFromEl.value) {
+      modelDateFromEl.value = earliestValue;
+      modelDateFrom = earliestValue;
+    }
+
+    if (modelDateToEl && latestValue && !modelDateToEl.value) {
+      modelDateToEl.value = latestValue;
+      modelDateTo = latestValue;
+    }
+
+    modelDateBoundsInitialized = true;
+  }
+}
+
+function parseDateEndMs(value) {
+  if (!value) return null;
+
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+}
+
+function getModelDateRange() {
+  const fromMs = parseDateStartMs(modelDateFrom);
+  const toMs = parseDateEndMs(modelDateTo);
+
+  if (fromMs != null && toMs != null && fromMs > toMs) {
+    return { fromMs: toMs, toMs: fromMs };
+  }
+
+  return { fromMs, toMs };
+}
+
+function getRunStartMs(run) {
+  const startMs = Number(run?.startEpochMs);
+  if (Number.isFinite(startMs)) return startMs;
+
+  if (run?.startAt && typeof run.startAt.toMillis === "function") {
+    return run.startAt.toMillis();
+  }
+
+  if (run?.startAt && typeof run.startAt.toDate === "function") {
+    return run.startAt.toDate().getTime();
+  }
+
+  return null;
+}
+
+function isRunInModelDateRange(run) {
+  const { fromMs, toMs } = getModelDateRange();
+  if (fromMs == null && toMs == null) return true;
+
+  const startMs = getRunStartMs(run);
+  if (!Number.isFinite(startMs)) return false;
+
+  if (fromMs != null && startMs < fromMs) return false;
+  if (toMs != null && startMs > toMs) return false;
+
+  return true;
+}
+
+function isProjectInModelDateRange(project) {
+  const { fromMs, toMs } = getModelDateRange();
+  if (fromMs == null && toMs == null) return true;
+
+  const firstStart = Number(project?.firstStart || 0);
+  const latestStart = Number(project?.latestStart || 0);
+
+  if (!firstStart && !latestStart) return false;
+  if (fromMs != null && latestStart && latestStart < fromMs) return false;
+  if (toMs != null && firstStart && firstStart > toMs) return false;
+
+  return true;
 }
 
 function escapeHtml(str = "") {
@@ -820,9 +977,10 @@ async function onModelClick(modelRow) {
     chillerSerialEl.textContent = "All serial numbers";
   }
 
-  renderModelList(currentModels);
+  const filteredModels = getVisibleModels();
+  renderModelList(filteredModels);
 
-  const modelProjects = currentProjects.filter(project =>
+  const modelProjects = getVisibleModelProjects().filter(project =>
     String(project.model || "").trim() === String(selectedModel || "").trim()
   );
 
@@ -833,7 +991,7 @@ async function onModelClick(modelRow) {
     )
   );
 
-  const modelRuns = runsNested.flat();
+  const modelRuns = runsNested.flat().filter(isRunInModelDateRange);
 
   const result = buildSegmentsFromRuns(modelRuns);
 
@@ -939,6 +1097,14 @@ function renderModelList(models) {
   });
 }
 
+function getVisibleModelProjects() {
+  return currentProjects.filter(isProjectInModelDateRange);
+}
+
+function getVisibleModels() {
+  return buildModelsFromProjects(getVisibleModelProjects());
+}
+
 function buildModelsFromProjects(projects) {
 
   const map = new Map();
@@ -972,7 +1138,8 @@ async function renderPage() {
   const rawHeaders = await loadProjectHeadersFallbackFromRuns();
 
   currentProjects = normalizeProjectHeaders(rawHeaders);
-  currentModels = buildModelsFromProjects(currentProjects);
+  applyModelDateBounds(currentProjects);
+  currentModels = getVisibleModels();
 
   if (!currentProjects.length) {
     if (projectNameEl) projectNameEl.textContent = "-";
@@ -992,6 +1159,7 @@ async function renderPage() {
 
     await onProjectClick(projectToShow);
   } else {
+    currentModels = getVisibleModels();
     renderModelList(currentModels);
 
     const stillExists = currentModels.find(
@@ -1039,14 +1207,24 @@ projectSearchClearEl?.addEventListener("click", () => {
   }
 
   updateSearchClearVisibility();  
-  renderProjectList(currentProjects);
+  if (lineBalanceMode === "MODEL") {
+    currentModels = getVisibleModels();
+    renderModelList(currentModels);
+  } else {
+    renderProjectList(currentProjects);
+  }
 });
 
 projectSearchEl?.addEventListener("input", () => {
   projectSearchTerm = projectSearchEl.value || "";
 
   updateSearchClearVisibility(); 
-  renderProjectList(currentProjects);
+  if (lineBalanceMode === "MODEL") {
+    currentModels = getVisibleModels();
+    renderModelList(currentModels);
+  } else {
+    renderProjectList(currentProjects);
+  }
 });
 
 projectSortEl?.addEventListener("click", () => {
@@ -1064,7 +1242,13 @@ projectSortMenuEl?.querySelectorAll("[data-sort]").forEach(button => {
     projectSortMenuEl.hidden = true;
     projectSortEl?.setAttribute("aria-expanded", "false");
     projectSortEl?.classList.remove("active");
-    renderProjectList(currentProjects);
+
+    if (lineBalanceMode === "MODEL") {
+      currentModels = getVisibleModels();
+      renderModelList(currentModels);
+    } else {
+      renderProjectList(currentProjects);
+    }
   });
 });
 
@@ -1085,6 +1269,8 @@ document.addEventListener("click", event => {
 
 modeViewEl?.addEventListener("change", () => {
   lineBalanceMode = modeViewEl.value || "PROJECT";
+  modelDateFrom = modelDateFromEl?.value || "";
+  modelDateTo = modelDateToEl?.value || "";
 
   selectedProjectSerial = "";
   selectedModel = ""; // important
@@ -1095,6 +1281,46 @@ modeViewEl?.addEventListener("change", () => {
   updateToolbarModeUi();
 
   renderPage().catch(console.error);
+});
+
+async function handleModelDateChange() {
+  modelDateFrom = modelDateFromEl?.value || "";
+  modelDateTo = modelDateToEl?.value || "";
+
+  if (lineBalanceMode !== "MODEL") return;
+
+  try {
+    setModelDateControlsLoading(true);
+    renderModelFilterLoading();
+
+    currentModels = getVisibleModels();
+
+    const stillExists = currentModels.find(
+      m => String(m.model || "") === String(selectedModel || "")
+    );
+
+    const modelToShow = stillExists || currentModels[0];
+
+    if (modelToShow) {
+      await onModelClick(modelToShow);
+    } else {
+      selectedModel = "";
+      renderModelList(currentModels);
+      if (projectNameEl) projectNameEl.textContent = "-";
+      if (chillerSerialEl) chillerSerialEl.textContent = "-";
+      clearCharts();
+    }
+  } finally {
+    setModelDateControlsLoading(false);
+  }
+}
+
+modelDateFromEl?.addEventListener("change", () => {
+  handleModelDateChange().catch(console.error);
+});
+
+modelDateToEl?.addEventListener("change", () => {
+  handleModelDateChange().catch(console.error);
 });
 
 updateToolbarModeUi();
