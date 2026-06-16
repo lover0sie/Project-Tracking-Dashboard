@@ -68,9 +68,9 @@ function minutesFromMs(ms) {
 }
 
 function manHoursFromMs(ms, manpower) {
-  const mp = Number(manpower || 0);
-  if (!ms || ms <= 0 || mp <= 0) return 0;
-  return (ms / 3600000) * mp;
+  const mp = Number(manpower || 0); // Convert manpower to number, default to 0 if invalid
+  if (!ms || ms <= 0 || mp <= 0) return 0; // Return 0 if no time or manpower
+  return (ms / 3600000) * mp; // Convert ms to hours and multiply by manpower
 }
 
 function getUnitType(r) {

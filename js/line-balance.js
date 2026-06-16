@@ -48,6 +48,10 @@ let lineBalanceView = {
   showTotal: false    // default off
 };
 
+let lineBalanceMetric = "DURATION"; 
+// DURATION = minutes
+// MANHOUR = man-minutes
+
 function getProjectSortTime(project) {
   return Number(
     project.latestStart ||
@@ -141,6 +145,34 @@ function getTotalDurationMs(seg) {
 
   if (startMs == null || endMs == null) return 0;
   return Math.max(0, endMs - startMs);
+}
+
+// get manpower for segment, default to 1 if not available or invalid
+function getSegmentManpower(seg) {
+  const manpower = Number(seg?.manpower || seg?.run?.manpower || 1);
+  return Number.isFinite(manpower) && manpower > 0 ? manpower : 1;
+}
+
+function roundManpower(manpower) {
+  const value = Number(manpower || 1);
+  return Number.isFinite(value) && value > 0 ? Math.ceil(value) : 1;
+}
+
+// convert minutes to man-minutes using the aggregate manpower value
+function convertByMetric(minutes, manpower = 1) {
+  if (lineBalanceMetric === "MANHOUR") {
+    return minutes * manpower;
+  }
+
+  return minutes;
+}
+
+function getMetricUnitLabel() {
+  return lineBalanceMetric === "MANHOUR" ? "Man-minutes" : "Duration (mins)";
+}
+
+function getMetricToggleLabel() {
+  return lineBalanceMetric === "MANHOUR" ? "View: Man-minutes" : "View: Duration";
 }
 
 function normalizeProjectHeaders(rows) {
@@ -362,29 +394,37 @@ function buildAverageProcessChartData(segments, denominator = null) {
         actualSum: 0,
         totalSum: 0,
         standardSum: 0,
+        manpowerSum: 0,
         count: 0,
         sortKey: getProcessSortKey(fullLabel)
       });
     }
 
     const row = processMap.get(processCode);
+    const manpower = getSegmentManpower(seg);
 
     row.actualSum += actualMin;
     row.totalSum += totalMin;
     row.standardSum += standardMin;
+    row.manpowerSum += manpower;
     row.count++;
   }
   return Array.from(processMap.values())
     .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
     .map(row => {
       const divisor = Number(denominator || row.count || 1);
+      const avgManpower = roundManpower(row.manpowerSum / row.count);
+      const actual = row.actualSum / divisor;
+      const total = row.totalSum / divisor;
+      const standard = row.standardSum / divisor;
 
       return {
         label: getProcessDisplayName(row.fullLabel),
         fullLabel: row.fullLabel,
-        actual: Number((row.actualSum / divisor).toFixed(1)),
-        total: Number((row.totalSum / divisor).toFixed(1)),
-        standard: Number((row.standardSum / divisor).toFixed(1))
+        actual: Number(convertByMetric(actual, avgManpower).toFixed(1)),
+        total: Number(convertByMetric(total, avgManpower).toFixed(1)),
+        standard: Number(convertByMetric(standard, avgManpower).toFixed(1)),
+        avgManpower
       };
     });
 }
@@ -516,25 +556,38 @@ function buildProcessChartData(segments) {
         actualMin: 0,
         totalMin: 0,
         standardMin: 0,
+        manpowerSum: 0,
+        segmentCount: 0,
         sortKey: getProcessSortKey(fullLabel)
       });
     }
 
     const row = processMap.get(processCode);
+
+    const manpower = getSegmentManpower(seg);
+
     row.actualMin += actualMin;
     row.totalMin += totalMin;
     row.standardMin += standardMin;
+
+    row.manpowerSum += manpower;
+    row.segmentCount++;
   }
 
   return Array.from(processMap.values())
     .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
-    .map(item => ({
-      label: getProcessDisplayName(item.fullLabel || item.label),
-      fullLabel: item.fullLabel,
-      actual: Number(item.actualMin.toFixed(1)),
-      total: Number(item.totalMin.toFixed(1)),
-      standard: Number(item.standardMin.toFixed(1))
-    }));
+    .map(item => {
+      const avgManpower = roundManpower(item.manpowerSum / item.segmentCount);
+
+      return {
+        label: getProcessDisplayName(item.fullLabel || item.label),
+        fullLabel: item.fullLabel,
+        actual: Number(convertByMetric(item.actualMin, avgManpower).toFixed(1)),
+        total: Number(convertByMetric(item.totalMin, avgManpower).toFixed(1)),
+        standard: Number(convertByMetric(item.standardMin, avgManpower).toFixed(1)),
+        avgManpower
+      };
+    });
 }
 
 function ensureTooltip() {
@@ -614,6 +667,11 @@ function createChartCard(titleText) {
         Total Duration
       </label>
 
+      <label class="lbLegendItem">
+        <input type="checkbox" class="lbToggleMetric" ${lineBalanceMetric === "MANHOUR" ? "checked" : ""}>
+        <span>${getMetricToggleLabel()}</span>
+      </label>
+
       <span class="lbLegendItem">
         <span class="lbLegendLine"></span>
         Takt Time (450 min)
@@ -626,6 +684,7 @@ function createChartCard(titleText) {
   const standardToggle = wrap.querySelector(".lbToggleStandard");
   const actualToggle = wrap.querySelector(".lbToggleActual");
   const totalToggle = wrap.querySelector(".lbToggleTotal");
+  const metricToggle = wrap.querySelector(".lbToggleMetric");
 
   function rerenderActiveChart() {
     if (lineBalanceMode === "MODEL") {
@@ -661,6 +720,11 @@ function createChartCard(titleText) {
 
   totalToggle?.addEventListener("change", () => {
     lineBalanceView.showTotal = totalToggle.checked;
+    rerenderActiveChart();
+  });
+
+  metricToggle?.addEventListener("change", () => {
+    lineBalanceMetric = metricToggle.checked ? "MANHOUR" : "DURATION";
     rerenderActiveChart();
   });
 
@@ -754,7 +818,8 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
           data-full-label="${escapeHtml(d.fullLabel || d.label || "")}"
           data-actual="${Number(d.actual || 0).toFixed(1)}"
           data-standard="${Number(d.standard || 0).toFixed(1)}"
-          data-total="${Number(d.total || 0).toFixed(1)}">
+          data-total="${Number(d.total || 0).toFixed(1)}"
+          data-manpower="${roundManpower(d.avgManpower)}">
         
         <div class="lbColPlot">
           <div class="lbBarGroup">
@@ -770,7 +835,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   container.innerHTML = `
     <div class="lbCustomChart">
       <div class="lbYAxis">
-        <div class="lbYAxisTitle">Duration (mins)</div>
+        <div class="lbYAxisTitle">${getMetricUnitLabel()}</div>
         <div class="lbYAxisInner">
           ${yAxisHtml}
         </div>
@@ -801,19 +866,24 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
       const actual = col.dataset.actual || "0.0";
       const standard = col.dataset.standard || "0.0";
       const total = col.dataset.total || "0.0";
+      const manpower = col.dataset.manpower || "1";
 
-      let tooltipRows = `<div class="lbTooltipTitle">${escapeHtml(fullLabel)}</div>`;
+      let tooltipRows = `
+        <div class="lbTooltipTitle">${escapeHtml(fullLabel)}</div>
+      `;
+
+      tooltipRows += `<div>Manpower: ${escapeHtml(manpower)}</div>`;
 
       if (lineBalanceView.showStandard) {
-        tooltipRows += `<div>Standard Time: ${escapeHtml(standard)} min</div>`;
+        tooltipRows += `<div>Standard: ${escapeHtml(standard)} ${lineBalanceMetric === "MANHOUR" ? "man-min" : "min"}</div>`;
       }
 
       if (lineBalanceView.showActual) {
-        tooltipRows += `<div>Actual Time: ${escapeHtml(actual)} min</div>`;
+        tooltipRows += `<div>Actual: ${escapeHtml(actual)} ${lineBalanceMetric === "MANHOUR" ? "man-min" : "min"}</div>`;
       }
 
       if (lineBalanceView.showTotal) {
-        tooltipRows += `<div>Total Duration: ${escapeHtml(total)} min</div>`;
+        tooltipRows += `<div>Total Duration: ${escapeHtml(total)} ${lineBalanceMetric === "MANHOUR" ? "man-min" : "min"}</div>`;
       }
 
 

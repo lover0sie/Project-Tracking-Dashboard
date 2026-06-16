@@ -2177,16 +2177,17 @@ async function render({ forceRefresh = false } = {}) {
       )
     );
 
-    segments.forEach(seg => {
+    const candidates = segments.filter(seg => {
       const key = `${normalize(seg.serial)}|${normalize(seg.station)}|${normalize(seg.processName || seg.processLabel)}`;
-
       seg.isAutoStopCandidate = eligibleKeys.has(key);
+      return seg.isAutoStopCandidate;
     });
 
-    console.log(
-      "Auto-stop candidates:",
-      segments.filter(s => s.isAutoStopCandidate)
-    );
+    console.log("Auto-stop candidates:", candidates, {
+      totalSegments: segments.length,
+      eligiblePreviewCount: preview.eligible.length,
+      reason: preview.reason
+    });
 
     const wrap = document.querySelector(".ganttWrap");
     const grid = document.querySelector(".ganttGrid");
@@ -2354,8 +2355,7 @@ if (stationBalancePicker) {
 const btnExport = el("btn-export");
 if (btnExport) {
   btnExport.addEventListener("click", async () => {
-    // Ensure we have the latest data (so export always includes newest runs)
-    const runs = await loadRuns();   // reload from Firestore
+    const runs = await loadRuns(false);
     exportExcelReport(runs);
   });
 }

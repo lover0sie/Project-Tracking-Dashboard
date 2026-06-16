@@ -23,8 +23,14 @@ export function clearCache() {
 
 /* Existing behavior (loads everything). */
 export async function loadRuns(force = false) {
-  console.warn("loadRuns() disabled to prevent excessive Firestore reads.");
-  if (!force && cachedRunsAll.length) return cachedRunsAll;
+  if (!force && cachedRunsAll.length) {
+    console.warn("loadRuns() returning cached runs to prevent excessive Firestore reads.");
+    return cachedRunsAll;
+  }
+
+  if (!force) {
+    console.warn("loadRuns() fetching all runs from Firestore; use force=true only when you need fresh data.");
+  }
 
   const snap = await getDocs(collectionGroup(db, "runs"));
   const runs = [];

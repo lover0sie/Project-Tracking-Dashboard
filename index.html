@@ -87,6 +87,13 @@
               <button id="btn-export">Export Excel File</button>
             </div>
           </div>
+
+          <div class="dataCountPanel" aria-live="polite">
+            <div>
+              <span class="hint">Runs document count:</span>
+              <span id="runCount">Loading…</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -120,6 +127,8 @@
 <script type="module">
   import { clearCache } from "./js/timeline.js";
   import { clearGanttCache, renderGanttView, syncPickers, stopGanttLiveRefresh, updateGanttLeftHeaders } from "./js/gantt.js";
+  import { db } from "./js/firebase.js";
+  import { collectionGroup, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
   const btnRefresh = document.getElementById("btn-refresh");
   const dayPicker = document.getElementById("dayPicker");
@@ -141,6 +150,22 @@
         link.removeAttribute("aria-current");
       }
     });
+  }
+
+  async function displayFirebaseCounts() {
+    const runCountEl = document.getElementById("runCount");
+
+    try {
+      const runSnap = await getCountFromServer(collectionGroup(db, "runs"));
+      const runsCount = runSnap.data().count;
+
+      console.log("Total runs documents:", runsCount);
+
+      if (runCountEl) runCountEl.textContent = String(runsCount);
+    } catch (error) {
+      console.error("Failed to load Firebase counts", error);
+      if (runCountEl) runCountEl.textContent = "Error";
+    }
   }
 
   function localDateInputValue(date) {
@@ -193,6 +218,7 @@
 
   if (applyRouteParams()) {
     renderCurrentView();
+    displayFirebaseCounts();
   }
   import(`./js/version-check.js?v=${Date.now()}`)
     .then(({ startVersionCheck }) => startVersionCheck())
