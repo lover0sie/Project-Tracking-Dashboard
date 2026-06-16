@@ -6,8 +6,6 @@
   height: 350px !important;   /* smaller chart */
 }
 
-
-
 #lineBalanceChart {
   width: 100% !important;
   height: 200px !important;
@@ -168,6 +166,61 @@
   background: #f1f5f9;
   color: #94a3b8;
   opacity: 0.82;
+}
+
+.lineBalanceToolbar .exportGroup {
+  min-width: 190px;
+}
+
+.lineBalanceToolbar .exportStandardBtn {
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.lineBalanceToolbar .exportStandardBtn:hover,
+.lineBalanceToolbar .exportStandardBtn:focus-visible {
+  border-color: #111827;
+  background: #1f2937;
+  outline: none;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+}
+
+.lineBalanceToolbar.modelMode {
+  flex-wrap: nowrap;
+}
+
+.lineBalanceToolbar.modelMode .toolbarGroup {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lineBalanceToolbar.modelMode .modelDateGroup,
+.lineBalanceToolbar.modelMode .exportGroup {
+  flex: 0.85 1 0;
+}
+
+.lineBalanceToolbar.modelMode .pickerInput,
+.lineBalanceToolbar.modelMode .infoText {
+  width: 100%;
+  min-width: 0;
+}
+
+.lineBalanceToolbar.modelMode .exportStandardBtn {
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .pushRight {

@@ -64,7 +64,7 @@ function getHoldDurationMsFromRun(r) {
 
 function minutesFromMs(ms) {
   if (!ms || ms <= 0) return 0;
-  return Math.round(ms / 60000);
+  return ms / 60000;
 }
 
 function manHoursFromMs(ms, manpower) {
@@ -435,4 +435,175 @@ export function exportStationViewExcel(segments, options = {}) {
   const filename = `StationView_${safeStation}_${dayKey}.xlsx`;
 
   XLSX.writeFile(wb, filename);
+}
+
+export function exportLineBalanceStandardRawData(segments, options = {}) {
+  if (typeof XLSX === "undefined") {
+    alert("XLSX library not loaded.");
+    return;
+  }
+
+  const {
+    fromDate = "2026-05-01", // Start date
+    toDate = "2026-06-12", // End date
+    factor = 0.8
+  } = options;
+
+  const fromMs = new Date(`${fromDate}T00:00:00`).getTime();
+  const toMs = new Date(`${toDate}T23:59:59`).getTime();
+
+  const rawRows = [[
+    "Model",
+    "Process Code",
+    "Process",
+    "Project Name",
+    "Serial Number",
+    "Type",
+    "Start Date",
+    "Start Time",
+    "Effective Duration (Minutes)"
+  ]];
+
+  const summaryMap = new Map();
+
+  for (const seg of segments || []) {
+    if (seg.phase === "waiting" || seg.status === "waiting") continue;
+
+    const start = seg.start instanceof Date ? seg.start : null;
+    if (!start) continue;
+
+    const startMs = start.getTime();
+    if (startMs < fromMs || startMs > toMs) continue;
+
+    const model = String(seg.model || "").trim();
+    const process = seg.processName || seg.processLabel || "";
+    const processCode = String(process).split("-")[0].trim();
+
+    if (!model || !processCode) continue;
+
+    const effectiveMin = getActualEffectiveDurationMs(seg) / 60000;
+    if (!Number.isFinite(effectiveMin) || effectiveMin <= 0) continue;
+
+    const serial =
+      seg.serialNumber ||
+      seg.pvSerialNumber ||
+      seg.chillerSerialNumber ||
+      "";
+
+    rawRows.push([
+      model,
+      processCode,
+      process,
+      seg.projectName || "",
+      serial,
+      getUnitType(seg),
+      formatExcelDate(start),
+      formatExcelTime(start),
+      Number(effectiveMin.toFixed(1))
+    ]);
+
+    const type = getUnitType(seg);
+    const key = `${model}__${type}__${processCode}`;
+
+    if (!summaryMap.has(key)) {
+      summaryMap.set(key, {
+        model,
+        type,
+        processCode,
+        process,
+        count: 0,
+        totalEffectiveMin: 0,
+        values: []
+      });
+    }
+
+    const row = summaryMap.get(key);
+    row.count++;
+    row.totalEffectiveMin += effectiveMin;
+    row.values.push(effectiveMin);
+  }
+
+  const summaryRows = [[
+    "Model",
+    "Type",
+    "Process Code",
+    "Process",
+    "Count",
+    "Average Effective Duration (Minutes)",
+    "Standard Factor",
+    "Standard Time = Average × Factor",
+    "Median Effective Duration (Minutes)",
+    "Median × Factor"
+  ]];
+
+  for (const row of Array.from(summaryMap.values()).sort((a, b) =>
+    a.model.localeCompare(b.model) ||
+    a.type.localeCompare(b.type) ||
+    a.processCode.localeCompare(b.processCode)
+  )) {
+    const average = row.totalEffectiveMin / row.count;
+
+    const sorted = [...row.values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median =
+      sorted.length % 2
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2;
+
+    summaryRows.push([
+      row.model,
+      row.type,
+      row.processCode,
+      row.process,
+      row.count,
+      Number(average.toFixed(1)),
+      factor,
+      Number((average * factor).toFixed(1)),
+      Number(median.toFixed(1)),
+      Number((median * factor).toFixed(1))
+    ]);
+  }
+
+  if (rawRows.length === 1) {
+    alert("No baseline data found for selected standard time range.");
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  const wsRaw = XLSX.utils.aoa_to_sheet(rawRows);
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+
+  wsRaw["!cols"] = [
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 40 },
+    { wch: 28 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 28 }
+  ];
+
+  wsSummary["!cols"] = [
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 40 },
+    { wch: 10 },
+    { wch: 32 },
+    { wch: 16 },
+    { wch: 32 },
+    { wch: 32 },
+    { wch: 18 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Baseline Data");
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Standard Summary");
+
+  XLSX.writeFile(
+    wb,
+    `LineBalance_Standard_Verification_${fromDate}_to_${toDate}.xlsx`
+  );
 }

@@ -6,6 +6,11 @@ import {
 } from "./helpers.js";
 
 import { loadProjectHeadersFallbackFromRuns, loadRunsForProject } from "./timeline.js";
+import { exportLineBalanceStandardRawData } from "./excel-export.js";
+
+const STANDARD_BASELINE_FROM = "2026-05-01"; // Start of historical data
+const STANDARD_BASELINE_TO = "2026-06-12"; // End of historical data
+const STANDARD_FACTOR = 0.8; // Factor of 80%
 
 const projectNameEl = document.getElementById("lbProjectName");
 const chillerSerialEl = document.getElementById("lbChillerSerial");
@@ -41,6 +46,7 @@ let selectedModel = "";
 let modelDateFrom = "";
 let modelDateTo = "";
 let modelDateBoundsInitialized = false;
+let historicalStandardsByModelProcess = {};
 
 let lineBalanceView = {
   showStandard: true, // default on
@@ -61,6 +67,22 @@ function getProjectSortTime(project) {
     project.firstStart ||
     0
   );
+}
+
+function getSegmentType(seg) {
+  if (String(seg?.qrKind || "").toUpperCase() === "PV") {
+    return String(seg?.vesselType || "PV").trim();
+  }
+
+  return "CHILLER";
+}
+
+function getStandardKey(model, type, processCode) {
+  return [
+    String(model || "").trim(),
+    String(type || "").trim(),
+    String(processCode || "").trim()
+  ].join("__");
 }
 
 function sortProjects(projects) {
@@ -103,6 +125,7 @@ function updateSearchClearVisibility() {
 
 function updateToolbarModeUi() {
   const isModelBase = lineBalanceMode === "MODEL";
+  document.querySelector(".lineBalanceToolbar")?.classList.toggle("modelMode", isModelBase);
 
   if (countLabelEl) {
     countLabelEl.textContent = isModelBase ? "Total Models" : "Total Projects";
@@ -138,6 +161,35 @@ function renderModelFilterLoading() {
   }
 }
 
+// Calculate the standard time from an array of actual duration values using the chosen method and applying the standard factor
+function calculateStandardFromValues(values) {
+  if (!values.length) return 0;
+
+  // OPTION 1: Average × 80%
+  const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+  return average * STANDARD_FACTOR;
+
+  // OPTION 2: Median × 80%
+  // const sorted = [...values].sort((a, b) => a - b);
+  // const mid = Math.floor(sorted.length / 2);
+  // const median =
+  //   sorted.length % 2
+  //     ? sorted[mid]
+  //     : (sorted[mid - 1] + sorted[mid]) / 2;
+  // return median * STANDARD_FACTOR;
+}
+
+function isSegmentInStandardBaseline(seg) {
+  const startMs =
+    seg?.start instanceof Date
+      ? seg.start.getTime()
+      : Number(seg?.run?.startEpochMs || seg?.startEpochMs || 0);
+
+  const fromMs = parseDateStartMs(STANDARD_BASELINE_FROM);
+  const toMs = parseDateEndMs(STANDARD_BASELINE_TO);
+
+  return startMs >= fromMs && startMs <= toMs;
+}
 
 function getTotalDurationMs(seg) {
   const startMs = seg?.start instanceof Date ? seg.start.getTime() : null;
@@ -369,7 +421,7 @@ function compareProcessSortKey(a, b) {
   return (a?.suffix || "").localeCompare(b?.suffix || "");
 }
 
-function buildAverageProcessChartData(segments, denominator = null) {
+function buildAverageProcessChartData(segments) {
   const processMap = new Map();
 
   for (const seg of segments) {
@@ -380,12 +432,7 @@ function buildAverageProcessChartData(segments, denominator = null) {
 
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
     const totalMin = getTotalDurationMs(seg) / 60000;
-    const standardMin = getStandardMinutes({
-      processLabel: seg.processLabel,
-      model: seg.model,
-      qrKind: seg.qrKind,
-      vesselType: seg.vesselType || "ALL"
-    });
+    const standardMin = getHistoricalStandardMin(seg, processCode);
 
     if (!processMap.has(processCode)) {
       processMap.set(processCode, {
@@ -393,7 +440,7 @@ function buildAverageProcessChartData(segments, denominator = null) {
         fullLabel,
         actualSum: 0,
         totalSum: 0,
-        standardSum: 0,
+        standardMin,
         manpowerSum: 0,
         count: 0,
         sortKey: getProcessSortKey(fullLabel)
@@ -405,18 +452,17 @@ function buildAverageProcessChartData(segments, denominator = null) {
 
     row.actualSum += actualMin;
     row.totalSum += totalMin;
-    row.standardSum += standardMin;
     row.manpowerSum += manpower;
     row.count++;
   }
   return Array.from(processMap.values())
     .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
     .map(row => {
-      const divisor = Number(denominator || row.count || 1);
+      const divisor = Number(row.count || 1);
       const avgManpower = roundManpower(row.manpowerSum / row.count);
       const actual = row.actualSum / divisor;
       const total = row.totalSum / divisor;
-      const standard = row.standardSum / divisor;
+      const standard = row.standardMin;
 
       return {
         label: getProcessDisplayName(row.fullLabel),
@@ -508,6 +554,44 @@ function buildProjects(runs) {
   }));
 }
 
+// Build historical standards by model and process code from segments that are within the defined baseline period
+function buildHistoricalStandardsByModelProcess(segments) {
+  const map = new Map();
+
+  for (const seg of segments || []) {
+    if (seg.phase === "waiting" || seg.status === "waiting") continue;
+    if (!isSegmentInStandardBaseline(seg)) continue;
+
+    const fullLabel = getSegmentProcessLabel(seg);
+    const processCode = getProcessCode(fullLabel);
+    const model = String(seg.model || "").trim();
+    const type = getSegmentType(seg);
+
+    if (!model || !type || !processCode) continue;
+
+    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    if (!Number.isFinite(actualMin) || actualMin <= 0) continue;
+
+    const key = getStandardKey(model, type, processCode);
+
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(actualMin);
+  }
+
+  const standards = {};
+
+  for (const [key, values] of map.entries()) {
+    standards[key] = calculateStandardFromValues(values);
+  }
+
+  return standards;
+}
+
+function getHistoricalStandardMin(seg, processCode) {
+  const key = getStandardKey(seg.model, getSegmentType(seg), processCode);
+  return historicalStandardsByModelProcess[key] || 0;
+}
+
 function getProjectSegments(segments, chillerSerialNumber) {
   return segments.filter(seg =>
     String(seg.chillerSerialNumber || "").trim() === String(chillerSerialNumber || "").trim()
@@ -542,12 +626,8 @@ function buildProcessChartData(segments) {
 
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
     const totalMin = getTotalDurationMs(seg) / 60000;
-    const standardMin = getStandardMinutes({
-      processLabel: seg.processLabel,
-      model: seg.model,
-      qrKind: seg.qrKind,
-      vesselType: seg.vesselType || "ALL"
-    });
+
+    const standardMin = getHistoricalStandardMin(seg, processCode);
 
     if (!processMap.has(processCode)) {
       processMap.set(processCode, {
@@ -555,7 +635,7 @@ function buildProcessChartData(segments) {
         fullLabel,
         actualMin: 0,
         totalMin: 0,
-        standardMin: 0,
+        standardMin,
         manpowerSum: 0,
         segmentCount: 0,
         sortKey: getProcessSortKey(fullLabel)
@@ -568,7 +648,6 @@ function buildProcessChartData(segments) {
 
     row.actualMin += actualMin;
     row.totalMin += totalMin;
-    row.standardMin += standardMin;
 
     row.manpowerSum += manpower;
     row.segmentCount++;
@@ -1083,7 +1162,7 @@ function renderModelCharts(modelRow) {
       String(seg.qrKind || "").trim() === "CHILLER"
     );
 
-    const data = buildAverageProcessChartData(chillerSegs, modelRow.projectCount);
+    const data = buildAverageProcessChartData(chillerSegs);
     const mount = createChartCard(`${modelRow.model} — CHILLER`);
 
     renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
@@ -1115,7 +1194,7 @@ function renderModelCharts(modelRow) {
   });
 
   for (const [vesselType, segs] of entries) {
-   const data = buildAverageProcessChartData(segs, modelRow.projectCount);
+   const data = buildAverageProcessChartData(segs);
     const mount = createChartCard(`${modelRow.model} — ${vesselType}`);
 
     renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
@@ -1208,6 +1287,24 @@ async function renderPage() {
   const rawHeaders = await loadProjectHeadersFallbackFromRuns();
 
   currentProjects = normalizeProjectHeaders(rawHeaders);
+
+    const allRunsNested = await Promise.all(
+      currentProjects.map(project =>
+        loadRunsForProject(project.chillerSerialNumber)
+      )
+    );
+
+    const allRuns = allRunsNested.flat();
+
+    const allSegmentsResult = buildSegmentsFromRuns(allRuns);
+
+    allSegmentsCache = Array.isArray(allSegmentsResult)
+      ? allSegmentsResult
+      : allSegmentsResult.segments || [];
+
+    historicalStandardsByModelProcess =
+      buildHistoricalStandardsByModelProcess(allSegmentsCache);
+
   applyModelDateBounds(currentProjects);
   currentModels = getVisibleModels();
 
@@ -1391,6 +1488,14 @@ modelDateFromEl?.addEventListener("change", () => {
 
 modelDateToEl?.addEventListener("change", () => {
   handleModelDateChange().catch(console.error);
+});
+
+document.getElementById("exportStandardRawBtn")?.addEventListener("click", () => {
+  exportLineBalanceStandardRawData(allSegmentsCache, {
+    fromDate: "2026-05-01",
+    toDate: "2026-06-12",
+    factor: 0.8
+  });
 });
 
 updateToolbarModeUi();
