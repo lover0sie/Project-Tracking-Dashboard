@@ -54,9 +54,12 @@ let lineBalanceView = {
   showTotal: false    // default off
 };
 
-let lineBalanceMetric = "DURATION"; 
-// DURATION = minutes
-// MANHOUR = man-minutes
+let lineBalanceVesselView = {
+  EVAPORATOR: true,
+  CONDENSER: true,
+  "OIL SEPARATOR": true,
+  ECONOMIZER: true
+};
 
 function getProjectSortTime(project) {
   return Number(
@@ -210,21 +213,8 @@ function roundManpower(manpower) {
   return Number.isFinite(value) && value > 0 ? Math.ceil(value) : 1;
 }
 
-// convert minutes to man-minutes using the aggregate manpower value
-function convertByMetric(minutes, manpower = 1) {
-  if (lineBalanceMetric === "MANHOUR") {
-    return minutes * manpower;
-  }
-
-  return minutes;
-}
-
 function getMetricUnitLabel() {
-  return lineBalanceMetric === "MANHOUR" ? "Man-minutes" : "Duration (mins)";
-}
-
-function getMetricToggleLabel() {
-  return lineBalanceMetric === "MANHOUR" ? "View: Man-minutes" : "View: Duration";
+  return "Duration (mins)";
 }
 
 function normalizeProjectHeaders(rows) {
@@ -390,6 +380,37 @@ function escapeHtml(str = "") {
     .replaceAll("'", "&#039;");
 }
 
+function formatActualDurationSummary(value) {
+  const minutes = Number(value || 0);
+  const hours = minutes / 60;
+  const days = hours / 24;
+
+  return `${hours.toLocaleString(undefined, {
+    maximumFractionDigits: 1
+  })} hr / ${days.toLocaleString(undefined, {
+    maximumFractionDigits: 1
+  })} days`;
+}
+
+function getCombinedActualTotal(data, filterVessels = false) {
+  return (Array.isArray(data) ? data : []).reduce((sum, row) => {
+    if (filterVessels && Array.isArray(row.stackParts)) {
+      const visibleParts = row.stackParts.filter(part =>
+        lineBalanceVesselView[String(part?.key || "").toUpperCase()] !== false
+      );
+
+      if (!visibleParts.length) return sum;
+
+      return sum + visibleParts.reduce(
+        (partSum, part) => partSum + Number(part.actual || 0),
+        0
+      );
+    }
+
+    return sum + Number(row.actual || 0);
+  }, 0);
+}
+
 function getSegmentProcessLabel(seg) {
   return String(seg.processLabel || seg.processName || "").trim() || "Unknown";
 }
@@ -465,11 +486,11 @@ function buildAverageProcessChartData(segments) {
       const standard = row.standardMin;
 
       return {
-        label: getProcessDisplayName(row.fullLabel),
+        label: row.label, // process code only
         fullLabel: row.fullLabel,
-        actual: Number(convertByMetric(actual, avgManpower).toFixed(1)),
-        total: Number(convertByMetric(total, avgManpower).toFixed(1)),
-        standard: Number(convertByMetric(standard, avgManpower).toFixed(1)),
+        actual: Number(actual.toFixed(1)),
+        total: Number(total.toFixed(1)),
+        standard: Number(standard.toFixed(1)),
         avgManpower
       };
     });
@@ -659,11 +680,11 @@ function buildProcessChartData(segments) {
       const avgManpower = roundManpower(item.manpowerSum / item.segmentCount);
 
       return {
-        label: getProcessDisplayName(item.fullLabel || item.label),
+        label: item.label, // process code only
         fullLabel: item.fullLabel,
-        actual: Number(convertByMetric(item.actualMin, avgManpower).toFixed(1)),
-        total: Number(convertByMetric(item.totalMin, avgManpower).toFixed(1)),
-        standard: Number(convertByMetric(item.standardMin, avgManpower).toFixed(1)),
+        actual: Number(item.actualMin.toFixed(1)),
+        total: Number(item.totalMin.toFixed(1)),
+        standard: Number(item.standardMin.toFixed(1)),
         avgManpower
       };
     });
@@ -716,16 +737,41 @@ function clearCharts() {
   }
 }
 
-function createChartCard(titleText) {
+function createChartCard(titleText, options = {}) {
   const vesselTitle = ["CHILLER", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"]
     .find(type => String(titleText || "").includes(type));
   const displayTitle = vesselTitle || titleText;
+  const showVesselLegend = !!options.showVesselLegend && lineBalanceView.showActual;
+  const summaryText = String(options.summaryText || "").trim();
+  const summaryHtml = summaryText
+    ? `<div class="lbChartSummary">${escapeHtml(summaryText)}</div>`
+    : "";
+  const vesselLegendHtml = showVesselLegend
+    ? `
+      <div class="lbLegend lbVesselLegend">
+        ${["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"].map(vessel => `
+          <label class="lbLegendItem vesselFilter">
+            <input
+              type="checkbox"
+              class="lbToggleVessel"
+              data-vessel="${escapeHtml(vessel)}"
+              ${lineBalanceVesselView[vessel] ? "checked" : ""}>
+            <span class="lbLegendSwatch vessel ${getVesselStackClass(vessel)}"></span>
+            ${escapeHtml(formatVesselStackLabel(vessel))}
+          </label>
+        `).join("")}
+      </div>
+    `
+    : "";
 
   const wrap = document.createElement("div");
   wrap.className = "chartCard";
 
   wrap.innerHTML = `
-    <div class="lbChartTitle">${escapeHtml(displayTitle)}</div>
+    <div class="lbChartHeader">
+      <div class="lbChartTitle">${escapeHtml(displayTitle)}</div>
+      ${summaryHtml}
+    </div>
 
     <div class="lbLegend">
       <label class="lbLegendItem">
@@ -746,16 +792,13 @@ function createChartCard(titleText) {
         Total Duration
       </label>
 
-      <label class="lbLegendItem">
-        <input type="checkbox" class="lbToggleMetric" ${lineBalanceMetric === "MANHOUR" ? "checked" : ""}>
-        <span>${getMetricToggleLabel()}</span>
-      </label>
-
       <span class="lbLegendItem">
         <span class="lbLegendLine"></span>
         Takt Time (450 min)
       </span>
     </div>
+
+    ${vesselLegendHtml}
 
     <div class="lbChartMount"></div>
   `;
@@ -763,7 +806,7 @@ function createChartCard(titleText) {
   const standardToggle = wrap.querySelector(".lbToggleStandard");
   const actualToggle = wrap.querySelector(".lbToggleActual");
   const totalToggle = wrap.querySelector(".lbToggleTotal");
-  const metricToggle = wrap.querySelector(".lbToggleMetric");
+  const vesselToggles = wrap.querySelectorAll(".lbToggleVessel");
 
   function rerenderActiveChart() {
     if (lineBalanceMode === "MODEL") {
@@ -802,9 +845,20 @@ function createChartCard(titleText) {
     rerenderActiveChart();
   });
 
-  metricToggle?.addEventListener("change", () => {
-    lineBalanceMetric = metricToggle.checked ? "MANHOUR" : "DURATION";
-    rerenderActiveChart();
+  vesselToggles.forEach(toggle => {
+    toggle.addEventListener("change", () => {
+      const vessel = toggle.dataset.vessel;
+      if (!vessel) return;
+
+      lineBalanceVesselView[vessel] = toggle.checked;
+
+      if (!Object.values(lineBalanceVesselView).some(Boolean)) {
+        lineBalanceVesselView[vessel] = true;
+        toggle.checked = true;
+      }
+
+      rerenderActiveChart();
+    });
   });
 
   chartsContainerEl.appendChild(wrap);
@@ -819,6 +873,32 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   }
 
   const takt = Number(options.taktTime ?? 450);
+  const defaultActualVesselClass = options.actualVesselClass || "";
+  const filterVessels = !!options.filterVessels && lineBalanceView.showActual;
+  const isVisibleVessel = part => !filterVessels || lineBalanceVesselView[String(part?.key || "").toUpperCase()] !== false;
+  const chartData = data
+    .map(row => {
+      const stackParts = Array.isArray(row.stackParts)
+        ? row.stackParts.filter(isVisibleVessel)
+        : [];
+
+      if (!filterVessels || !Array.isArray(row.stackParts)) return row;
+      if (!stackParts.length) return null;
+
+      return {
+        ...row,
+        stackParts,
+        standard: Number(stackParts.reduce((sum, part) => sum + Number(part.standard || 0), 0).toFixed(1)),
+        actual: Number(stackParts.reduce((sum, part) => sum + Number(part.actual || 0), 0).toFixed(1)),
+        total: Number(stackParts.reduce((sum, part) => sum + Number(part.total || 0), 0).toFixed(1))
+      };
+    })
+    .filter(Boolean);
+
+  if (!chartData.length) {
+    container.innerHTML = `<div class="emptyState">No data available for the selected vessel filters.</div>`;
+    return;
+  }
 
   const visibleSeries = [];
   if (lineBalanceView.showStandard) visibleSeries.push("standard");
@@ -827,14 +907,14 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
 
   const rawMax = Math.max(
     takt,
-    ...data.flatMap(d => [
+    ...chartData.flatMap(d => [
       lineBalanceView.showStandard ? Number(d.standard || 0) : 0,
       lineBalanceView.showActual ? Number(d.actual || 0) : 0,
       lineBalanceView.showTotal ? Number(d.total || 0) : 0
     ])
   );
 
-  const chartMax = Math.max(500, Math.ceil(rawMax / 50) * 50);
+  const chartMax = Math.max(500, Math.ceil((rawMax * 1.12) / 50) * 50);
   const tickCount = 5;
 
   const yAxisHtml = Array.from({ length: tickCount + 1 }, (_, i) => {
@@ -855,31 +935,88 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
 
   const taktPct = (takt / chartMax) * 100;
 
-  const colsHtml = data.map((d, idx) => {
+  const colsHtml = chartData.map((d, idx) => {
     const standardPct = (Number(d.standard || 0) / chartMax) * 100;
     const actualPct = (Number(d.actual || 0) / chartMax) * 100;
     const totalPct = (Number(d.total || 0) / chartMax) * 100;
+    const standardStackParts = Array.isArray(d.stackParts)
+      ? d.stackParts.filter(part => Number(part.standard || 0) > 0)
+      : [];
+    const actualStackParts = Array.isArray(d.stackParts)
+      ? d.stackParts.filter(part => Number(part.actual || 0) > 0)
+      : [];
+    const showStandardStack = standardStackParts.length > 1 && Number(d.standard || 0) > 0;
+    const showActualStack = actualStackParts.length > 1 && Number(d.actual || 0) > 0;
+    const singleActualVesselClass = actualStackParts.length === 1
+      ? getVesselStackClass(actualStackParts[0].key || actualStackParts[0].label)
+      : defaultActualVesselClass;
 
-    const standardValueClass = standardPct > 94 ? " inside" : "";
-    const actualValueClass = actualPct > 94 ? " inside" : "";
-    const totalValueClass = totalPct > 94 ? " inside" : "";
+    const standardValueClass = "";
+    const actualValueClass = "";
+    const totalValueClass = "";
 
     let barsHtml = "";
 
-    if (lineBalanceView.showStandard) {
-      barsHtml += `
-        <div class="lbBar standard" style="height:${standardPct}%">
-          <span class="lbBarValue${standardValueClass}">${Number(d.standard || 0).toFixed(0)}</span>
+    const renderStackBar = ({ parts, totalValue, totalPctValue, series, valueClass }) => {
+      const stackHtml = parts.map((part, partIndex) => {
+        const partValue = Number(part[series] || 0);
+        const partPct = (partValue / Number(totalValue || 1)) * 100;
+        const vesselClass = getVesselStackClass(part.key || part.label);
+
+        return `
+          <div
+            class="lbStackPart part${partIndex % 4} ${vesselClass}"
+            style="height:${partPct}%"
+            data-stack-series="${escapeHtml(series)}"
+            data-stack-label="${escapeHtml(part.label || part.key || "")}"
+            data-stack-value="${partValue.toFixed(1)}"
+            title="${escapeHtml(part.label || part.key || "")}: ${partValue.toFixed(0)}">
+          </div>
+        `;
+      }).join("");
+
+      return `
+        <div class="lbBar ${series} stacked" style="height:${totalPctValue}%">
+          <span class="lbBarValue${valueClass}">${Number(totalValue || 0).toFixed(0)}</span>
+          ${stackHtml}
         </div>
       `;
+    };
+
+    if (lineBalanceView.showStandard) {
+      if (showStandardStack) {
+        barsHtml += renderStackBar({
+          parts: standardStackParts,
+          totalValue: Number(d.standard || 0),
+          totalPctValue: standardPct,
+          series: "standard",
+          valueClass: standardValueClass
+        });
+      } else {
+        barsHtml += `
+          <div class="lbBar standard" style="height:${standardPct}%">
+            <span class="lbBarValue${standardValueClass}">${Number(d.standard || 0).toFixed(0)}</span>
+          </div>
+        `;
+      }
     }
 
     if (lineBalanceView.showActual) {
-      barsHtml += `
-        <div class="lbBar actual" style="height:${actualPct}%">
-          <span class="lbBarValue${actualValueClass}">${Number(d.actual || 0).toFixed(0)}</span>
-        </div>
-      `;
+      if (showActualStack) {
+        barsHtml += renderStackBar({
+          parts: actualStackParts,
+          totalValue: Number(d.actual || 0),
+          totalPctValue: actualPct,
+          series: "actual",
+          valueClass: actualValueClass
+        });
+      } else {
+        barsHtml += `
+          <div class="lbBar actual ${singleActualVesselClass}" style="height:${actualPct}%">
+            <span class="lbBarValue${actualValueClass}">${Number(d.actual || 0).toFixed(0)}</span>
+          </div>
+        `;
+      }
     }
 
     if (lineBalanceView.showTotal) {
@@ -898,6 +1035,8 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
           data-actual="${Number(d.actual || 0).toFixed(1)}"
           data-standard="${Number(d.standard || 0).toFixed(1)}"
           data-total="${Number(d.total || 0).toFixed(1)}"
+          data-stack-parts="${escapeHtml(actualStackParts.map(part => `${part.label || part.key}: ${Number(part.actual || 0).toFixed(1)}`).join(" | "))}"
+          data-standard-stack-parts="${escapeHtml(standardStackParts.map(part => `${part.label || part.key}: ${Number(part.standard || 0).toFixed(1)}`).join(" | "))}"
           data-manpower="${roundManpower(d.avgManpower)}">
         
         <div class="lbColPlot">
@@ -912,7 +1051,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   }).join("");
 
   container.innerHTML = `
-    <div class="lbCustomChart">
+    <div class="lbCustomChart" style="--lbColCount:${chartData.length}">
       <div class="lbYAxis">
         <div class="lbYAxisTitle">${getMetricUnitLabel()}</div>
         <div class="lbYAxisInner">
@@ -925,7 +1064,6 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
           <div class="lbGrid">
             ${gridHtml}
             <div class="lbTaktLine" style="bottom:${taktPct}%">
-              <span class="lbTaktLabel">450 min</span>
             </div>
           </div>
 
@@ -945,24 +1083,57 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
       const actual = col.dataset.actual || "0.0";
       const standard = col.dataset.standard || "0.0";
       const total = col.dataset.total || "0.0";
+      const stackParts = col.dataset.stackParts || "";
+      const standardStackParts = col.dataset.standardStackParts || "";
       const manpower = col.dataset.manpower || "1";
+      const stackPart = e.target.closest?.(".lbStackPart");
+      const hasStackBreakdown = Boolean(stackParts || standardStackParts);
 
       let tooltipRows = `
         <div class="lbTooltipTitle">${escapeHtml(fullLabel)}</div>
       `;
 
+      if (stackPart) {
+        const stackSeries = stackPart.dataset.stackSeries || "actual";
+        const stackLabel = stackPart.dataset.stackLabel || "-";
+        const stackValue = stackPart.dataset.stackValue || "0.0";
+        const label = stackSeries === "standard" ? "Standard breakdown" : "Actual breakdown";
+        tooltipRows += `<div>${label}: ${escapeHtml(stackLabel)} ${escapeHtml(stackValue)} min</div>`;
+        showTooltip(tooltipRows, e.clientX, e.clientY);
+        return;
+      }
+
+      if (hasStackBreakdown) {
+        if (lineBalanceView.showStandard) {
+          tooltipRows += `<div>Standard: ${escapeHtml(standard)} min</div>`;
+        }
+
+        if (lineBalanceView.showActual) {
+          tooltipRows += `<div>Actual: ${escapeHtml(actual)} min</div>`;
+        }
+
+        showTooltip(tooltipRows, e.clientX, e.clientY);
+        return;
+      }
+
       tooltipRows += `<div>Manpower: ${escapeHtml(manpower)}</div>`;
 
       if (lineBalanceView.showStandard) {
-        tooltipRows += `<div>Standard: ${escapeHtml(standard)} ${lineBalanceMetric === "MANHOUR" ? "man-min" : "min"}</div>`;
+        tooltipRows += `<div>Standard: ${escapeHtml(standard)} min</div>`;
+        if (standardStackParts) {
+          tooltipRows += `<div>Standard breakdown: ${escapeHtml(standardStackParts)}</div>`;
+        }
       }
 
       if (lineBalanceView.showActual) {
-        tooltipRows += `<div>Actual: ${escapeHtml(actual)} ${lineBalanceMetric === "MANHOUR" ? "man-min" : "min"}</div>`;
+        tooltipRows += `<div>Actual: ${escapeHtml(actual)} min</div>`;
+        if (stackParts) {
+          tooltipRows += `<div>Actual breakdown: ${escapeHtml(stackParts)}</div>`;
+        }
       }
 
       if (lineBalanceView.showTotal) {
-        tooltipRows += `<div>Total Duration: ${escapeHtml(total)} ${lineBalanceMetric === "MANHOUR" ? "man-min" : "min"}</div>`;
+        tooltipRows += `<div>Total Duration: ${escapeHtml(total)} min</div>`;
       }
 
 
@@ -971,6 +1142,204 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
 
     col.addEventListener("mouseleave", hideTooltip);
   });
+}
+
+function getProcessMajor(processCode) {
+  const match = String(processCode || "").match(/^(\d+)/);
+  return match ? Number(match[1]) : 9999;
+}
+
+function getPvCombinedGroupKey(seg) {
+  const fullLabel = getSegmentProcessLabel(seg);
+  const processCode = getProcessCode(fullLabel);
+  const major = getProcessMajor(processCode);
+  const vesselType = String(seg.vesselType || "").trim().toUpperCase();
+
+  // Process 6, 7, 8, 9:
+  // separate Evaporator and Condenser
+  if (major >= 6 && major <= 9) {
+    if (vesselType === "EVAPORATOR" || vesselType === "CONDENSER") {
+      return {
+        key: `${vesselType}__${processCode}`,
+        label: `${vesselType} ${processCode}`,
+        fullLabel: `${vesselType} — ${fullLabel}`,
+        sortPrefix: vesselType === "EVAPORATOR" ? 1 : 2
+      };
+    }
+  }
+
+  // Process 10 until 19:
+  // group regardless of vessel type
+  if (major >= 10 && major <= 19) {
+    return {
+      key: `ALL__${processCode}`,
+      label: processCode,
+      fullLabel,
+      sortPrefix: 3
+    };
+  }
+
+  // Other process fallback
+  return {
+    key: `OTHER__${processCode}`,
+    label: processCode,
+    fullLabel,
+    sortPrefix: 9
+  };
+}
+
+function getCombinedProcessCode(processCode) {
+  const code = String(processCode || "").trim();
+
+  // Group these together although code is different
+  if (code === "18,19" || code === "19") {
+    return "18,19";
+  }
+
+  return code;
+}
+
+function getSegmentUnitKey(seg) {
+  const chillerSerial =
+    seg.chillerSerialNumber ||
+    seg.run?.chillerSerialNumber;
+
+  if (chillerSerial) {
+    return String(chillerSerial).trim();
+  }
+
+  return [
+    seg.projectName || "",
+    seg.materialNumber || "",
+    seg.model || ""
+  ].join("__");
+}
+
+function buildPvCombinedFromVesselCharts(pvSegs, averageMode = false) {
+  const vesselMap = groupPvSegmentsByVesselType(pvSegs);
+  const combinedMap = new Map();
+
+  for (const [vesselType, segs] of vesselMap.entries()) {
+    const vesselData = averageMode
+      ? buildAverageProcessChartData(segs)
+      : buildProcessChartData(segs);
+
+    for (const row of vesselData) {
+      const rawProcessCode = getProcessCode(row.fullLabel || row.label);
+      const processCode = getCombinedProcessCode(rawProcessCode);
+      const major = getProcessMajor(processCode);
+      const vessel = String(vesselType || "").toUpperCase();
+
+      let key;
+      let label;
+      let sortPrefix;
+
+      if (major >= 6 && major <= 9) {
+        // Process 6-9: only Evaporator and Condenser, kept separate
+        if (vessel !== "EVAPORATOR" && vessel !== "CONDENSER") continue;
+
+        key = `${vessel}__${processCode}`;
+        label = `${vessel === "EVAPORATOR" ? "EVAP" : "COND"} ${processCode}`;
+        sortPrefix = vessel === "EVAPORATOR" ? 1 : 2;
+
+      } else if (major >= 10 && major <= 14) {
+        // Process 10-14: combine only Evaporator + Condenser
+        if (vessel !== "EVAPORATOR" && vessel !== "CONDENSER") continue;
+
+        key = `EVAP_COND__${processCode}`;
+        label = `${processCode}`;
+        sortPrefix = 3;
+
+      } else if (major >= 15 && major <= 19) {
+        // Process 15-19: combine Evaporator + Condenser + Oil Separator + Economizer
+        key = `ALL__${processCode}`;
+        label = `${processCode}`;
+        sortPrefix = 4;
+      } else {
+        key = `OTHER__${processCode}`;
+        label = processCode;
+        sortPrefix = 9;
+      }
+
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, {
+          label,
+          fullLabel: row.fullLabel || row.label,
+          actual: 0,
+          standard: 0,
+          total: 0,
+          manpowerSum: 0,
+          count: 0,
+          parts: new Map(),
+          sortPrefix,
+          sortKey: getProcessSortKey(row.fullLabel || row.label)
+        });
+      }
+
+      const item = combinedMap.get(key);
+
+      // IMPORTANT: add up vessel chart values
+      item.actual += Number(row.actual || 0);
+      item.standard += Number(row.standard || 0);
+      item.total += Number(row.total || 0);
+      item.manpowerSum += Number(row.avgManpower || 1);
+      item.count++;
+
+      const partKey = vessel || "UNKNOWN";
+      if (!item.parts.has(partKey)) {
+        item.parts.set(partKey, {
+          key: partKey,
+          label: formatVesselStackLabel(partKey),
+          actual: 0,
+          standard: 0,
+          total: 0
+        });
+      }
+
+      const part = item.parts.get(partKey);
+      part.actual += Number(row.actual || 0);
+      part.standard += Number(row.standard || 0);
+      part.total += Number(row.total || 0);
+    }
+  }
+
+  return Array.from(combinedMap.values())
+    .sort((a, b) => {
+      if (a.sortPrefix !== b.sortPrefix) return a.sortPrefix - b.sortPrefix;
+      return compareProcessSortKey(a.sortKey, b.sortKey);
+    })
+    .map(row => ({
+      label: row.label,
+      fullLabel: row.fullLabel,
+      actual: Number(row.actual.toFixed(1)),
+      standard: Number(row.standard.toFixed(1)),
+      total: Number(row.total.toFixed(1)),
+      avgManpower: roundManpower(row.manpowerSum / Math.max(row.count, 1)),
+      stackParts: Array.from(row.parts.values()).map(part => ({
+        ...part,
+        actual: Number(part.actual.toFixed(1)),
+        standard: Number(part.standard.toFixed(1)),
+        total: Number(part.total.toFixed(1))
+      }))
+    }));
+}
+
+function formatVesselStackLabel(vesselType) {
+  const key = String(vesselType || "").toUpperCase();
+  if (key === "EVAPORATOR") return "EVAP";
+  if (key === "CONDENSER") return "COND";
+  if (key === "OIL SEPARATOR") return "OIL";
+  if (key === "ECONOMIZER") return "ECO";
+  return key || "OTHER";
+}
+
+function getVesselStackClass(vesselType) {
+  const key = String(vesselType || "").toUpperCase();
+  if (key === "EVAPORATOR" || key === "EVAP") return "vessel-evap";
+  if (key === "CONDENSER" || key === "COND") return "vessel-cond";
+  if (key === "OIL SEPARATOR" || key === "OIL") return "vessel-oil";
+  if (key === "ECONOMIZER" || key === "ECO") return "vessel-eco";
+  return "vessel-other";
 }
 
 function renderSelectedProjectCharts(project) {
@@ -993,10 +1362,13 @@ function renderSelectedProjectCharts(project) {
   }
 
   
-
   const pvSegs = projectSegments.filter(seg =>
     String(seg.qrKind || "").trim() === "PV"
   );
+
+  const combinedData = buildPvCombinedFromVesselCharts(pvSegs, false);
+  const combinedMount = createChartCard(`${project.projectName || project.chillerSerialNumber} — PV COMBINED`, { showVesselLegend: true });
+  renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true });
 
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
 
@@ -1025,7 +1397,10 @@ function renderSelectedProjectCharts(project) {
     const mount = createChartCard(
       `${project.projectName || project.chillerSerialNumber} — ${vesselType}`
     );
-    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+    renderCustomLineBalanceChart(mount, data, {
+      taktTime: 450,
+      actualVesselClass: getVesselStackClass(vesselType)
+    });
   }
 }
 
@@ -1173,6 +1548,15 @@ function renderModelCharts(modelRow) {
     String(seg.qrKind || "").trim() === "PV"
   );
 
+  const combinedData = buildPvCombinedFromVesselCharts(pvSegs, true);
+  const combinedActualTotal = getCombinedActualTotal(combinedData, true);
+  const combinedMount = createChartCard(`${modelRow.model} — PV COMBINED`, {
+    showVesselLegend: true,
+    summaryText: `Total Actual: ${formatActualDurationSummary(combinedActualTotal)}`
+  });
+
+  renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true });
+
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
 
   if (!vesselMap.size) {
@@ -1197,7 +1581,10 @@ function renderModelCharts(modelRow) {
    const data = buildAverageProcessChartData(segs);
     const mount = createChartCard(`${modelRow.model} — ${vesselType}`);
 
-    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+    renderCustomLineBalanceChart(mount, data, {
+      taktTime: 450,
+      actualVesselClass: getVesselStackClass(vesselType)
+    });
   }
 }
 

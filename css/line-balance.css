@@ -330,17 +330,17 @@
 }
 
 .projectListTitle {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
   color: #111827;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   line-height: 1.25;
 }
 
 .projectListMeta {
-  font-size: 11px;
+  font-size: 10px;
   color: #64748b;
-  line-height: 1.45;
+  line-height: 1.35;
   font-weight: 600;
 }
 
@@ -364,10 +364,26 @@
 
 /* ====================== CUSTOM LINE BALANCE CHART ================ */
 
+.lbChartHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .lbChartTitle {
   font-size: 13px;
   font-weight: 700;
-  margin-bottom: 12px;
+}
+
+.lbChartSummary {
+  flex: 0 0 auto;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .lbYAxisInner {
@@ -472,6 +488,21 @@
   color: #374151;
 }
 
+.lbVesselLegend {
+  margin-top: -10px;
+  margin-bottom: 16px;
+  gap: 10px;
+}
+
+.lbLegendItem.vesselFilter {
+  padding: 3px 7px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .lbLegendSwatch {
   width: 12px;
   height: 12px;
@@ -484,6 +515,26 @@
 
 .lbLegendSwatch.actual {
   background: #f6bd02;
+}
+
+.lbLegendSwatch.vessel.vessel-evap {
+  background: #fc5cb1;
+}
+
+.lbLegendSwatch.vessel.vessel-cond {
+  background: #eab308;
+}
+
+.lbLegendSwatch.vessel.vessel-oil {
+  background: #09adc0;
+}
+
+.lbLegendSwatch.vessel.vessel-eco {
+  background: #00e25f;
+}
+
+.lbLegendSwatch.vessel.vessel-other {
+  background: #94a3b8;
 }
 
 .lbLegendSwatch.total,
@@ -517,8 +568,8 @@
 
 .lineBalanceLayout {
   display: grid;
-  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 14px;
   align-items: stretch;
   flex: 1 1 auto;
   min-height: 0;
@@ -535,7 +586,7 @@
   border: 1px solid #e3e8f0;
   border-radius: 10px;
   background: #ffffff;
-  padding: 20px 18px;
+  padding: 16px 12px;
   box-shadow: none;
   min-height: 0;
   height: 100%;
@@ -552,8 +603,8 @@
   scrollbar-color: #94a3b8 #f3f6fa;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 0 8px 12px 0;
+  gap: 8px;
+  padding: 0 6px 10px 0;
 }
 
 .lineBalanceMain {
@@ -695,7 +746,7 @@
   inset: 0;
   display: flex;
   align-items: stretch;
-  gap: 14px;
+  gap: clamp(4px, calc(18px - (var(--lbColCount, 1) * 0.5px)), 14px);
   min-width: 100%;
 }
 
@@ -712,7 +763,7 @@
 
 .lbCol {
   width: auto;
-  flex: 1 1 76px;
+  flex: 1 1 0;
   min-width: 0;
   height: 100%;
   display: grid;
@@ -737,11 +788,11 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 6px;
+  gap: 0;
 }
 
 .lbBar {
-  width: 18px;
+  width: clamp(8px, 1.15vw, 18px);
   min-height: 4px;
   border-radius: 4px 4px 0 0;
   position: relative;
@@ -754,6 +805,116 @@
 
 .lbBar.actual {
   background: #eab308;
+}
+
+.lbBar.actual.vessel-evap {
+  background: #fc5cb1;
+}
+
+.lbBar.actual.vessel-cond {
+  background: #eab308;
+}
+
+.lbBar.actual.vessel-oil {
+  background: #09adc0;
+}
+
+.lbBar.actual.vessel-eco {
+  background: #00e25f;
+}
+
+.lbBar.actual.vessel-other {
+  background: #94a3b8;
+}
+
+.lbBar.stacked {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: visible;
+  background: transparent;
+  border-radius: 4px 4px 0 0;
+}
+
+.lbStackPart {
+  position: relative;
+  min-height: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, 0.72);
+  transition: filter .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.lbStackPart:first-of-type {
+  border-top: 0;
+}
+
+.lbBar.stacked .lbStackPart:last-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.lbStackPart.part0 {
+  background: #eab308;
+}
+
+.lbStackPart.part1 {
+  background: #f97316;
+}
+
+.lbStackPart.part2 {
+  background: #84cc16;
+}
+
+.lbStackPart.part3 {
+  background: #14b8a6;
+}
+
+.lbBar.actual .lbStackPart.vessel-evap {
+  background: #fc5cb1;
+}
+
+.lbBar.actual .lbStackPart.vessel-cond {
+  background: #eab308;
+}
+
+.lbBar.actual .lbStackPart.vessel-oil {
+  background: #09adc0;
+}
+
+.lbBar.actual .lbStackPart.vessel-eco {
+  background: #00e25f;
+}
+
+.lbBar.actual .lbStackPart.vessel-other {
+  background: #94a3b8;
+}
+
+.lbBar.standard .lbStackPart.vessel-evap {
+  background: #1d4ed8;
+}
+
+.lbBar.standard .lbStackPart.vessel-cond {
+  background: #2563eb;
+}
+
+.lbBar.standard .lbStackPart.vessel-oil {
+  background: #315dd8;
+}
+
+.lbBar.standard .lbStackPart.vessel-eco {
+  background: #1b45b8;
+}
+
+.lbBar.standard .lbStackPart.vessel-other {
+  background: #475569;
+}
+
+.lbStackPart:hover {
+  filter: brightness(1.12) saturate(1.1);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 6px 14px rgba(15, 23, 42, 0.18);
+  transform: translateY(-4px);
+  z-index: 5;
 }
 
 .lbBar:hover {
@@ -903,19 +1064,19 @@
   }
 
   .lbCols {
-    gap: 8px;
+    gap: 4px;
   }
 
   .lbCol {
-    flex-basis: 54px;
+    flex: 1 1 0;
   }
 
   .lbBar {
-    width: 14px;
+    width: 9px;
   }
 
   .lbBarGroup {
-    gap: 4px;
+    gap: 0;
   }
 }
 
@@ -966,19 +1127,19 @@
   }
 
   .lbCols {
-    gap: 6px;
+    gap: 3px;
   }
 
   .lbCol {
-    flex-basis: 44px;
+    flex: 1 1 0;
   }
 
   .lbBar {
-    width: 11px;
+    width: 8px;
   }
 
   .lbBarGroup {
-    gap: 3px;
+    gap: 0;
   }
 }
 
