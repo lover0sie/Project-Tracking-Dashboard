@@ -14,7 +14,7 @@ export const STANDARD_TIME_MIN_DETAIL = {
 
     "PV": {
       "EVAPORATOR": {
-        "6 - Hole bevelling": 60,
+        "6A - Hole Bevelling": 60,
         "7 - Connector welding": 264.83,
         "8A - Internal plate assembly": 119.13,
         "8B - Fitting internal plate": 119.13,
@@ -47,7 +47,7 @@ export const STANDARD_TIME_MIN_DETAIL = {
 };
 
 export const STANDARD_TIME_MIN = {
-  "6 - Hole bevelling": 80,
+  "6A - Hole Bevelling": 80,
   "7 - Connector welding": 100,
   "8A - Internal plate assembly": 200,
   "8B - Fitting internal plate": 300,

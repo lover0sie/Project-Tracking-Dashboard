@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cleanup | Project Tracking Dashboard</title>
+  <link rel="stylesheet" href="css/common.css" />
+  <link rel="stylesheet" href="css/on-hold-cleanup.css" />
+</head>
+
+<body class="onHoldCleanupPage cleanupLocked">
+  <div class="appShell" id="cleanupAppShell">
+    <nav class="sideNav" aria-label="Main navigation">
+      <div class="sideNavBrand">
+        <div class="sideNavTitle">Project Tracking</div>
+        <div class="sideNavSub">Dashboard views</div>
+      </div>
+      <div class="sideNavGroup">
+        <a class="sideNavLink" data-nav-item="project-gantt" href="index.html">Project Gantt</a>
+        <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
+        <a class="sideNavLink" data-nav-item="tree-view" href="tree.html">Tree View</a>
+        <a class="sideNavLink" data-nav-item="line-balance" href="line-balance.html">Line Balance</a>
+        <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
+        <a class="sideNavLink active" data-nav-item="on-hold-cleanup" href="on-hold-cleanup.html" aria-current="page">Cleanup</a>
+        <a class="sideNavLink" data-nav-item="acknowledgement" href="acknowledgement.html">Acknowledgement</a>
+      </div>
+    </nav>
+
+    <main id="cleanupLoginGate" class="cleanupLoginGate" aria-labelledby="cleanupLoginTitle">
+      <form id="cleanupLoginForm" class="cleanupLoginCard" autocomplete="off">
+        <div class="cleanupLoginKicker">Restricted Tool</div>
+        <h1 id="cleanupLoginTitle">Cleanup</h1>
+        <p>Sign in to use migration and cleanup tools.</p>
+
+        <label>
+          <span>Username</span>
+          <input id="cleanupUsername" name="username" type="text" autocomplete="username" required />
+        </label>
+
+        <label>
+          <span>Password</span>
+          <input id="cleanupPassword" name="password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <div id="cleanupLoginError" class="cleanupLoginError" aria-live="polite"></div>
+
+        <button type="submit">Sign In</button>
+      </form>
+    </main>
+
+    <div class="wrap" id="cleanupContent" aria-hidden="true">
+      <header class="top">
+        <div>
+          <h2>Cleanup</h2>
+          <div class="sub">Choose a maintenance tool to review, correct, or migrate Firebase run records.</div>
+        </div>
+        <button type="button" id="btnCleanupLogout" class="cleanupLogoutBtn">Sign Out</button>
+      </header>
+
+      <main class="onHoldCleanupShell">
+        <div class="cleanupToolChooser" role="tablist" aria-label="Cleanup tools">
+          <button type="button" class="cleanupToolTab active" data-cleanup-tool="migration" role="tab" aria-selected="true">
+            Process Name Migration
+          </button>
+          <button type="button" class="cleanupToolTab" data-cleanup-tool="on-hold" role="tab" aria-selected="false">
+            On-Hold Cleanup
+          </button>
+          <button type="button" class="cleanupToolTab" data-cleanup-tool="process-time" role="tab" aria-selected="false">
+            Process Time Cleanup
+          </button>
+        </div>
+
+        <section class="onHoldCleanupCard processMigrationCard" data-cleanup-panel="migration">
+          <div class="onHoldCleanupHead">
+            <div>
+              <h3>Process Name Migration</h3>
+              <div class="onHoldCleanupSub">
+                Verify an existing process name, enter the replacement name, then migrate matching run records.
+              </div>
+            </div>
+          </div>
+
+          <div class="processMigrationForm">
+            <label>
+              <span>Old Process Name</span>
+              <input
+                id="migrationOldProcessName"
+                type="text"
+                value="6 - Hole Bevelling"
+                placeholder="Existing process name"
+              />
+            </label>
+
+            <button type="button" id="btnVerifyProcessMigration" class="processMigrationBtn secondary">
+              Verify Name
+            </button>
+
+            <label>
+              <span>New Process Name</span>
+              <input
+                id="migrationNewProcessName"
+                type="text"
+                value="6A - Hole Bevelling"
+                placeholder="Replacement process name"
+              />
+            </label>
+
+            <button type="button" id="btnRunProcessMigration" class="processMigrationBtn" disabled>
+              Run Migration
+            </button>
+          </div>
+
+          <div id="processMigrationStatus" class="processMigrationStatus" aria-live="polite">
+            Enter an old process name and verify it before running migration.
+          </div>
+        </section>
+
+        <section class="onHoldCleanupCard hidden" data-cleanup-panel="on-hold">
+          <div class="onHoldCleanupHead">
+            <div>
+              <h3>Current On-Hold Records</h3>
+              <div class="onHoldCleanupSub">
+                <span id="onHoldCleanupCount">0</span> record(s), sorted by hold date and time.
+              </div>
+            </div>
+
+            <button type="button" id="btnRefreshOnHoldCleanup" class="secondary">
+              Refresh List
+            </button>
+          </div>
+
+          <div class="onHoldCleanupTableWrap">
+            <table class="onHoldCleanupTable">
+              <thead>
+                <tr>
+                  <th>Serial Number</th>
+                  <th>Project Name</th>
+                  <th>Type</th>
+                  <th>Model</th>
+                  <th>Station</th>
+                  <th>Process</th>
+                  <th>Status</th>
+                  <th>On Hold At</th>
+                  <th>Hours</th>
+                  <th>Expected Next Process</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="onHoldCleanupBody">
+                <tr>
+                  <td colspan="11" class="onHoldCleanupEmpty">Loading on-hold records...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="onHoldCleanupCard processTimeCleanupCard hidden" data-cleanup-panel="process-time">
+          <div class="onHoldCleanupHead">
+            <div>
+              <h3>Completed Process Time Cleanup</h3>
+              <div class="onHoldCleanupSub">
+                <span id="processTimeCleanupCount">0</span> completed record(s) above the 80% baseline standard from 01/05/2026 to 12/06/2026.
+              </div>
+            </div>
+
+            <button type="button" id="btnRefreshProcessTimeCleanup" class="secondary">
+              Refresh List
+            </button>
+          </div>
+
+          <div class="onHoldCleanupTableWrap">
+            <table class="onHoldCleanupTable processTimeCleanupTable">
+              <thead>
+                <tr>
+                  <th>Serial Number</th>
+                  <th>Project Name</th>
+                  <th>Type</th>
+                  <th>Model</th>
+                  <th>Station</th>
+                  <th>Process</th>
+                  <th>Start At</th>
+                  <th>Completed At</th>
+                  <th>Actual Minutes</th>
+                  <th>Standard Minutes (80%)</th>
+                  <th>Extra Minutes</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="processTimeCleanupBody">
+                <tr>
+                  <td colspan="12" class="onHoldCleanupEmpty">Loading completed records...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initOnHoldCleanup } from "./js/on-hold-cleanup.js";
+
+    const CLEANUP_USERNAME = "admin";
+    const CLEANUP_PASSWORD = "karipap2026";
+    const CLEANUP_SESSION_KEY = "onHoldCleanupAuthenticated";
+
+    const body = document.body;
+    const loginGate = document.getElementById("cleanupLoginGate");
+    const cleanupContent = document.getElementById("cleanupContent");
+    const form = document.getElementById("cleanupLoginForm");
+    const usernameEl = document.getElementById("cleanupUsername");
+    const passwordEl = document.getElementById("cleanupPassword");
+    const errorEl = document.getElementById("cleanupLoginError");
+    const logoutBtn = document.getElementById("btnCleanupLogout");
+
+    let cleanupInitialized = false;
+
+    function unlockCleanupPage() {
+      sessionStorage.setItem(CLEANUP_SESSION_KEY, "1");
+      body.classList.remove("cleanupLocked");
+      loginGate?.setAttribute("hidden", "");
+      cleanupContent?.removeAttribute("aria-hidden");
+
+      if (!cleanupInitialized) {
+        cleanupInitialized = true;
+        initOnHoldCleanup();
+      }
+
+      import(`./js/version-check.js?v=${Date.now()}`)
+        .then(({ startVersionCheck }) => startVersionCheck())
+        .catch(err => console.warn("Version check failed to start", err));
+    }
+
+    function lockCleanupPage() {
+      sessionStorage.removeItem(CLEANUP_SESSION_KEY);
+      body.classList.add("cleanupLocked");
+      loginGate?.removeAttribute("hidden");
+      cleanupContent?.setAttribute("aria-hidden", "true");
+      usernameEl?.focus();
+    }
+
+    form?.addEventListener("submit", event => {
+      event.preventDefault();
+
+      const username = String(usernameEl?.value || "").trim();
+      const password = String(passwordEl?.value || "");
+
+      if (username === CLEANUP_USERNAME && password === CLEANUP_PASSWORD) {
+        if (errorEl) errorEl.textContent = "";
+        if (passwordEl) passwordEl.value = "";
+        unlockCleanupPage();
+        return;
+      }
+
+      if (errorEl) errorEl.textContent = "Invalid username or password.";
+      if (passwordEl) {
+        passwordEl.value = "";
+        passwordEl.focus();
+      }
+    });
+
+    logoutBtn?.addEventListener("click", lockCleanupPage);
+
+    if (sessionStorage.getItem(CLEANUP_SESSION_KEY) === "1") {
+      unlockCleanupPage();
+    } else {
+      lockCleanupPage();
+    }
+  </script>
+</body>
+</html>

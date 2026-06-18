@@ -6,7 +6,7 @@ const el = (id) => document.getElementById(id);
 // Vessel -> processes
 const PROCESS_BY_PV = {
    "EVAPORATOR": [
-    "6 - Hole bevelling",
+    "6A - Hole Bevelling",
     "7 - Connector welding",
     "8A - Internal plate assembly",
     "8B - Fitting internal plate",
@@ -25,7 +25,7 @@ const PROCESS_BY_PV = {
   ],
 
    "CONDENSER": [
-    "6 - Hole bevelling",
+    "6A - Hole Bevelling",
     "7 - Connector welding",
     "8A - Internal plate assembly",
     "8B - Fitting internal plate",
