@@ -13,6 +13,17 @@ function getTodayCutoffMs(hour, minute, now = new Date()) {
   return cutoff.getTime();
 }
 
+function getCutoffMsForDateKey(dateKey, hour, minute, now = new Date()) {
+  const parts = String(dateKey || "").split("-").map(Number);
+
+  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) {
+    return getTodayCutoffMs(hour, minute, now);
+  }
+
+  const [year, month, day] = parts;
+  return new Date(year, month - 1, day, hour, minute, 0, 0).getTime();
+}
+
 function normalizeProcessName(name) {
   return String(name || "").replace(/\s+/g, " ").trim().toLowerCase();
 }
@@ -35,8 +46,14 @@ function getMinutesOfDay(date = new Date()) {
   return date.getHours() * 60 + date.getMinutes();
 }
 
-function isPastTime(hour, minute, date = new Date()) {
-  return getMinutesOfDay(date) >= (hour * 60 + minute);
+function getEpochMs(value) {
+  const numberValue = Number(value);
+  if (Number.isFinite(numberValue)) return numberValue;
+
+  if (value && typeof value.toMillis === "function") return value.toMillis();
+  if (value && typeof value.toDate === "function") return value.toDate().getTime();
+
+  return null;
 }
 
 function getTodayKey(date = new Date()) {
@@ -46,9 +63,79 @@ function getTodayKey(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+function getDateKeyFromEpochMs(ms) {
+  if (!Number.isFinite(ms)) return "";
+  return getTodayKey(new Date(ms));
+}
+
+function getPreviousDayKey(date = new Date()) {
+  const previous = new Date(date);
+  previous.setDate(previous.getDate() - 1);
+  return getTodayKey(previous);
+}
+
+function isAtOrBeforeMorningAutoStopCutoff(date = new Date()) {
+  return getMinutesOfDay(date) <= (7 * 60 + 45);
+}
+
+function isAtOrAfterEveningAutoStopStart(date = new Date()) {
+  return getMinutesOfDay(date) >= (17 * 60 + 30);
+}
+
+function getAutoStopRunDateKey(now = new Date()) {
+  if (isAtOrBeforeMorningAutoStopCutoff(now)) return getPreviousDayKey(now);
+  if (isAtOrAfterEveningAutoStopStart(now)) return getTodayKey(now);
+  return null;
+}
+
+function getLatestResumeMs(run) {
+  const resumeTimes = [];
+
+  const legacyResumeMs = getEpochMs(run?.resumedEpochMs) ?? getEpochMs(run?.resumedAt);
+  if (Number.isFinite(legacyResumeMs)) resumeTimes.push(legacyResumeMs);
+
+  if (Array.isArray(run?.resumes)) {
+    for (const resume of run.resumes) {
+      const resumeMs = getEpochMs(resume?.resumedAtEpochMs) ?? getEpochMs(resume?.resumedAt);
+      if (Number.isFinite(resumeMs)) resumeTimes.push(resumeMs);
+    }
+  }
+
+  return resumeTimes.length ? Math.max(...resumeTimes) : null;
+}
+
+function getRunActiveStartMsForAutoStop(run, runDateKey) {
+  const startMs = getEpochMs(run?.startEpochMs) ?? getEpochMs(run?.startAt);
+  const latestResumeMs = getLatestResumeMs(run);
+  const latestResumeDateKey = getDateKeyFromEpochMs(latestResumeMs);
+
+  if (latestResumeDateKey === runDateKey) return latestResumeMs;
+  if (latestResumeDateKey && latestResumeDateKey > runDateKey) return null;
+  if (run?.runDate === runDateKey && Number.isFinite(startMs)) return startMs;
+
+  return null;
+}
+
+function getAutoStopNowMinutes(runDateKey, now = new Date()) {
+  const nowMinutes = getMinutesOfDay(now);
+
+  if (runDateKey === getPreviousDayKey(now)) {
+    return (24 * 60) + nowMinutes;
+  }
+
+  return nowMinutes;
+}
+
+function getAutoStopCutoffMs(runStopType, runDateKey, now = new Date()) {
+  return runStopType === "shift_end"
+    ? getCutoffMsForDateKey(runDateKey, 17, 30, now)
+    : getCutoffMsForDateKey(runDateKey, 21, 0, now);
+}
+
 function getAutoStopType(now = new Date()) {
-  if (isPastTime(21, 0, now)) return "night_shift_end";
-  if (isPastTime(17, 30, now)) return "shift_end";
+  if (isAtOrBeforeMorningAutoStopCutoff(now)) return "night_shift_end";
+  if (getMinutesOfDay(now) >= (21 * 60)) return "night_shift_end";
+  if (isAtOrAfterEveningAutoStopStart(now)) return "shift_end";
   return null;
 }
 
@@ -56,6 +143,14 @@ export async function autoStopRuns() {
   const now = getNow();
   const stopType = getAutoStopType(now);
 
+  if (!stopType) {
+    return {
+      checked: 0,
+      updated: 0,
+      skippedExcluded: 0,
+      reason: null
+    };
+  }
 
   const snap = await getDocs(collectionGroup(db, "runs"));
 
@@ -78,18 +173,17 @@ export async function autoStopRuns() {
 
     if (!runStopType) continue;
 
-    if (run.autoStopType === runStopType) continue;
+    const runDateKey = getAutoStopRunDateKey(now);
+    const cutoffMs = getAutoStopCutoffMs(runStopType, runDateKey, now);
 
-    const cutoffMs =
-      runStopType === "shift_end"
-        ? getTodayCutoffMs(17, 30, now)
-        : getTodayCutoffMs(21, 0, now);
+    if (run.autoStopType === runStopType && run.autoStopAtEpochMs === cutoffMs) continue;
 
     const remarks =
       runStopType === "shift_end"
         ? `Auto hold after 5:30 PM cutoff at ${now.toLocaleString("en-MY")}`
         : `Auto hold after 9:00 PM cutoff at ${now.toLocaleString("en-MY")}`;
 
+    // Updates the run document with the auto-stop information, including the hold reason and timestamp.
     await updateDoc(docSnap.ref, {
       status: "on_hold",
       holds: arrayUnion({
@@ -143,8 +237,11 @@ export async function previewAutoStopRuns() {
 
     if (!runStopType) return;
 
-    // prevent repeat auto-stop
-    if (r.autoStopType === runStopType) return;
+    const runDateKey = getAutoStopRunDateKey(now);
+    const cutoffMs = getAutoStopCutoffMs(runStopType, runDateKey, now);
+
+    // prevent repeat auto-stop for the same cutoff while allowing later resumes
+    if (r.autoStopType === runStopType && r.autoStopAtEpochMs === cutoffMs) return;
 
     eligible.push({
       id: docSnap.id,
@@ -152,7 +249,8 @@ export async function previewAutoStopRuns() {
       processName: r.processName,
       projectName: r.projectName,
       station: r.station,
-      autoStopType: runStopType
+      autoStopType: runStopType,
+      autoStopAtEpochMs: cutoffMs
     });
   });
 
@@ -163,17 +261,17 @@ export async function previewAutoStopRuns() {
 }
 
 function getRunAutoStopType(run, now = new Date()) {
-  const todayKey = getTodayKey(now);
+  const runDateKey = getAutoStopRunDateKey(now);
 
-  if (run.runDate !== todayKey) return null;
+  if (!runDateKey) return null;
 
-  const startMs = run.startEpochMs;
-  if (!startMs) return null;
+  const activeStartMs = getRunActiveStartMsForAutoStop(run, runDateKey);
+  if (!Number.isFinite(activeStartMs)) return null;
 
-  const start = new Date(startMs);
+  const start = new Date(activeStartMs);
 
   const startMinutes = getMinutesOfDay(start);
-  const nowMinutes = getMinutesOfDay(now);
+  const nowMinutes = getAutoStopNowMinutes(runDateKey, now);
 
   const cutoff530 = 17 * 60 + 30;
   const cutoff900 = 21 * 60;

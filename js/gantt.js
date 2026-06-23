@@ -101,14 +101,15 @@ function normalize(str) {
 
 function isPastCutoff(now = new Date()) {
   const mins = now.getHours() * 60 + now.getMinutes();
-  return mins >= (17 * 60 + 30);
+  return mins <= (7 * 60 + 45) || mins >= (17 * 60 + 30);
 }
 
 function getCutoffState(now = new Date()) {
   const mins = now.getHours() * 60 + now.getMinutes();
 
-  if (mins >= (21 * 60)) return "night";      // 9:00 PM
-  if (mins >= (17 * 60 + 30)) return "shift"; // 5:30 PM
+  if (mins <= (7 * 60 + 45)) return "morning"; // Yesterday's runs
+  if (mins >= (21 * 60)) return "night";      // Today's runs, 9:00 PM cutoff
+  if (mins >= (17 * 60 + 30)) return "shift"; // Today's runs, 5:30 PM cutoff
   return null;
 }
 
@@ -2566,7 +2567,7 @@ function updateAutoStopButtonState({ running = false } = {}) {
 
   const available = isPastCutoff();
   btnAutoStop.disabled = running || !available;
-  btnAutoStop.title = available ? "" : "Available after 5:30 PM";
+  btnAutoStop.title = available ? "" : "Available until 7:45 AM or after 5:30 PM";
   btnAutoStop.textContent = running ? "Running..." : "Run Auto Stop";
 }
 
@@ -2619,7 +2620,7 @@ if (btnAutoStop) {
     if (!cutoff) {
       await showAutoStopPopup({
         title: "Auto Stop Not Available",
-        message: "Auto stop is only allowed after 5:30 PM.",
+        message: "Auto stop is only allowed until 7:45 AM for yesterday's runs or after 5:30 PM for today's runs.",
         confirmText: "Got it",
         tone: "info"
       });

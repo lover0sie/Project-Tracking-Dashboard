@@ -1552,7 +1552,7 @@ function renderModelCharts(modelRow) {
   const combinedActualTotal = getCombinedActualTotal(combinedData, true);
   const combinedMount = createChartCard(`${modelRow.model} — PV COMBINED`, {
     showVesselLegend: true,
-    summaryText: `Total Actual: ${formatActualDurationSummary(combinedActualTotal)}`
+    summaryText: `Total Actualv: ${formatActualDurationSummary(combinedActualTotal)}`
   });
 
   renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true });
