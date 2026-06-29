@@ -724,7 +724,8 @@ function stationClass(station) {
   if (s.includes("insulationab") || s.includes("insulation1")) return "st-insulationab"; // Insulation AB
   if (s.includes("insulationg") || s.includes("insulation2")) return "st-insulationg"; // Insulation G
   if (s.includes ("packing")) return "st-packing"; // Packing
-  if (s.includes ("migwelding")) return "st-mig"; // Packing
+  if (s.includes ("mig")) return "st-mig"; // MIG
+  if (s.includes("wiring")) return "st-wiring"; // Wiring
 
   return "st-pv1"; // default
 }
@@ -2431,7 +2432,8 @@ function hideTip(){
     "st-insulationab",
     "st-insulationg",
     "st-packing",
-    "st-mig"
+    "st-mig",
+    "st-wiring"
 
   );
 
@@ -2499,6 +2501,7 @@ function showTipForBar(barEl){
     else if (barEl.classList.contains("st-insulationg")) tip.classList.add("st-insulationg");
     else if (barEl.classList.contains("st-packing")) tip.classList.add("st-packing");
     else if (barEl.classList.contains("st-mig")) tip.classList.add("st-mig");
+    else if (barEl.classList.contains("st-wiring")) tip.classList.add("st-wiring");
   }
 
   tip.innerHTML = html;

@@ -104,7 +104,9 @@ export const LEGEND_STATIONS = [
   { cls: "st-insulationab", label: "Insulation AB" },
   { cls: "st-insulationg", label: "Insulation G" },
   { cls: "st-packing", label: "Packing" },
-  { cls: "st-mig", label: "MIG" }
+  { cls: "st-mig", label: "MIG" },
+  { cls: "st-wiring", label: "Wiring" }
+
 ];
 
 export const LEGEND_STATUS = [
