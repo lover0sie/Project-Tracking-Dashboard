@@ -118,8 +118,8 @@
     const btnRefresh = document.getElementById("btn-refresh");
     const dayPicker = document.getElementById("dayPicker");
 
-    async function renderPage() {
-      await renderStationOnlyView();
+    async function renderPage({ forceRefresh = false } = {}) {
+      await renderStationOnlyView({ forceRefresh });
     }
 
     renderPage();
@@ -137,7 +137,7 @@
         stopGanttLiveRefresh();
         clearCache();
         clearGanttCache();
-        await renderPage();
+        await renderPage({ forceRefresh: true });
       } catch (err) {
         console.error("Refresh failed:", err);
       } finally {

@@ -333,7 +333,11 @@ function startGanttLiveRefresh() {
       const now = Date.now();
       const forceRefresh = now - lastGanttLiveFetchMs >= GANTT_LIVE_FETCH_MS;
 
-      await renderGanttView({ forceRefresh });
+      if (document.body.classList.contains("station-page")) {
+        await renderStationOnlyView({ forceRefresh });
+      } else {
+        await renderGanttView({ forceRefresh });
+      }
 
       if (forceRefresh) {
         lastGanttLiveFetchMs = now;
@@ -1076,7 +1080,7 @@ function groupStationByProcess(segments) {
   return stationMap;
 }
 
-export async function renderStationOnlyView() {
+export async function renderStationOnlyView({ forceRefresh = false } = {}) {
   try {
     const dayPicker = el("dayPicker");
     const stationPicker = el("stationBalancePicker");
@@ -1085,7 +1089,7 @@ export async function renderStationOnlyView() {
     const todayKey = getMYTodayKey();
     const dayKey = dayPicker?.value || todayKey;
 
-    const runs = await loadRunsForDayWithCarryForward(dayKey);
+    const runs = await loadRunsForDayWithCarryForward(dayKey, forceRefresh);
 
     if (!runs.length) {
       bodyEl.innerHTML = "";
@@ -1093,6 +1097,7 @@ export async function renderStationOnlyView() {
       dayHeadEl.innerHTML = "";
       if (stationTitle) stationTitle.textContent = "Station";
 
+      startGanttLiveRefresh();
       return;
     }
 
@@ -1127,6 +1132,7 @@ export async function renderStationOnlyView() {
       dayHeadEl.innerHTML = buildHourHeader();
       monthHeadEl.innerHTML = "";
       renderStationLegend([]);
+      startGanttLiveRefresh();
       return;
     }
 
@@ -1158,6 +1164,7 @@ export async function renderStationOnlyView() {
       : segsInWindow;
 
     renderGanttStation(rangeMin, rangeMax, filteredSegs);
+    startGanttLiveRefresh();
 
   } catch (err) {
     console.error(err);
