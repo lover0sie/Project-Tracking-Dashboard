@@ -5,11 +5,16 @@ import {
   getProcessCode,
 } from "./helpers.js";
 
+import { PV_COMBINED_LINE_BALANCE } from "./pv-combined-list.js";
+
 import { loadProjectHeadersFallbackFromRuns, loadRunsForProject } from "./timeline.js";
-import { exportLineBalanceStandardRawData } from "./excel-export.js";
+import {
+  exportLineBalanceStandardRawData,
+  exportCombinedLineBalanceRawData
+} from "./excel-export.js";
 
 const STANDARD_BASELINE_FROM = "2026-05-01"; // Start of historical data
-const STANDARD_BASELINE_TO = "2026-06-12"; // End of historical data
+const STANDARD_BASELINE_TO = "2026-06-30"; // End of historical data
 const STANDARD_FACTOR = 0.8; // Factor of 80%
 
 const projectNameEl = document.getElementById("lbProjectName");
@@ -47,6 +52,7 @@ let modelDateFrom = "";
 let modelDateTo = "";
 let modelDateBoundsInitialized = false;
 let historicalStandardsByModelProcess = {};
+let combinedLineBalanceDebugRows = [];
 
 let lineBalanceView = {
   showStandard: true, // default on
@@ -112,6 +118,94 @@ function sortProjects(projects) {
 
     return bTime - aTime;
   });
+}
+
+// Normalize process code for combined chart
+function normalizeProcessCodeForCombined(processCode, model = "") {
+  const code = String(processCode || "").trim().toUpperCase();
+  const modelKey = String(model || "").trim().toUpperCase();
+
+  if (code === "19" || code === "18, 19") return "18,19";
+
+  const pv1Models = ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS", "ZUWY", "HXE-HT"];
+  const isPv1 = pv1Models.includes(modelKey);
+
+  if (isPv1) {
+    if (code === "6A" || code === "6B") return "6";
+    if (code === "8A" || code === "8B" || code === "8C") return "8";
+    if (code === "9B") return "9";
+
+    // Old process 10 stays as 10
+    if (code === "10A" || code === "10B") return "10";
+  }
+
+  return code;
+}
+
+function shouldSkipProcessForCombined(processCode, model = "") {
+  const code = String(processCode || "").trim().toUpperCase();
+  const modelKey = String(model || "").trim().toUpperCase();
+
+  const pv1Models = ["HXE-TT", "HXE-M", "HXE-TG", "ZUWV", "ZUWS", "ZUWY"];
+  const isPv1 = pv1Models.includes(modelKey);
+
+ 
+  if (isPv1) {
+     // e) For PV1, ignore 9A. Only 9B is taken as process 9.
+    if (code === "9A") return true;
+  }
+
+  return false;
+}
+
+function applyProcess13LargestOnly(rows) {
+  const process13Rows = rows.filter(row =>
+    String(row.label || "").trim().toUpperCase() === "13" &&
+    Number(row.actual || 0) > 0
+  );
+
+  if (process13Rows.length <= 1) return rows;
+
+  const largest = process13Rows.reduce((max, row) =>
+    Number(row.actual || 0) > Number(max.actual || 0) ? row : max
+  );
+
+  return rows.filter(row => {
+    if (String(row.label || "").trim().toUpperCase() !== "13") return true;
+    return row === largest;
+  });
+}
+
+// Get the combined chart configuration for a given model, if it exists
+function getPvCombinedConfig(model) {
+  const modelKey = String(model || "").trim().toUpperCase();
+
+  return PV_COMBINED_LINE_BALANCE.find(config =>
+    config.models.some(m => String(m).toUpperCase() === modelKey)
+  );
+}
+
+function findCombinedGroup(config, vesselType, processCode) {
+  const vessel = String(vesselType || "").trim().toUpperCase();
+  const code = String(processCode || "").trim().toUpperCase();
+
+  for (let groupIndex = 0; groupIndex < config.groups.length; groupIndex++) {
+    const group = config.groups[groupIndex];
+
+    const vesselMatch = group.vessels.some(v =>
+      String(v).toUpperCase() === vessel
+    );
+
+    const processMatch = group.processes.some(p =>
+      String(p).toUpperCase() === code
+    );
+
+    if (vesselMatch && processMatch) {
+      return { group, groupIndex };
+    }
+  }
+
+  return null;
 }
 
 function updateSearchClearVisibility() {
@@ -435,6 +529,14 @@ function getProcessDisplayName(processName = "") {
   return label.replace(/^.+?\s*-\s*/, "").trim() || label;
 }
 
+function formatUniqueList(values) {
+  return Array.from(values || [])
+    .map(value => String(value || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b))
+    .join(", ");
+}
+
 function compareProcessSortKey(a, b) {
   if ((a?.major ?? 9999) !== (b?.major ?? 9999)) {
     return (a?.major ?? 9999) - (b?.major ?? 9999);
@@ -451,6 +553,7 @@ function buildAverageProcessChartData(segments) {
     const fullLabel = getSegmentProcessLabel(seg);
     const processCode = getProcessCode(fullLabel);
 
+  
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
     const totalMin = getTotalDurationMs(seg) / 60000;
     const standardMin = getHistoricalStandardMin(seg, processCode);
@@ -464,16 +567,22 @@ function buildAverageProcessChartData(segments) {
         standardMin,
         manpowerSum: 0,
         count: 0,
+        projectNames: new Set(),
+        serialNumbers: new Set(),
         sortKey: getProcessSortKey(fullLabel)
       });
     }
 
     const row = processMap.get(processCode);
     const manpower = getSegmentManpower(seg);
+    const projectName = String(seg.projectName || "").trim();
+    const serialNumber = String(seg.chillerSerialNumber || "").trim();
 
     row.actualSum += actualMin;
     row.totalSum += totalMin;
     row.manpowerSum += manpower;
+    if (projectName) row.projectNames.add(projectName);
+    if (serialNumber) row.serialNumbers.add(serialNumber);
     row.count++;
   }
   return Array.from(processMap.values())
@@ -488,6 +597,8 @@ function buildAverageProcessChartData(segments) {
       return {
         label: row.label, // process code only
         fullLabel: row.fullLabel,
+        projectName: formatUniqueList(row.projectNames),
+        serialNumber: formatUniqueList(row.serialNumbers),
         actual: Number(actual.toFixed(1)),
         total: Number(total.toFixed(1)),
         standard: Number(standard.toFixed(1)),
@@ -659,6 +770,8 @@ function buildProcessChartData(segments) {
         standardMin,
         manpowerSum: 0,
         segmentCount: 0,
+        projectNames: new Set(),
+        serialNumbers: new Set(),
         sortKey: getProcessSortKey(fullLabel)
       });
     }
@@ -666,11 +779,15 @@ function buildProcessChartData(segments) {
     const row = processMap.get(processCode);
 
     const manpower = getSegmentManpower(seg);
+    const projectName = String(seg.projectName || "").trim();
+    const serialNumber = String(seg.chillerSerialNumber || "").trim();
 
     row.actualMin += actualMin;
     row.totalMin += totalMin;
 
     row.manpowerSum += manpower;
+    if (projectName) row.projectNames.add(projectName);
+    if (serialNumber) row.serialNumbers.add(serialNumber);
     row.segmentCount++;
   }
 
@@ -682,6 +799,8 @@ function buildProcessChartData(segments) {
       return {
         label: item.label, // process code only
         fullLabel: item.fullLabel,
+        projectName: formatUniqueList(item.projectNames),
+        serialNumber: formatUniqueList(item.serialNumbers),
         actual: Number(item.actualMin.toFixed(1)),
         total: Number(item.totalMin.toFixed(1)),
         standard: Number(item.standardMin.toFixed(1)),
@@ -731,6 +850,7 @@ function hideTooltip() {
 
 function clearCharts() {
   hideTooltip();
+  combinedLineBalanceDebugRows = [];
   if (chartsContainerEl) {
     chartsContainerEl.innerHTML = "";
     chartsContainerEl.scrollTop = 0;
@@ -742,6 +862,7 @@ function createChartCard(titleText, options = {}) {
     .find(type => String(titleText || "").includes(type));
   const displayTitle = vesselTitle || titleText;
   const showVesselLegend = !!options.showVesselLegend && lineBalanceView.showActual;
+  const actualLegendClass = String(options.actualVesselClass || "").trim();
   const summaryText = String(options.summaryText || "").trim();
   const summaryHtml = summaryText
     ? `<div class="lbChartSummary">${escapeHtml(summaryText)}</div>`
@@ -782,7 +903,7 @@ function createChartCard(titleText, options = {}) {
 
       <label class="lbLegendItem">
         <input type="checkbox" class="lbToggleActual" ${lineBalanceView.showActual ? "checked" : ""}>
-        <span class="lbLegendSwatch actual"></span>
+        <span class="lbLegendSwatch actual ${escapeHtml(actualLegendClass)}"></span>
         Actual Time
       </label>
 
@@ -1215,9 +1336,66 @@ function getSegmentUnitKey(seg) {
   ].join("__");
 }
 
+function addCombinedRow(combinedMap, vessel, row, group, groupIndex) {
+  const key = `${groupIndex}__${group.vessels.join("_")}__${group.processes.join("_")}`;
+  const label = group.processes.join(",");
+
+  if (!combinedMap.has(key)) {
+    combinedMap.set(key, {
+      label,
+      fullLabel: label,
+      actual: 0,
+      standard: 0,
+      total: 0,
+      manpowerSum: 0,
+      count: 0,
+      parts: new Map(),
+      sortPrefix: groupIndex,
+      sortKey: getProcessSortKey(label)
+    });
+  }
+
+  const item = combinedMap.get(key);
+
+  item.actual += Number(row.actual || 0);
+  item.standard += Number(row.standard || 0);
+  item.total += Number(row.total || 0);
+  item.manpowerSum += Number(row.avgManpower || 1);
+  item.count++;
+
+  const partKey = vessel || "UNKNOWN";
+
+  if (!item.parts.has(partKey)) {
+    item.parts.set(partKey, {
+      key: partKey,
+      label: formatVesselStackLabel(partKey),
+      actual: 0,
+      standard: 0,
+      total: 0
+    });
+  }
+
+  const part = item.parts.get(partKey);
+
+  part.actual += Number(row.actual || 0);
+  part.standard += Number(row.standard || 0);
+  part.total += Number(row.total || 0);
+}
+
 function buildPvCombinedFromVesselCharts(pvSegs, averageMode = false) {
+  const model = String(pvSegs?.[0]?.model || "").trim();
+  const config = getPvCombinedConfig(model);
+
+  if (!config) {
+    combinedLineBalanceDebugRows = [];
+    return [];
+  }
+
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
   const combinedMap = new Map();
+
+  const debugRows = [];
+  const process13Candidates = []; // Store process 13 inside this temporary array to filter later for largest only
 
   for (const [vesselType, segs] of vesselMap.entries()) {
     const vesselData = averageMode
@@ -1226,102 +1404,94 @@ function buildPvCombinedFromVesselCharts(pvSegs, averageMode = false) {
 
     for (const row of vesselData) {
       const rawProcessCode = getProcessCode(row.fullLabel || row.label);
-      const processCode = getCombinedProcessCode(rawProcessCode);
-      const major = getProcessMajor(processCode);
-      const vessel = String(vesselType || "").toUpperCase();
+      if (shouldSkipProcessForCombined(rawProcessCode, model)) continue;
+      const processCode = normalizeProcessCodeForCombined(rawProcessCode, model);
+      const vessel = String(vesselType || "").trim().toUpperCase();
 
-      let key;
-      let label;
-      let sortPrefix;
+      const matched = findCombinedGroup(config, vessel, processCode);
+      if (!matched) continue;
 
-      if (major >= 6 && major <= 9) {
-        // Process 6-9: only Evaporator and Condenser, kept separate
-        if (vessel !== "EVAPORATOR" && vessel !== "CONDENSER") continue;
-
-        key = `${vessel}__${processCode}`;
-        label = `${vessel === "EVAPORATOR" ? "EVAP" : "COND"} ${processCode}`;
-        sortPrefix = vessel === "EVAPORATOR" ? 1 : 2;
-
-      } else if (major >= 10 && major <= 14) {
-        // Process 10-14: combine only Evaporator + Condenser
-        if (vessel !== "EVAPORATOR" && vessel !== "CONDENSER") continue;
-
-        key = `EVAP_COND__${processCode}`;
-        label = `${processCode}`;
-        sortPrefix = 3;
-
-      } else if (major >= 15 && major <= 19) {
-        // Process 15-19: combine Evaporator + Condenser + Oil Separator + Economizer
-        key = `ALL__${processCode}`;
-        label = `${processCode}`;
-        sortPrefix = 4;
-      } else {
-        key = `OTHER__${processCode}`;
-        label = processCode;
-        sortPrefix = 9;
+      // Hold process 13 temporarily
+      if (processCode === "13") {
+          process13Candidates.push({
+              vessel,
+              row,
+              matched
+          });
+          continue;
       }
+      const { group, groupIndex } = matched;
 
-      if (!combinedMap.has(key)) {
-        combinedMap.set(key, {
-          label,
-          fullLabel: row.fullLabel || row.label,
-          actual: 0,
-          standard: 0,
-          total: 0,
-          manpowerSum: 0,
-          count: 0,
-          parts: new Map(),
-          sortPrefix,
-          sortKey: getProcessSortKey(row.fullLabel || row.label)
-        });
-      }
+      debugRows.push({
+        model,
+        project: row.projectName || "",
+        serial: row.serialNumber || "",
+        vessel,
+        originalProcess: rawProcessCode,
+        combinedProcess: processCode,
+        groupLabel: group.processes.join(", "),
+        actual: Number(row.actual || 0).toFixed(1),
+        standard: Number(row.standard || 0).toFixed(1),
+        total: Number(row.total || 0).toFixed(1)
+      });
 
-      const item = combinedMap.get(key);
-
-      // IMPORTANT: add up vessel chart values
-      item.actual += Number(row.actual || 0);
-      item.standard += Number(row.standard || 0);
-      item.total += Number(row.total || 0);
-      item.manpowerSum += Number(row.avgManpower || 1);
-      item.count++;
-
-      const partKey = vessel || "UNKNOWN";
-      if (!item.parts.has(partKey)) {
-        item.parts.set(partKey, {
-          key: partKey,
-          label: formatVesselStackLabel(partKey),
-          actual: 0,
-          standard: 0,
-          total: 0
-        });
-      }
-
-      const part = item.parts.get(partKey);
-      part.actual += Number(row.actual || 0);
-      part.standard += Number(row.standard || 0);
-      part.total += Number(row.total || 0);
+      addCombinedRow(combinedMap, vessel, row, group, groupIndex);
     }
   }
 
+  const evap13 = process13Candidates.find(p => p.vessel === "EVAPORATOR");
+  const cond13 = process13Candidates.find(p => p.vessel === "CONDENSER");
+
+  let selected13 = null;
+
+  // Select which process 13 to include in the combined chart based on actual time
+  if (evap13 && cond13) {
+      selected13 =
+          Number(evap13.row.actual) >= Number(cond13.row.actual)
+              ? evap13
+              : cond13;
+  } else {
+      selected13 = evap13 || cond13;
+  }
+
+  if (selected13) {
+    const { vessel, row, matched } = selected13;
+    const { group, groupIndex } = matched;
+
+    debugRows.push({
+      model,
+      project: row.projectName || "",
+      serial: row.serialNumber || "",
+      vessel,
+      originalProcess: "13",
+      combinedProcess: "13",
+      groupLabel: group.processes.join(", "),
+      actual: Number(row.actual || 0).toFixed(1),
+      standard: Number(row.standard || 0).toFixed(1),
+      total: Number(row.total || 0).toFixed(1)
+    });
+
+    addCombinedRow(combinedMap, vessel, row, group, groupIndex);
+  }
+
+  combinedLineBalanceDebugRows = debugRows;
+
   return Array.from(combinedMap.values())
-    .sort((a, b) => {
-      if (a.sortPrefix !== b.sortPrefix) return a.sortPrefix - b.sortPrefix;
-      return compareProcessSortKey(a.sortKey, b.sortKey);
-    })
-    .map(row => ({
-      label: row.label,
-      fullLabel: row.fullLabel,
-      actual: Number(row.actual.toFixed(1)),
-      standard: Number(row.standard.toFixed(1)),
-      total: Number(row.total.toFixed(1)),
-      avgManpower: roundManpower(row.manpowerSum / Math.max(row.count, 1)),
-      stackParts: Array.from(row.parts.values()).map(part => ({
-        ...part,
-        actual: Number(part.actual.toFixed(1)),
-        standard: Number(part.standard.toFixed(1)),
-        total: Number(part.total.toFixed(1))
-      }))
-    }));
+  .sort((a, b) => a.sortPrefix - b.sortPrefix)
+  .map(row => ({
+    label: row.label,
+    fullLabel: row.fullLabel,
+    actual: Number(row.actual.toFixed(1)),
+    standard: Number(row.standard.toFixed(1)),
+    total: Number(row.total.toFixed(1)),
+    avgManpower: roundManpower(row.manpowerSum / Math.max(row.count, 1)),
+    stackParts: Array.from(row.parts.values()).map(part => ({
+      ...part,
+      actual: Number(part.actual.toFixed(1)),
+      standard: Number(part.standard.toFixed(1)),
+      total: Number(part.total.toFixed(1))
+    }))
+  }));
 }
 
 function formatVesselStackLabel(vesselType) {
@@ -1394,12 +1564,14 @@ function renderSelectedProjectCharts(project) {
 
   for (const [vesselType, segs] of entries) {
     const data = buildProcessChartData(segs);
+    const actualVesselClass = getVesselStackClass(vesselType);
     const mount = createChartCard(
-      `${project.projectName || project.chillerSerialNumber} — ${vesselType}`
+      `${project.projectName || project.chillerSerialNumber} — ${vesselType}`,
+      { actualVesselClass }
     );
     renderCustomLineBalanceChart(mount, data, {
       taktTime: 450,
-      actualVesselClass: getVesselStackClass(vesselType)
+      actualVesselClass
     });
   }
 }
@@ -1527,6 +1699,7 @@ async function onModelClick(modelRow) {
   renderModelCharts(modelRow);
 }
 
+// Render charts for the selected model, including combined PV chart and individual vessel charts
 function renderModelCharts(modelRow) {
   clearCharts();
 
@@ -1544,15 +1717,17 @@ function renderModelCharts(modelRow) {
     return;
   }
 
+  // Filter only PV segments for the model view
   const pvSegs = selectedProjectSegments.filter(seg =>
     String(seg.qrKind || "").trim() === "PV"
   );
 
+  // Build combined PV chart for the model view using averages
   const combinedData = buildPvCombinedFromVesselCharts(pvSegs, true);
   const combinedActualTotal = getCombinedActualTotal(combinedData, true);
   const combinedMount = createChartCard(`${modelRow.model} — PV COMBINED`, {
     showVesselLegend: true,
-    summaryText: `Total Actualv: ${formatActualDurationSummary(combinedActualTotal)}`
+    summaryText: `Total Actual: ${formatActualDurationSummary(combinedActualTotal)}`
   });
 
   renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true });
@@ -1579,11 +1754,14 @@ function renderModelCharts(modelRow) {
 
   for (const [vesselType, segs] of entries) {
    const data = buildAverageProcessChartData(segs);
-    const mount = createChartCard(`${modelRow.model} — ${vesselType}`);
+    const actualVesselClass = getVesselStackClass(vesselType);
+    const mount = createChartCard(`${modelRow.model} — ${vesselType}`, {
+      actualVesselClass
+    });
 
     renderCustomLineBalanceChart(mount, data, {
       taktTime: 450,
-      actualVesselClass: getVesselStackClass(vesselType)
+      actualVesselClass
     });
   }
 }
@@ -1879,10 +2057,16 @@ modelDateToEl?.addEventListener("change", () => {
 
 document.getElementById("exportStandardRawBtn")?.addEventListener("click", () => {
   exportLineBalanceStandardRawData(allSegmentsCache, {
-    fromDate: "2026-05-01",
-    toDate: "2026-06-12",
-    factor: 0.8
+    fromDate: STANDARD_BASELINE_FROM,
+    toDate: STANDARD_BASELINE_TO,
+    factor: STANDARD_FACTOR
   });
+});
+
+document.getElementById("exportCombinedRawBtn")?.addEventListener("click", () => {
+    exportCombinedLineBalanceRawData(combinedLineBalanceDebugRows, {
+        model: selectedModel || projectNameEl?.textContent || "Selected"
+    });
 });
 
 updateToolbarModeUi();

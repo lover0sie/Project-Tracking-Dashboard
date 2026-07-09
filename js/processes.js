@@ -5,45 +5,49 @@ const el = (id) => document.getElementById(id);
 // Keep this map as the single source for station -> ordered process steps.
 // Vessel -> processes
 const PROCESS_BY_PV = {
-   "EVAPORATOR": [
-    "6A - Hole Bevelling",
+  "EVAPORATOR": [
+    "6A - Hole bevelling",
+    "6B - Fitting flange and piping",
     "7 - Connector welding",
     "8A - Internal plate assembly",
     "8B - Fitting internal plate",
     "8C - GMAW C&B",
-    "9 - Fitting and welding distribution box",
+    "9A - Distribution box assembly",
+    "9B - Fitting and welding distribution box",
     "10 - Tube support, bush fitting, and tube sheet fitting",
     "11 - Tubesheet welding",
     "12 - Bracket and attachment welding, copper tube brazing",
     "13 - Unit side plate and base welding",
     "14A - Tube slotting",
     "14B - Tube expansion",
+    "14C - Shell body slotting",
     "15 - Primer painting",
     "16 - Pneumatic testing",
     "17 - Hydrostatic testing",
     "18, 19 - Primer painting (weld seam) and top coat painting"
   ],
 
-   "CONDENSER": [
-    "6A - Hole Bevelling",
+  "CONDENSER": [
+    "6A - Hole bevelling",
+    "6B - Fitting flange and piping",
     "7 - Connector welding",
     "8A - Internal plate assembly",
     "8B - Fitting internal plate",
     "8C - GMAW C&B",
-    "9 - Fitting and welding distribution box",
     "10 - Tube support, bush fitting, and tube sheet fitting",
     "11 - Tubesheet welding",
     "12 - Bracket and attachment welding, copper tube brazing",
     "13 - Unit side plate and base welding",
     "14A - Tube slotting",
     "14B - Tube expansion",
+    "14C - Shell body slotting",
     "15 - Primer painting",
     "16 - Pneumatic testing",
     "17 - Hydrostatic testing",
     "18, 19 - Primer painting (weld seam) and top coat painting"
   ],
 
-  "OIL SEPARATOR":[
+  "OIL SEPARATOR": [
     "6, 7 - Hole bevelling and connector welding",
     "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding",
     "12 - Bracket and attachment fitting and welding",
@@ -52,7 +56,7 @@ const PROCESS_BY_PV = {
     "19 - Top coat painting"
   ],
 
-  "ECONOMIZER":[
+  "ECONOMIZER": [
     "6, 7 - Hole bevelling and connector welding",
     "8, 9, 10, 11 - Internal plate, distribution box, tube support and bush fitting and welding",
     "12 - Bracket and attachment fitting and welding",

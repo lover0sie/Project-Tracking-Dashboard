@@ -445,7 +445,7 @@ export function exportLineBalanceStandardRawData(segments, options = {}) {
 
   const {
     fromDate = "2026-05-01", // Start date
-    toDate = "2026-06-12", // End date
+    toDate = "2026-06-30", // End date
     factor = 0.8
   } = options;
 
@@ -605,5 +605,69 @@ export function exportLineBalanceStandardRawData(segments, options = {}) {
   XLSX.writeFile(
     wb,
     `LineBalance_Standard_Verification_${fromDate}_to_${toDate}.xlsx`
+  );
+}
+
+export function exportCombinedLineBalanceRawData(rows, options = {}) {
+  if (typeof XLSX === "undefined") {
+    alert("XLSX library not loaded.");
+    return;
+  }
+
+  if (!Array.isArray(rows) || !rows.length) {
+    alert("No combined line balance raw data found.");
+    return;
+  }
+
+  const {
+    model = "All Models"
+  } = options;
+
+  const header = [
+    "Model",
+    "Vessel",
+    "Original Process",
+    "Combined Process",
+    "Group Label",
+    "Actual (Minutes)",
+    "Standard (Minutes)",
+    "Total (Minutes)"
+  ];
+
+  const data = [
+    header,
+    ...rows.map(row => [
+      row.model || "",
+      row.vessel || "",
+      row.originalProcess || "",
+      row.combinedProcess || "",
+      row.groupLabel || "",
+      Number(row.actual || 0),
+      Number(row.standard || 0),
+      Number(row.total || 0)
+    ])
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  ws["!cols"] = [
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 24 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 16 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "Combined Raw Data");
+
+  const safeModel = String(model).replace(/[\\/:*?"<>|]/g, "_");
+
+  XLSX.writeFile(
+    wb,
+    `Combined_LineBalance_Raw_${safeModel}_${new Date().toISOString().slice(0, 10)}.xlsx`
   );
 }

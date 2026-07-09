@@ -514,7 +514,27 @@
 }
 
 .lbLegendSwatch.actual {
-  background: #f6bd02;
+  background: #eab308;
+}
+
+.lbLegendSwatch.actual.vessel-evap {
+  background: #fc5cb1;
+}
+
+.lbLegendSwatch.actual.vessel-cond {
+  background: #eab308;
+}
+
+.lbLegendSwatch.actual.vessel-oil {
+  background: #09adc0;
+}
+
+.lbLegendSwatch.actual.vessel-eco {
+  background: #00e25f;
+}
+
+.lbLegendSwatch.actual.vessel-other {
+  background: #bd2ff0;
 }
 
 .lbLegendSwatch.vessel.vessel-evap {
@@ -824,7 +844,7 @@
 }
 
 .lbBar.actual.vessel-other {
-  background: #94a3b8;
+  background: #bd2ff0;
 }
 
 .lbBar.stacked {
