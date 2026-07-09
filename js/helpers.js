@@ -471,6 +471,94 @@ export function getTotalDurationMs(seg) {
   return seg.end.getTime() - seg.start.getTime();
 }
 
+export const STANDARD_BASELINE_FROM = "2026-05-01";
+export const STANDARD_BASELINE_TO = "2026-06-30";
+export const STANDARD_FACTOR = 0.8;
+
+function parseDateStartMs(value) {
+  if (!value) return null;
+
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+}
+
+function parseDateEndMs(value) {
+  if (!value) return null;
+
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+}
+
+function getSegmentTypeForStandard(seg) {
+  if (String(seg?.qrKind || "").toUpperCase() === "PV") {
+    return String(seg?.vesselType || "PV").trim();
+  }
+
+  return "CHILLER";
+}
+
+function getStandardKey(model, type, processCode) {
+  return [
+    String(model || "").trim(),
+    String(type || "").trim(),
+    String(processCode || "").trim()
+  ].join("__");
+}
+
+function calculateStandardFromValues(values) {
+  if (!values.length) return 0;
+
+  const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+  return average * STANDARD_FACTOR;
+}
+
+function isSegmentInStandardBaseline(seg) {
+  const startMs =
+    seg?.start instanceof Date
+      ? seg.start.getTime()
+      : Number(seg?.run?.startEpochMs || seg?.startEpochMs || 0);
+
+  const fromMs = parseDateStartMs(STANDARD_BASELINE_FROM);
+  const toMs = parseDateEndMs(STANDARD_BASELINE_TO);
+
+  return startMs >= fromMs && startMs <= toMs;
+}
+
+export function buildHistoricalStandardsByModelProcess(segments) {
+  const map = new Map();
+
+  for (const seg of segments || []) {
+    if (seg.phase === "waiting" || seg.status === "waiting") continue;
+    if (!isSegmentInStandardBaseline(seg)) continue;
+
+    const processCode = getProcessCode(seg.processLabel || seg.processName || "");
+    const model = String(seg.model || "").trim();
+    const type = getSegmentTypeForStandard(seg);
+
+    if (!model || !type || !processCode) continue;
+
+    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    if (!Number.isFinite(actualMin) || actualMin <= 0) continue;
+
+    const key = getStandardKey(model, type, processCode);
+
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(actualMin);
+  }
+
+  const standards = {};
+
+  for (const [key, values] of map.entries()) {
+    standards[key] = calculateStandardFromValues(values);
+  }
+
+  return standards;
+}
+
 function buildStationEffectiveHoursData(segments, selectedChillerSerial) {
   const filtered = segments.filter(seg =>
     String(seg.chillerSerialNumber || "").trim() === String(selectedChillerSerial || "").trim()
@@ -777,5 +865,21 @@ export function getStationOptionsFromSegments(segments) {
       segments.map(seg => String(seg?.station || "UNKNOWN").trim() || "UNKNOWN")
     )
   ).sort((a, b) => a.localeCompare(b));
+}
+
+export function getHistoricalStandardMinutes(seg, historicalStandardsByModelProcess = {}) {
+  const processCode = getProcessCode(seg.processLabel || seg.processName || "");
+  const type =
+    String(seg?.qrKind || "").toUpperCase() === "PV"
+      ? String(seg?.vesselType || "PV").trim()
+      : "CHILLER";
+
+  const key = [
+    String(seg.model || "").trim(),
+    type,
+    String(processCode || "").trim()
+  ].join("__");
+
+  return historicalStandardsByModelProcess[key] || 0;
 }
 

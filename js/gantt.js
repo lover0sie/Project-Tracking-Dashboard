@@ -16,8 +16,8 @@ import {
   getActualEffectiveDurationMs,
   getBreakOverlapMs,
   sliceSegForWaiting,
-  getStandardMinutes,
-  STANDARD_TIME_MIN,
+  getHistoricalStandardMinutes,
+  buildHistoricalStandardsByModelProcess,
   LEGEND_STATIONS, 
   LEGEND_STATUS, 
   renderLegend} from "./helpers.js";
@@ -44,10 +44,12 @@ const ganttWrapEl = document.querySelector(".ganttWrap");
 let cachedEvents = [];
 const cachedRunsByMonth = new Map();
 // Cache fetched runs to avoid hitting Firestore on every re-render.
+let ganttHistoricalStandardsByModelProcess = {};
 
 export function clearGanttCache() {
   cachedEvents = [];
   cachedRunsByMonth.clear();
+  ganttHistoricalStandardsByModelProcess = {};
 }
 
 /* Helpers for time */
@@ -221,14 +223,25 @@ function normalizeHoldReason(reason){
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
+async function refreshGanttHistoricalStandards({ forceRefresh = false } = {}) {
+  if (!forceRefresh && Object.keys(ganttHistoricalStandardsByModelProcess).length) return;
+
+  const runs = await loadRuns(forceRefresh);
+  const { segments } = buildSegmentsFromRuns(runs);
+  ganttHistoricalStandardsByModelProcess =
+    buildHistoricalStandardsByModelProcess(segments);
+}
+
+function getGanttStandardMinutes(seg) {
+  return getHistoricalStandardMinutes(
+    seg,
+    ganttHistoricalStandardsByModelProcess
+  );
+}
+
 /* Build standard slices taking into account on holds */
 function buildStandardSlices(seg) {
-  const stdMin = getStandardMinutes({
-      processLabel: seg.processLabel,
-      model: seg.model,
-      qrKind: seg.qrKind,
-      vesselType: seg.vesselType || "ALL"
-    });
+  const stdMin = getGanttStandardMinutes(seg);
   if (!stdMin || !seg?.start) return [];
 
   let remainingMs = stdMin * 60000;
@@ -403,12 +416,7 @@ function buildDailyTimeBands(rangeMin, rangeMax, hourW) {
 
 /* Get the time difference between standard and actual process */
 function getVarianceMs(seg) {
-  const stdMin = getStandardMinutes({
-    processLabel: seg.processLabel,
-    model: seg.model,
-    qrKind: seg.qrKind,
-    vesselType: seg.vesselType || "ALL"
-  });
+  const stdMin = getGanttStandardMinutes(seg);
   if (!stdMin || !seg?.start) return null;
 
   const stdMs = stdMin * 60000;
@@ -622,12 +630,7 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
 
 /* Build tooltip for the standard time */
 function standardTipText(seg, stdStart, stdEnd) {
-  const stdMin = getStandardMinutes({
-      processLabel: seg.processLabel,
-      model: seg.model,
-      qrKind: seg.qrKind,
-      vesselType: seg.vesselType || "ALL"
-    });
+  const stdMin = getGanttStandardMinutes(seg);
   const stdMs = stdMin * 60000;
 
   const actualEffectiveMs = getActualEffectiveDurationMs(seg);
@@ -1100,6 +1103,8 @@ export async function renderStationOnlyView({ forceRefresh = false } = {}) {
       startGanttLiveRefresh();
       return;
     }
+
+    await refreshGanttHistoricalStandards({ forceRefresh });
 
     const { segments } = buildSegmentsFromRuns(runs);
 
@@ -2174,6 +2179,8 @@ async function render({ forceRefresh = false } = {}) {
       dayHeadEl.innerHTML = "";
       return;
     }
+
+    await refreshGanttHistoricalStandards({ forceRefresh });
 
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);

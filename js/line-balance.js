@@ -3,6 +3,10 @@ import {
   getActualEffectiveDurationMs,
   getStandardMinutes,
   getProcessCode,
+  buildHistoricalStandardsByModelProcess as buildSharedHistoricalStandardsByModelProcess,
+  STANDARD_BASELINE_FROM,
+  STANDARD_BASELINE_TO,
+  STANDARD_FACTOR
 } from "./helpers.js";
 
 import { PV_COMBINED_LINE_BALANCE } from "./pv-combined-list.js";
@@ -12,10 +16,6 @@ import {
   exportLineBalanceStandardRawData,
   exportCombinedLineBalanceRawData
 } from "./excel-export.js";
-
-const STANDARD_BASELINE_FROM = "2026-05-01"; // Start of historical data
-const STANDARD_BASELINE_TO = "2026-06-30"; // End of historical data
-const STANDARD_FACTOR = 0.8; // Factor of 80%
 
 const projectNameEl = document.getElementById("lbProjectName");
 const chillerSerialEl = document.getElementById("lbChillerSerial");
@@ -685,38 +685,6 @@ function buildProjects(runs) {
 }
 
 // Build historical standards by model and process code from segments that are within the defined baseline period
-function buildHistoricalStandardsByModelProcess(segments) {
-  const map = new Map();
-
-  for (const seg of segments || []) {
-    if (seg.phase === "waiting" || seg.status === "waiting") continue;
-    if (!isSegmentInStandardBaseline(seg)) continue;
-
-    const fullLabel = getSegmentProcessLabel(seg);
-    const processCode = getProcessCode(fullLabel);
-    const model = String(seg.model || "").trim();
-    const type = getSegmentType(seg);
-
-    if (!model || !type || !processCode) continue;
-
-    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
-    if (!Number.isFinite(actualMin) || actualMin <= 0) continue;
-
-    const key = getStandardKey(model, type, processCode);
-
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(actualMin);
-  }
-
-  const standards = {};
-
-  for (const [key, values] of map.entries()) {
-    standards[key] = calculateStandardFromValues(values);
-  }
-
-  return standards;
-}
-
 function getHistoricalStandardMin(seg, processCode) {
   const key = getStandardKey(seg.model, getSegmentType(seg), processCode);
   return historicalStandardsByModelProcess[key] || 0;
@@ -1898,7 +1866,7 @@ async function renderPage() {
       : allSegmentsResult.segments || [];
 
     historicalStandardsByModelProcess =
-      buildHistoricalStandardsByModelProcess(allSegmentsCache);
+      buildSharedHistoricalStandardsByModelProcess(allSegmentsCache);
 
   applyModelDateBounds(currentProjects);
   currentModels = getVisibleModels();
