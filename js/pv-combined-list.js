@@ -67,11 +67,11 @@ export const PV_COMBINED_LINE_BALANCE = [
     category: "PV1",
     models: ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS"],
     groups: [
-        { vessels: ["EVAPORATOR"], processes: ["6", "7", "8", "10"] },
+        { vessels: ["EVAPORATOR"], processes: ["6", "7", "8", "10A"] },
 
-        { vessels: ["CONDENSER"], processes: ["6", "7", "8", "10"] },
+        { vessels: ["CONDENSER"], processes: ["6", "7", "8", "10A"] },
 
-        { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["11"] },
+        { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["10B", "11"] },
 
         { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["12", "13"] },
 
@@ -92,11 +92,11 @@ export const PV_COMBINED_LINE_BALANCE = [
     category: "PV1",
     models: ["ZUWY"],
     groups: [
-      { vessels: ["EVAPORATOR"], processes: ["6", "7", "10"] },
+      { vessels: ["EVAPORATOR"], processes: ["6", "7", "10A"] },
 
-      { vessels: ["CONDENSER"], processes: ["6", "7", "8", "10"] },
+      { vessels: ["CONDENSER"], processes: ["6", "7", "8", "10A"] },
 
-      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["11"] },
+      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["10B", "11"] },
 
       { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["12", "13"] },
 

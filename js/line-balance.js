@@ -120,6 +120,13 @@ function sortProjects(projects) {
   });
 }
 
+const PV1_MODELS = ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS", "ZUWY"];
+
+function isPv1Model(model = "") {
+  const modelKey = String(model || "").trim().toUpperCase();
+  return PV1_MODELS.includes(modelKey);
+}
+
 // Normalize process code for combined chart
 function normalizeProcessCodeForCombined(processCode, model = "") {
   const code = String(processCode || "").trim().toUpperCase();
@@ -127,16 +134,11 @@ function normalizeProcessCodeForCombined(processCode, model = "") {
 
   if (code === "19" || code === "18, 19") return "18,19";
 
-  const pv1Models = ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS", "ZUWY", "HXE-HT"];
-  const isPv1 = pv1Models.includes(modelKey);
-
-  if (isPv1) {
+  if (PV1_MODELS.includes(modelKey)) {
     if (code === "6A" || code === "6B") return "6";
     if (code === "8A" || code === "8B" || code === "8C") return "8";
     if (code === "9B") return "9";
 
-    // Old process 10 stays as 10
-    if (code === "10A" || code === "10B") return "10";
   }
 
   return code;
@@ -146,12 +148,8 @@ function shouldSkipProcessForCombined(processCode, model = "") {
   const code = String(processCode || "").trim().toUpperCase();
   const modelKey = String(model || "").trim().toUpperCase();
 
-  const pv1Models = ["HXE-TT", "HXE-M", "HXE-TG", "ZUWV", "ZUWS", "ZUWY"];
-  const isPv1 = pv1Models.includes(modelKey);
-
- 
-  if (isPv1) {
-     // e) For PV1, ignore 9A. Only 9B is taken as process 9.
+  if (PV1_MODELS.includes(modelKey)) {
+    // For PV1, ignore 9A. Only 9B is taken as process 9.
     if (code === "9A") return true;
   }
 
@@ -1406,36 +1404,68 @@ function buildPvCombinedFromVesselCharts(pvSegs, averageMode = false) {
       const rawProcessCode = getProcessCode(row.fullLabel || row.label);
       if (shouldSkipProcessForCombined(rawProcessCode, model)) continue;
       const processCode = normalizeProcessCodeForCombined(rawProcessCode, model);
+
+      // Check if the process is 10, then put in temporary array to split into 10A and 10B later
+      const rowsToAdd = [];
+
+      if (isPv1Model(model) && rawProcessCode === "10") {
+        // Take 50% of the actual, standard, and total for 10A
+        rowsToAdd.push({
+          ...row,
+          actual: Number(row.actual || 0) * 0.5,
+          standard: Number(row.standard || 0) * 0.5,
+          total: Number(row.total || 0) * 0.5,
+          processCode: "10A"
+        });
+
+        // Take 50% of the actual, standard, and total for 10B
+        rowsToAdd.push({
+          ...row,
+          actual: Number(row.actual || 0) * 0.5,
+          standard: Number(row.standard || 0) * 0.5,
+          total: Number(row.total || 0) * 0.5,
+          processCode: "10B"
+        });
+      } else {
+        rowsToAdd.push({
+          ...row,
+          processCode
+        });
+      }
       const vessel = String(vesselType || "").trim().toUpperCase();
 
-      const matched = findCombinedGroup(config, vessel, processCode);
-      if (!matched) continue;
+      for (const splitRow of rowsToAdd) {
+        const finalProcessCode = splitRow.processCode;
 
-      // Hold process 13 temporarily
-      if (processCode === "13") {
+        const matched = findCombinedGroup(config, vessel, finalProcessCode);
+        if (!matched) continue;
+
+        if (finalProcessCode === "13") {
           process13Candidates.push({
-              vessel,
-              row,
-              matched
+            vessel,
+            row: splitRow,
+            matched
           });
           continue;
+        }
+
+        const { group, groupIndex } = matched;
+
+        debugRows.push({
+          model,
+          project: splitRow.projectName || "",
+          serial: splitRow.serialNumber || "",
+          vessel,
+          originalProcess: rawProcessCode,
+          combinedProcess: finalProcessCode,
+          groupLabel: group.processes.join(", "),
+          actual: Number(splitRow.actual || 0).toFixed(1),
+          standard: Number(splitRow.standard || 0).toFixed(1),
+          total: Number(splitRow.total || 0).toFixed(1)
+        });
+
+        addCombinedRow(combinedMap, vessel, splitRow, group, groupIndex);
       }
-      const { group, groupIndex } = matched;
-
-      debugRows.push({
-        model,
-        project: row.projectName || "",
-        serial: row.serialNumber || "",
-        vessel,
-        originalProcess: rawProcessCode,
-        combinedProcess: processCode,
-        groupLabel: group.processes.join(", "),
-        actual: Number(row.actual || 0).toFixed(1),
-        standard: Number(row.standard || 0).toFixed(1),
-        total: Number(row.total || 0).toFixed(1)
-      });
-
-      addCombinedRow(combinedMap, vessel, row, group, groupIndex);
     }
   }
 
