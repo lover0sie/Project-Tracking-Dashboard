@@ -18,6 +18,7 @@ import {
   sliceSegForWaiting,
   getHistoricalStandardMinutes,
   buildHistoricalStandardsByModelProcess,
+  hasExplicitChillerVesselType,
   LEGEND_STATIONS, 
   LEGEND_STATUS, 
   renderLegend} from "./helpers.js";
@@ -847,12 +848,31 @@ function buildMonthHeader(days){
 
 
 
-const UNIT_ORDER = ["CHILLER", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
+const UNIT_ORDER = ["CHILLER", "COMPRESSOR", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
 
 function unitRank(unitType){
   const u = String(unitType || "").toUpperCase().trim();
   const i = UNIT_ORDER.indexOf(u);
   return i >= 0 ? i : 999;
+}
+
+function pvUnitSerialFromSeg(seg) {
+  return (
+    seg.pvSerialNumber ||
+    seg.relatedPvSerialNumber ||
+    seg.serialNumber ||
+    seg.serial ||
+    "-"
+  );
+}
+
+function chillerUnitSerialFromSeg(seg) {
+  return (
+    seg.chillerSerialNumber ||
+    seg.serialNumber ||
+    seg.serial ||
+    "-"
+  );
 }
 
 function unitInfoFromSeg(seg) {
@@ -862,25 +882,27 @@ function unitInfoFromSeg(seg) {
 
   if (
     qrKind === "CHILLER" &&
-    insulationItemType &&
-    relatedQrKind === "PV"
+    (
+      hasExplicitChillerVesselType(seg) ||
+      (insulationItemType && relatedQrKind === "PV")
+    )
   ) {
     return {
       unitType: String(seg.vesselType || insulationItemType).toUpperCase().trim(),
-      unitSerial: seg.pvSerialNumber || seg.relatedPvSerialNumber || seg.serialNumber || seg.serial || ""
+      unitSerial: pvUnitSerialFromSeg(seg)
     };
   }
 
   if (qrKind === "PV") {
     return {
       unitType: String(seg.vesselType || "PV").toUpperCase().trim(),
-      unitSerial: seg.pvSerialNumber || seg.serialNumber || seg.serial || ""
+      unitSerial: pvUnitSerialFromSeg(seg)
     };
   }
 
   return {
     unitType: "CHILLER",
-    unitSerial: seg.chillerSerialNumber || seg.serialNumber || seg.serial || ""
+    unitSerial: chillerUnitSerialFromSeg(seg)
   };
 }
 
@@ -1050,9 +1072,9 @@ function groupStationByProcess(segments) {
     const qrKind = String(seg.qrKind || "").toUpperCase();
 
     const serialKey =
-      qrKind === "PV"
-        ? (seg.pvSerialNumber || seg.serialNumber || seg.serial || "-")
-        : (seg.chillerSerialNumber || seg.serialNumber || seg.serial || "-");
+      qrKind === "PV" || hasExplicitChillerVesselType(seg)
+        ? pvUnitSerialFromSeg(seg)
+        : chillerUnitSerialFromSeg(seg);
 
     const processKey = `${processNo}__${serialKey}`;
 
@@ -1229,6 +1251,8 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
 
   if (qrKind === "PV") {
     typeText = seg?.vesselType || "-";
+  } else if (hasExplicitChillerVesselType(seg)) {
+    typeText = seg?.vesselType || "-";
   } else if (qrKind === "CHILLER" && seg?.insulationItemType) {
     typeText = seg?.vesselType || seg?.insulationItemType || "-";
   } else if (qrKind === "CHILLER") {
@@ -1256,13 +1280,13 @@ function processTipTextBuilder(seg, realFrom, realTo, type, part) {
   const statusText = formatStatus(seg?.status || type || "-");
 
   const serialText =
-  seg.qrKind === "PV"
-    ? seg.pvSerialNumber
-    : seg.qrKind === "CHILLER" && seg.insulationItemType
-    ? (seg.pvSerialNumber || seg.relatedPvSerialNumber || seg.serialNumber || seg.serial)
-    : seg.qrKind === "CHILLER"
-    ? seg.chillerSerialNumber
-    : seg.serial;
+  qrKind === "PV" || hasExplicitChillerVesselType(seg)
+    ? pvUnitSerialFromSeg(seg)
+    : qrKind === "CHILLER" && seg.insulationItemType
+    ? pvUnitSerialFromSeg(seg)
+    : qrKind === "CHILLER"
+    ? chillerUnitSerialFromSeg(seg)
+    : (seg.serial || "-");
 
   return `
     <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
@@ -1400,14 +1424,14 @@ function buildStationProjectCell(segs) {
   const qrKind = String(firstSeg.qrKind || "").toUpperCase();
 
   const typeText =
-    qrKind === "PV"
+    qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
       ? (firstSeg.vesselType || "-")
       : (firstSeg.coolingType || "-");
 
   const serialText =
-    qrKind === "PV"
-      ? (firstSeg.pvSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-")
-      : (firstSeg.chillerSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-");
+    qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
+      ? pvUnitSerialFromSeg(firstSeg)
+      : chillerUnitSerialFromSeg(firstSeg);
 
   const materialText = firstSeg.materialNumber || "-";
 
@@ -1434,14 +1458,14 @@ function buildStationProjectMiniCell(segs) {
   const qrKind = String(firstSeg.qrKind || "").toUpperCase();
 
   const typeText =
-    qrKind === "PV"
+    qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
       ? (firstSeg.vesselType || "-")
       : (firstSeg.coolingType || "-");
 
   const serialText =
-    qrKind === "PV"
-      ? (firstSeg.pvSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-")
-      : (firstSeg.chillerSerialNumber || firstSeg.serialNumber || firstSeg.serial || "-");
+    qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
+      ? pvUnitSerialFromSeg(firstSeg)
+      : chillerUnitSerialFromSeg(firstSeg);
 
   const materialText = firstSeg.materialNumber || "-";
 

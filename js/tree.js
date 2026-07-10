@@ -2,6 +2,7 @@ console.log("TREE RENDER CALLED");
 
 import { loadRuns} from "./timeline.js";
 import {formatDateTime} from "./gantt.js"
+import { hasExplicitChillerVesselType } from "./helpers.js";
 
 const el = id => document.getElementById(id);
 
@@ -11,7 +12,26 @@ const dayHeadEl = document.getElementById("ganttDayHead");
 const ganttWrapEl = document.querySelector(".ganttWrap");
 const ganttGridEl = document.querySelector(".ganttGrid");
 
-const UNIT_ORDER = ["CHILLER","EVAPORATOR","CONDENSER","OIL SEPARATOR","ECONOMIZER"];
+const UNIT_ORDER = ["CHILLER","COMPRESSOR","EVAPORATOR","CONDENSER","OIL SEPARATOR","ECONOMIZER"];
+
+function pvUnitSerialFromRun(run) {
+  return (
+    run.pvSerialNumber ||
+    run.relatedPvSerialNumber ||
+    run.serialNumber ||
+    run.serial ||
+    "-"
+  );
+}
+
+function chillerUnitSerialFromRun(run) {
+  return (
+    run.chillerSerialNumber ||
+    run.serialNumber ||
+    run.serial ||
+    "-"
+  );
+}
 
 function tsOrMsToDate(ts, ms) {
   if (ts && typeof ts.toDate === "function") return ts.toDate();
@@ -252,39 +272,30 @@ function buildTree(runs){
     const insulationItemType = String(r.insulationItemType || "").toUpperCase().trim();
 
     let unitType = "CHILLER";
-    let unitSerial = r.chillerSerialNumber || "-";
+    let unitSerial = chillerUnitSerialFromRun(r);
 
     // Insulation scanned with CHILLER QR, but belongs to PV item
     if (
       qrKind === "CHILLER" &&
-      relatedQrKind === "PV" &&
-      insulationItemType
+      (
+        hasExplicitChillerVesselType(r) ||
+        (relatedQrKind === "PV" && insulationItemType)
+      )
     ) {
       unitType = r.vesselType || insulationItemType;
-      unitSerial =
-        r.pvSerialNumber ||
-        r.relatedPvSerialNumber ||
-        r.serialNumber ||
-        r.serial ||
-        "-";
+      unitSerial = pvUnitSerialFromRun(r);
     }
 
     // Normal PV
     else if (qrKind === "PV") {
       unitType = r.vesselType || "PV";
-      unitSerial =
-        r.pvSerialNumber ||
-        r.serialNumber ||
-        "-";
+      unitSerial = pvUnitSerialFromRun(r);
     }
 
     // Normal CHILLER
     else {
       unitType = "CHILLER";
-      unitSerial =
-        r.chillerSerialNumber ||
-        r.serialNumber ||
-        "-";
+      unitSerial = chillerUnitSerialFromRun(r);
     }
 
     const unitKey = `${unitType}||${unitSerial}`;

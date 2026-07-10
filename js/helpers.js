@@ -1,5 +1,11 @@
 /* Helpers shared across different js */
 
+export function hasExplicitChillerVesselType(item) {
+  const qrKind = String(item?.qrKind || "").toUpperCase().trim();
+  const vesselType = String(item?.vesselType || "").toUpperCase().trim();
+  return qrKind === "CHILLER" && vesselType && vesselType !== "CHILLER";
+}
+
 export const STANDARD_TIME_MIN_DETAIL = {
   "ZUWV": {
     "CHILLER": {
