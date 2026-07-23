@@ -76,6 +76,7 @@ const CHILLER_PROCESS_ORDER = {
     "B2",
     "B3",
     "B4",
+    "B5",
     "C1",
     "C2",
     "D1",
@@ -90,9 +91,10 @@ const CHILLER_PROCESS_ORDER = {
   ],
   "WATER-COOLED": [
     "PIPING SHOP",
-    "STEEL PIPE SUB-ASSEMBLY",
     "STEEL PIPE SUB-ASSEMBLY (FITTING)",
+    "STEEL PIPE SUB-ASSEMBLY WELDING",
     "STEEL PIPE SUB-ASSEMBLY (WELDING)",
+    "STEEL PIPE SUB-ASSEMBLY",
     "A",
     "B",
     "C",
@@ -568,8 +570,66 @@ function normalizeChillerType(value = "") {
 function getChillerProcessType(seg) {
   if (String(seg?.qrKind || "").trim().toUpperCase() !== "CHILLER") return "";
 
+  const coolingType = normalizeChillerType(seg?.coolingType);
   const vesselType = normalizeChillerType(seg?.vesselType);
-  return CHILLER_PROCESS_RANKS[vesselType] ? vesselType : "";
+
+  if (CHILLER_PROCESS_RANKS[coolingType]) return coolingType;
+  if (CHILLER_PROCESS_RANKS[vesselType]) return vesselType;
+
+  return "";
+}
+
+function getKnownChillerProcessCode(processName = "", chillerType = "") {
+  const label = normalizeProcessOrderCode(processName);
+  const type = normalizeChillerType(chillerType);
+  const typeProcesses = CHILLER_PROCESS_ORDER[type] || [];
+  const allProcesses = Array.from(
+    new Set(Object.values(CHILLER_PROCESS_ORDER).flat())
+  );
+  const candidates = (typeProcesses.length ? typeProcesses : allProcesses)
+    .map(normalizeProcessOrderCode)
+    .sort((a, b) => b.length - a.length);
+
+  return candidates.find(code =>
+    label === code ||
+    label.startsWith(`${code} -`) ||
+    label.startsWith(`${code} `)
+  ) || "";
+}
+
+function getLineBalanceProcessCode(processName = "", chillerType = "") {
+  return getKnownChillerProcessCode(processName, chillerType) || getProcessCode(processName);
+}
+
+function inferChillerProcessType(segments) {
+  let airSignals = 0;
+  let waterSignals = 0;
+  const explicitTypes = new Map();
+
+  for (const seg of segments || []) {
+    if (String(seg?.qrKind || "").trim().toUpperCase() !== "CHILLER") continue;
+
+    const explicitType = getChillerProcessType(seg);
+    if (explicitType) {
+      explicitTypes.set(explicitType, (explicitTypes.get(explicitType) || 0) + 1);
+    }
+
+    const code = getKnownChillerProcessCode(getSegmentProcessLabel(seg), "");
+    if (!code) continue;
+
+    const inAir = CHILLER_PROCESS_RANKS["AIR-COOLED"].has(code);
+    const inWater = CHILLER_PROCESS_RANKS["WATER-COOLED"].has(code);
+
+    if (inAir && !inWater) airSignals++;
+    if (inWater && !inAir) waterSignals++;
+  }
+
+  if (airSignals || waterSignals) {
+    return airSignals >= waterSignals ? "AIR-COOLED" : "WATER-COOLED";
+  }
+
+  return Array.from(explicitTypes.entries())
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || "";
 }
 
 function getChillerProcessRank(processCode = "", chillerType = "") {
@@ -578,6 +638,21 @@ function getChillerProcessRank(processCode = "", chillerType = "") {
 
   if (CHILLER_PROCESS_RANKS[type]?.has(code)) {
     return CHILLER_PROCESS_RANKS[type].get(code);
+  }
+
+  const leadingCodeMatch = code.match(/^([A-Z]+\d*)\b/);
+  const leadingCode = leadingCodeMatch?.[1] || "";
+
+  if (leadingCode && CHILLER_PROCESS_RANKS[type]?.has(leadingCode)) {
+    return CHILLER_PROCESS_RANKS[type].get(leadingCode);
+  }
+
+  if (leadingCode) {
+    const leadingCodeRanks = Object.values(CHILLER_PROCESS_RANKS)
+      .map(rankMap => rankMap.get(leadingCode))
+      .filter(rank => rank != null);
+
+    if (leadingCodeRanks.length) return Math.min(...leadingCodeRanks);
   }
 
   if (CHILLER_PROCESS_RANKS[type]) {
@@ -592,7 +667,7 @@ function getChillerProcessRank(processCode = "", chillerType = "") {
 }
 
 function getProcessSortKey(processName = "", chillerType = "") {
-  const code = getProcessCode(processName);
+  const code = getLineBalanceProcessCode(processName, chillerType);
   const first = String(code || "").split(",")[0].trim();
   const m = first.match(/^(\d+)([A-Z]?)/i);
   const chillerRank =
@@ -651,13 +726,14 @@ function compareProcessSortKey(a, b) {
 
 function buildAverageProcessChartData(segments) {
   const processMap = new Map();
+  const chartChillerType = inferChillerProcessType(segments);
 
   for (const seg of segments) {
     if (seg.phase === "waiting" || seg.status === "waiting") continue;
 
     const fullLabel = getSegmentProcessLabel(seg);
-    const processCode = getProcessCode(fullLabel);
-    const chillerType = getChillerProcessType(seg);
+    const chillerType = chartChillerType || getChillerProcessType(seg);
+    const processCode = getLineBalanceProcessCode(fullLabel, chillerType);
 
   
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
@@ -692,7 +768,10 @@ function buildAverageProcessChartData(segments) {
     row.count++;
   }
   return Array.from(processMap.values())
-    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
+    .sort((a, b) => compareProcessSortKey(
+      getProcessSortKey(a.label, chartChillerType),
+      getProcessSortKey(b.label, chartChillerType)
+    ))
     .map(row => {
       const divisor = Number(row.count || 1);
       const avgManpower = roundManpower(row.manpowerSum / row.count);
@@ -823,13 +902,14 @@ function groupPvSegmentsByVesselType(segments) {
 
 function buildProcessChartData(segments) {
   const processMap = new Map();
+  const chartChillerType = inferChillerProcessType(segments);
 
   for (const seg of segments) {
     if (seg.phase === "waiting" || seg.status === "waiting") continue;
 
     const fullLabel = getSegmentProcessLabel(seg);
-    const processCode = getProcessCode(fullLabel);
-    const chillerType = getChillerProcessType(seg);
+    const chillerType = chartChillerType || getChillerProcessType(seg);
+    const processCode = getLineBalanceProcessCode(fullLabel, chillerType);
 
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
     const totalMin = getTotalDurationMs(seg) / 60000;
@@ -867,7 +947,10 @@ function buildProcessChartData(segments) {
   }
 
   return Array.from(processMap.values())
-    .sort((a, b) => compareProcessSortKey(a.sortKey, b.sortKey))
+    .sort((a, b) => compareProcessSortKey(
+      getProcessSortKey(a.label, chartChillerType),
+      getProcessSortKey(b.label, chartChillerType)
+    ))
     .map(item => {
       const avgManpower = roundManpower(item.manpowerSum / item.segmentCount);
 
