@@ -67,6 +67,52 @@ let lineBalanceVesselView = {
   ECONOMIZER: true
 };
 
+const CHILLER_PROCESS_ORDER = {
+  "AIR-COOLED": [
+    "PIPING SHOP",
+    "A1",
+    "A2",
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "C1",
+    "C2",
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D5",
+    "D6",
+    "H1",
+    "H2",
+    "H3"
+  ],
+  "WATER-COOLED": [
+    "PIPING SHOP",
+    "STEEL PIPE SUB-ASSEMBLY",
+    "STEEL PIPE SUB-ASSEMBLY (FITTING)",
+    "STEEL PIPE SUB-ASSEMBLY (WELDING)",
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H1",
+    "H2",
+    "H3"
+  ]
+};
+
+const CHILLER_PROCESS_RANKS = Object.fromEntries(
+  Object.entries(CHILLER_PROCESS_ORDER).map(([type, processes]) => [
+    type,
+    new Map(processes.map((process, index) => [normalizeProcessOrderCode(process), index]))
+  ])
+);
+
 function getProjectSortTime(project) {
   return Number(
     project.latestStart ||
@@ -507,18 +553,66 @@ function getSegmentProcessLabel(seg) {
   return String(seg.processLabel || seg.processName || "").trim() || "Unknown";
 }
 
-function getProcessSortKey(processName = "") {
+function normalizeProcessOrderCode(processCode = "") {
+  return String(processCode || "")
+    .trim()
+    .replace(/\s*,\s*/g, ",")
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function normalizeChillerType(value = "") {
+  return String(value || "").trim().toUpperCase();
+}
+
+function getChillerProcessType(seg) {
+  if (String(seg?.qrKind || "").trim().toUpperCase() !== "CHILLER") return "";
+
+  const vesselType = normalizeChillerType(seg?.vesselType);
+  return CHILLER_PROCESS_RANKS[vesselType] ? vesselType : "";
+}
+
+function getChillerProcessRank(processCode = "", chillerType = "") {
+  const code = normalizeProcessOrderCode(processCode);
+  const type = normalizeChillerType(chillerType);
+
+  if (CHILLER_PROCESS_RANKS[type]?.has(code)) {
+    return CHILLER_PROCESS_RANKS[type].get(code);
+  }
+
+  if (CHILLER_PROCESS_RANKS[type]) {
+    return null;
+  }
+
+  const matchingRanks = Object.values(CHILLER_PROCESS_RANKS)
+    .map(rankMap => rankMap.get(code))
+    .filter(rank => rank != null);
+
+  return matchingRanks.length ? Math.min(...matchingRanks) : null;
+}
+
+function getProcessSortKey(processName = "", chillerType = "") {
   const code = getProcessCode(processName);
   const first = String(code || "").split(",")[0].trim();
   const m = first.match(/^(\d+)([A-Z]?)/i);
+  const chillerRank =
+    getChillerProcessRank(code, chillerType) ??
+    getChillerProcessRank(processName, chillerType);
 
   if (!m) {
-    return { major: 9999, suffix: "" };
+    return {
+      chillerRank,
+      major: 9999,
+      suffix: "",
+      label: normalizeProcessOrderCode(code)
+    };
   }
 
   return {
+    chillerRank,
     major: Number(m[1]),
-    suffix: (m[2] || "").toUpperCase()
+    suffix: (m[2] || "").toUpperCase(),
+    label: normalizeProcessOrderCode(code)
   };
 }
 
@@ -536,10 +630,23 @@ function formatUniqueList(values) {
 }
 
 function compareProcessSortKey(a, b) {
+  const aRank = a?.chillerRank;
+  const bRank = b?.chillerRank;
+
+  if (aRank != null || bRank != null) {
+    if (aRank == null) return 1;
+    if (bRank == null) return -1;
+    if (aRank !== bRank) return aRank - bRank;
+  }
+
   if ((a?.major ?? 9999) !== (b?.major ?? 9999)) {
     return (a?.major ?? 9999) - (b?.major ?? 9999);
   }
-  return (a?.suffix || "").localeCompare(b?.suffix || "");
+
+  const suffixCompare = (a?.suffix || "").localeCompare(b?.suffix || "");
+  if (suffixCompare) return suffixCompare;
+
+  return (a?.label || "").localeCompare(b?.label || "");
 }
 
 function buildAverageProcessChartData(segments) {
@@ -550,6 +657,7 @@ function buildAverageProcessChartData(segments) {
 
     const fullLabel = getSegmentProcessLabel(seg);
     const processCode = getProcessCode(fullLabel);
+    const chillerType = getChillerProcessType(seg);
 
   
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
@@ -567,7 +675,7 @@ function buildAverageProcessChartData(segments) {
         count: 0,
         projectNames: new Set(),
         serialNumbers: new Set(),
-        sortKey: getProcessSortKey(fullLabel)
+        sortKey: getProcessSortKey(fullLabel, chillerType)
       });
     }
 
@@ -721,6 +829,7 @@ function buildProcessChartData(segments) {
 
     const fullLabel = getSegmentProcessLabel(seg);
     const processCode = getProcessCode(fullLabel);
+    const chillerType = getChillerProcessType(seg);
 
     const actualMin = getActualEffectiveDurationMs(seg) / 60000;
     const totalMin = getTotalDurationMs(seg) / 60000;
@@ -738,7 +847,7 @@ function buildProcessChartData(segments) {
         segmentCount: 0,
         projectNames: new Set(),
         serialNumbers: new Set(),
-        sortKey: getProcessSortKey(fullLabel)
+        sortKey: getProcessSortKey(fullLabel, chillerType)
       });
     }
 
