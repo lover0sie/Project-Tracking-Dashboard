@@ -3,7 +3,6 @@ import {
   getActualEffectiveDurationMs,
   getStandardMinutes,
   getProcessCode,
-  buildHistoricalStandardsByModelProcess as buildSharedHistoricalStandardsByModelProcess,
   STANDARD_BASELINE_FROM,
   STANDARD_BASELINE_TO,
   STANDARD_FACTOR
@@ -108,6 +107,7 @@ const CHILLER_PROCESS_ORDER = {
   ]
 };
 
+// Rank chiller process keys by cooling type for model and project chart sorting.
 const CHILLER_PROCESS_RANKS = Object.fromEntries(
   Object.entries(CHILLER_PROCESS_ORDER).map(([type, processes]) => [
     type,
@@ -570,6 +570,7 @@ function normalizeChillerType(value = "") {
 function getChillerProcessType(seg) {
   if (String(seg?.qrKind || "").trim().toUpperCase() !== "CHILLER") return "";
 
+  // Prefer coolingType because chiller records store AIR-COOLED/WATER-COOLED there.
   const coolingType = normalizeChillerType(seg?.coolingType);
   const vesselType = normalizeChillerType(seg?.vesselType);
 
@@ -590,6 +591,7 @@ function getKnownChillerProcessCode(processName = "", chillerType = "") {
     .map(normalizeProcessOrderCode)
     .sort((a, b) => b.length - a.length);
 
+  // Match full-label processes before the generic hyphen splitter touches names like sub-assembly.
   return candidates.find(code =>
     label === code ||
     label.startsWith(`${code} -`) ||
@@ -606,6 +608,7 @@ function inferChillerProcessType(segments) {
   let waterSignals = 0;
   const explicitTypes = new Map();
 
+  // Model view can combine mixed metadata, so infer one chart-level chiller order from the process list.
   for (const seg of segments || []) {
     if (String(seg?.qrKind || "").trim().toUpperCase() !== "CHILLER") continue;
 
@@ -643,6 +646,7 @@ function getChillerProcessRank(processCode = "", chillerType = "") {
   const leadingCodeMatch = code.match(/^([A-Z]+\d*)\b/);
   const leadingCode = leadingCodeMatch?.[1] || "";
 
+  // Keep code-like labels such as D5 with their defined rank even when extra text follows.
   if (leadingCode && CHILLER_PROCESS_RANKS[type]?.has(leadingCode)) {
     return CHILLER_PROCESS_RANKS[type].get(leadingCode);
   }
@@ -694,6 +698,17 @@ function getProcessSortKey(processName = "", chillerType = "") {
 function getProcessDisplayName(processName = "") {
   const label = String(processName || "").trim();
   return label.replace(/^.+?\s*-\s*/, "").trim() || label;
+}
+
+function formatProcessAxisLabel(processCode = "") {
+  const label = String(processCode || "").trim();
+
+  // Preserve process-code casing for PV and chiller codes, then proper-case full process names.
+  if (/^[A-Z]+\d*$/.test(label) || /^\d+[A-Z]*$/.test(label) || /^\d+[A-Z]?(,\d+[A-Z]?)*$/.test(label)) {
+    return label;
+  }
+
+  return label.toLowerCase().replace(/\b[a-z]/g, letter => letter.toUpperCase());
 }
 
 function formatUniqueList(values) {
@@ -780,7 +795,7 @@ function buildAverageProcessChartData(segments) {
       const standard = row.standardMin;
 
       return {
-        label: row.label, // process code only
+        label: formatProcessAxisLabel(row.label), // process code only
         fullLabel: row.fullLabel,
         projectName: formatUniqueList(row.projectNames),
         serialNumber: formatUniqueList(row.serialNumbers),
@@ -877,6 +892,43 @@ function getHistoricalStandardMin(seg, processCode) {
   return historicalStandardsByModelProcess[key] || 0;
 }
 
+function buildLineBalanceHistoricalStandardsByModelProcess(segments) {
+  const map = new Map();
+
+  for (const seg of segments || []) {
+    if (seg.phase === "waiting" || seg.status === "waiting") continue;
+    if (!isSegmentInStandardBaseline(seg)) continue;
+
+    const fullLabel = getSegmentProcessLabel(seg);
+    const isChiller = String(seg?.qrKind || "").trim().toUpperCase() === "CHILLER";
+    const chillerType = isChiller ? getChillerProcessType(seg) : "";
+    // Use the same chiller process key for standard lookup and chart grouping.
+    const processCode = isChiller
+      ? getLineBalanceProcessCode(fullLabel, chillerType)
+      : getProcessCode(fullLabel);
+    const model = String(seg.model || "").trim();
+    const type = getSegmentType(seg);
+
+    if (!model || !type || !processCode) continue;
+
+    const actualMin = getActualEffectiveDurationMs(seg) / 60000;
+    if (!Number.isFinite(actualMin) || actualMin <= 0) continue;
+
+    const key = getStandardKey(model, type, processCode);
+
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(actualMin);
+  }
+
+  const standards = {};
+
+  for (const [key, values] of map.entries()) {
+    standards[key] = calculateStandardFromValues(values);
+  }
+
+  return standards;
+}
+
 function getProjectSegments(segments, chillerSerialNumber) {
   return segments.filter(seg =>
     String(seg.chillerSerialNumber || "").trim() === String(chillerSerialNumber || "").trim()
@@ -955,7 +1007,7 @@ function buildProcessChartData(segments) {
       const avgManpower = roundManpower(item.manpowerSum / item.segmentCount);
 
       return {
-        label: item.label, // process code only
+        label: formatProcessAxisLabel(item.label), // process code only
         fullLabel: item.fullLabel,
         projectName: formatUniqueList(item.projectNames),
         serialNumber: formatUniqueList(item.serialNumbers),
@@ -2058,7 +2110,7 @@ async function renderPage() {
       : allSegmentsResult.segments || [];
 
     historicalStandardsByModelProcess =
-      buildSharedHistoricalStandardsByModelProcess(allSegmentsCache);
+      buildLineBalanceHistoricalStandardsByModelProcess(allSegmentsCache);
 
   applyModelDateBounds(currentProjects);
   currentModels = getVisibleModels();

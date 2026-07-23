@@ -478,7 +478,7 @@ export function getTotalDurationMs(seg) {
 }
 
 export const STANDARD_BASELINE_FROM = "2026-05-01";
-export const STANDARD_BASELINE_TO = "2026-06-30";
+export const STANDARD_BASELINE_TO = "2026-07-15";
 export const STANDARD_FACTOR = 0.8;
 
 function parseDateStartMs(value) {
