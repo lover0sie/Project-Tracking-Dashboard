@@ -407,6 +407,20 @@
   margin-left: auto;
 }
 
+.dashboardPage .dataCountPanel {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.dashboardPage .dataCountPanel > div {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 
 /* ================ Auto Stop Popup ============ */
 

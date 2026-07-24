@@ -1,7 +1,7 @@
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
-  getStandardMinutes,
+  getBreakOverlapMs,
   getProcessCode,
   STANDARD_BASELINE_FROM,
   STANDARD_BASELINE_TO,
@@ -33,6 +33,7 @@ const modelDateFromGroupEl = document.getElementById("lbModelDateFromGroup");
 const modelDateToGroupEl = document.getElementById("lbModelDateToGroup");
 const modelDateFromEl = document.getElementById("lbModelDateFrom");
 const modelDateToEl = document.getElementById("lbModelDateTo");
+const exportCombinedRawBtn = document.getElementById("exportCombinedRawBtn");
 
 
 let projectSortMode = "latest";
@@ -41,7 +42,6 @@ let currentProjects = [];
 let allRunsCache = [];
 let allSegmentsCache = [];
 let tooltipEl = null;
-let selectedProjectRuns = [];
 let selectedProjectSegments = [];
 let projectSearchTerm = "";
 let lineBalanceMode = "PROJECT";
@@ -287,6 +287,11 @@ function updateToolbarModeUi() {
 
   modelDateFromGroupEl?.classList.toggle("hidden", !isModelBase);
   modelDateToGroupEl?.classList.toggle("hidden", !isModelBase);
+
+  if (exportCombinedRawBtn) {
+    const isPvView = String(qrKindViewEl?.value || "").trim().toUpperCase() === "PV";
+    exportCombinedRawBtn.style.display = isPvView ? "" : "none";
+  }
 }
 
 function setModelDateControlsLoading(isLoading) {
@@ -335,11 +340,15 @@ function isSegmentInStandardBaseline(seg) {
 }
 
 function getTotalDurationMs(seg) {
-  const startMs = seg?.start instanceof Date ? seg.start.getTime() : null;
-  const endMs = seg?.end instanceof Date ? seg.end.getTime() : null;
+  const start = seg?.start instanceof Date ? seg.start : null;
+  const end = seg?.end instanceof Date ? seg.end : null;
 
-  if (startMs == null || endMs == null) return 0;
-  return Math.max(0, endMs - startMs);
+  if (!start || !end || end <= start) return 0;
+
+  const elapsedMs = end.getTime() - start.getTime();
+  const breakMs = getBreakOverlapMs(start, end);
+
+  return Math.max(0, elapsedMs - breakMs);
 }
 
 // get manpower for segment, default to 1 if not available or invalid
@@ -693,11 +702,6 @@ function getProcessSortKey(processName = "", chillerType = "") {
     suffix: (m[2] || "").toUpperCase(),
     label: normalizeProcessOrderCode(code)
   };
-}
-
-function getProcessDisplayName(processName = "") {
-  const label = String(processName || "").trim();
-  return label.replace(/^.+?\s*-\s*/, "").trim() || label;
 }
 
 function formatProcessAxisLabel(processCode = "") {
@@ -1911,12 +1915,31 @@ async function onModelClick(modelRow) {
     projectNameEl.textContent = selectedModel || "-";
   }
 
+  if (countLabelEl) {
+    countLabelEl.textContent = "Total Units";
+  }
+
+  if (projectCountEl) {
+    projectCountEl.textContent = String(modelRow.projectCount || 0);
+  }
+
   if (chillerSerialEl) {
     chillerSerialEl.textContent = "All serial numbers";
   }
 
   const filteredModels = getVisibleModels();
   renderModelList(filteredModels);
+
+  if (countLabelEl) {
+    countLabelEl.textContent = "Total Units";
+  }
+
+  if (projectCountEl) {
+    const selectedRow = filteredModels.find(row =>
+      String(row.model || "") === String(selectedModel || "")
+    );
+    projectCountEl.textContent = String(selectedRow?.projectCount || modelRow.projectCount || 0);
+  }
 
   const modelProjects = getVisibleModelProjects().filter(project =>
     String(project.model || "").trim() === String(selectedModel || "").trim()
@@ -2151,6 +2174,8 @@ async function renderPage() {
 
 
 qrKindViewEl?.addEventListener("change", () => {
+  updateToolbarModeUi();
+
   if (lineBalanceMode === "MODEL") {
     const activeModel = currentModels.find(
       m => String(m.model || "") === String(selectedModel || "")

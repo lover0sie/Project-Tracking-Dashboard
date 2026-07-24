@@ -1,0 +1,420 @@
+.cycleTimePage .wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cycleTimePage .top {
+  margin: 2px 0 8px;
+}
+
+.cycleTimePage .top h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.cycleToolbar {
+  flex: 0 0 auto;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(160px, 210px) minmax(160px, 210px) minmax(130px, 1fr) minmax(130px, 1fr) 116px;
+  align-items: end;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+  overflow: visible;
+  min-height: 66px;
+}
+
+.cycleToolbar .toolbarGroup {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cycleToolbar label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.cycleToolbar .pickerInput,
+.cycleToolbar .infoText {
+  width: 100%;
+  height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.cycleToolbar .infoText {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.cycleToolbar .btn {
+  width: 100%;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.cycleGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(620px, 0.95fr) minmax(420px, 1.05fr);
+  gap: 12px;
+  overflow: hidden;
+}
+
+.cyclePanel {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.panelHead {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.panelHead h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.panelHead p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tableWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 18px 18px;
+}
+
+.tableWrap .cycleTable {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px #e5e7eb;
+  overflow: hidden;
+}
+
+.cycleChartWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px 16px 14px;
+}
+
+.cycleBarChart {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 30px 42px 1fr;
+  grid-template-rows: 1fr 56px 18px;
+  column-gap: 8px;
+  row-gap: 4px;
+}
+
+.cycleAxisLabel {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.cycleYAxisLabel {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-weight: 700;
+}
+
+.cycleYAxis {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.cycleYTick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cyclePlot {
+  position: relative;
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cycleModelCount, 1), minmax(0, 1fr));
+  align-items: end;
+  gap: 5px;
+  padding: 18px 0 0;
+  border-bottom: 1px solid #cbd5e1;
+  border-left: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.cycleGridLines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cycleGridLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.cycleBarSlot {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 18px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+}
+
+.cycleBar {
+  width: min(34px, 76%);
+  min-height: 2px;
+  border-radius: 6px 6px 0 0;
+  position: relative;
+}
+
+.cycleBarValue {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  color: #334155;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.cycleXAxis {
+  grid-column: 3;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--cycleModelCount, 1), minmax(0, 1fr));
+  gap: 5px;
+}
+
+.cycleXLabel {
+  padding-top: 6px;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.15;
+}
+
+.cycleXAxisLabel {
+  grid-column: 3;
+  grid-row: 3;
+  justify-self: center;
+}
+
+.cycleTable {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cycleTable th,
+.cycleTable td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cycleTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.cycleTable td {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.cycleTable .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cycleModelRow {
+  cursor: pointer;
+  outline: none;
+}
+
+.cycleModelRow:hover td,
+.cycleModelRow:focus td {
+  background: #eff6ff;
+}
+
+.cycleModelRow:hover td:first-child,
+.cycleModelRow:focus td:first-child {
+  color: #1d4ed8;
+}
+
+.emptyState {
+  padding: 24px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.cycleModal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.cycleModal.hidden {
+  display: none;
+}
+
+.cycleModalCard {
+  width: min(1120px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.24);
+  overflow: hidden;
+}
+
+.cycleModalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cycleModalHead h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.cycleModalHead p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cycleModalClose {
+  min-width: 74px;
+  height: 34px;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.cycleModalBody {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 18px 18px;
+}
+
+.cycleModalBody .cycleTable {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #e5e7eb;
+}
+
+.cycleTotalRow td {
+  position: sticky;
+  bottom: 0;
+  background: #f8fafc;
+  font-weight: 900;
+}
+
+@media (max-width: 980px) {
+  .cycleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cycleToolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .cycleToolbar {
+    grid-template-columns: 1fr;
+  }
+}

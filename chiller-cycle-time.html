@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chiller Cycle Time</title>
+  <link rel="stylesheet" href="css/common.css" />
+  <link rel="stylesheet" href="css/chiller-cycle-time.css" />
+</head>
+<body class="cycleTimePage">
+  <div class="appShell">
+    <nav class="sideNav" aria-label="Main navigation">
+      <div class="sideNavBrand">
+        <div class="sideNavTitle">Project Tracking</div>
+        <div class="sideNavSub">Dashboard views</div>
+      </div>
+      <div class="sideNavGroup">
+        <a class="sideNavLink" data-nav-item="project-gantt" href="index.html">Project Gantt</a>
+        <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
+        <a class="sideNavLink" data-nav-item="tree-view" href="tree.html">Tree View</a>
+        <a class="sideNavLink" data-nav-item="line-balance" href="line-balance.html">Line Balance</a>
+        <a class="sideNavLink active" data-nav-item="chiller-cycle-time" href="chiller-cycle-time.html" aria-current="page">Chiller Cycle Time</a>
+        <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
+        <a class="sideNavLink" data-nav-item="on-hold-cleanup" href="on-hold-cleanup.html">Cleanup</a>
+        <a class="sideNavLink" data-nav-item="acknowledgement" href="acknowledgement.html">Acknowledgement</a>
+      </div>
+    </nav>
+
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <h2>Chiller Cycle Time</h2>
+        </div>
+      </header>
+
+      <section class="cycleToolbar card">
+        <div class="toolbarGroup">
+          <label for="cycleDateFrom">From</label>
+          <input type="date" id="cycleDateFrom" class="pickerInput" />
+        </div>
+        <div class="toolbarGroup">
+          <label for="cycleDateTo">To</label>
+          <input type="date" id="cycleDateTo" class="pickerInput" />
+        </div>
+        <div class="toolbarGroup infoGroup">
+          <label>Total Models</label>
+          <div id="cycleModelCount" class="infoText">0</div>
+        </div>
+        <div class="toolbarGroup infoGroup">
+          <label>Total Units</label>
+          <div id="cycleRecordCount" class="infoText">0</div>
+        </div>
+        <button type="button" id="cycleRefreshBtn" class="btn">Refresh</button>
+      </section>
+
+      <section class="cycleGrid">
+        <div class="cyclePanel">
+          <div class="panelHead">
+            <div>
+              <h3>Chiller Model Cycle Time</h3>
+              <p>Sum of average effective duration multiplied by manpower for each chiller process.</p>
+            </div>
+          </div>
+          <div id="cycleSummaryTable" class="tableWrap">
+            <div class="emptyState">Loading chiller cycle time...</div>
+          </div>
+        </div>
+
+        <div class="cyclePanel cycleChartPanel">
+          <div class="panelHead">
+            <div>
+              <h3>Chiller Model Unit Frequency</h3>
+              <p>Number of chiller model units for the selected date range.</p>
+            </div>
+          </div>
+          <div id="cycleModelChart" class="cycleChartWrap">
+            <div class="emptyState">Loading model frequency...</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="cycleProcessModal" class="cycleModal hidden" role="dialog" aria-modal="true" aria-labelledby="cycleProcessModalTitle">
+    <div class="cycleModalCard">
+      <div class="cycleModalHead">
+        <div>
+          <h3 id="cycleProcessModalTitle">Process Cycle Time</h3>
+          <p id="cycleProcessModalSub">Average effective duration and manpower by process.</p>
+        </div>
+        <button type="button" id="cycleModalCloseBtn" class="cycleModalClose" aria-label="Close process details">Close</button>
+      </div>
+      <div id="cycleProcessModalBody" class="cycleModalBody"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/chiller-cycle-time.js"></script>
+  <script type="module">
+    import(`./js/version-check.js?v=${Date.now()}`)
+      .then(({ startVersionCheck }) => startVersionCheck())
+      .catch(err => console.warn("Version check failed to start", err));
+  </script>
+</body>
+</html>
