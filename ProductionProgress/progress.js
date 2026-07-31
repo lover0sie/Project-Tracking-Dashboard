@@ -76,6 +76,53 @@ let lastDashboardUpdateAt = null;
 
 
 /* =========================================================
+   URL STATE
+========================================================= */
+
+function getUrlState() {
+  const params =
+    new URLSearchParams(window.location.search);
+
+  return {
+    date: normalizeText(params.get("date") || ""),
+    station: normalizeText(params.get("station") || ""),
+    process: normalizeText(params.get("process") || "")
+  };
+}
+
+function updateUrlState() {
+  const params =
+    new URLSearchParams(window.location.search);
+
+  if (periodPicker.value) {
+    params.set("date", periodPicker.value);
+  } else {
+    params.delete("date");
+  }
+
+  if (selectedStation) {
+    params.set("station", selectedStation);
+  } else {
+    params.delete("station");
+  }
+
+  if (selectedProcessKey) {
+    params.set("process", selectedProcessKey);
+  } else {
+    params.delete("process");
+  }
+
+  const query =
+    params.toString();
+
+  const nextUrl =
+    `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+
+  window.history.replaceState(null, "", nextUrl);
+}
+
+
+/* =========================================================
    BASIC HELPERS
 ========================================================= */
 
@@ -666,9 +713,14 @@ function renderStationOptions() {
   ) {
     stationSelect.value = selectedStation;
   } else {
-    selectedStation = "";
+    selectedStation = stations[0] || "";
     selectedProcessKey = "";
+
+    stationSelect.value =
+      selectedStation;
   }
+
+  updateUrlState();
 }
 
 function renderProcessOptions() {
@@ -716,6 +768,8 @@ function renderProcessOptions() {
     processSelect.value =
       selectedProcessKey;
   }
+
+  updateUrlState();
 }
 
 
@@ -1168,8 +1222,17 @@ async function initializeStandards() {
 }
 
 async function initializeDashboard() {
+  const urlState =
+    getUrlState();
+
   periodPicker.value =
-    getCurrentDateKey();
+    urlState.date || getCurrentDateKey();
+
+  selectedStation =
+    urlState.station;
+
+  selectedProcessKey =
+    urlState.process;
 
   setLoading(true);
 
@@ -1217,6 +1280,7 @@ stationSelect.addEventListener(
 
     renderProcessOptions();
     renderDashboard();
+    updateUrlState();
   }
 );
 
@@ -1227,6 +1291,7 @@ processSelect.addEventListener(
       processSelect.value;
 
     renderDashboard();
+    updateUrlState();
   }
 );
 
