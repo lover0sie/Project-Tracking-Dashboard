@@ -1223,113 +1223,6 @@ function renderStationLegend(segments) {
   if (legendStationsEl) legendStationsEl.innerHTML = stationHtml;
 }
 
-function formatStatus(text) {
-  if (!text) return "";
-  return String(text)
-    .toLowerCase()
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function stationTipTextBuilder(seg, realFrom, realTo, type, part) {
-  const partType = part?.type || type || "";
-
-  if (partType === "waiting" || seg?.phase === "waiting" || seg?.status === "waiting") {
-    return waitingTipTextBuilder(realFrom, realTo);
-  }
-
-  if (partType === "on_hold_gap") {
-    return holdTipTextBuilder(seg, realFrom, realTo, part);
-  }
-
-  return processTipTextBuilder(seg, realFrom, realTo, type, part);
-}
-
-function processTipTextBuilder(seg, realFrom, realTo, type, part) {
-  const qrKind = String(seg?.qrKind || "").toUpperCase().trim();
-  let typeText = "-";
-
-  if (qrKind === "PV") {
-    typeText = seg?.vesselType || "-";
-  } else if (hasExplicitChillerVesselType(seg)) {
-    typeText = seg?.vesselType || "-";
-  } else if (qrKind === "CHILLER" && seg?.insulationItemType) {
-    typeText = seg?.vesselType || seg?.insulationItemType || "-";
-  } else if (qrKind === "CHILLER") {
-    typeText = seg?.coolingType || "-";
-  } else {
-    typeText = seg?.coolingType || seg?.vesselType || "-";
-  }
-  const isRunning =
-    String(seg?.status || "").toLowerCase().trim() === "running";
-
-  const effectiveEnd = isRunning ? new Date() : realTo;
-
-  const endText = isRunning
-    ? `Now (${formatDateTime(effectiveEnd)})`
-    : (realTo ? formatDateTime(realTo) : "-");
-
-  const sliceEffectiveMs = Math.max(
-    0,
-    (effectiveEnd?.getTime?.() || 0) - (realFrom?.getTime?.() || 0)
-  );
-
-  const totalEffectiveMs = getActualEffectiveDurationMs(seg);
-
-  
-  const statusText = formatStatus(seg?.status || type || "-");
-
-  const serialText =
-  qrKind === "PV" || hasExplicitChillerVesselType(seg)
-    ? pvUnitSerialFromSeg(seg)
-    : qrKind === "CHILLER" && seg.insulationItemType
-    ? pvUnitSerialFromSeg(seg)
-    : qrKind === "CHILLER"
-    ? chillerUnitSerialFromSeg(seg)
-    : (seg.serial || "-");
-
-  return `
-    <div class="tipTitle">${escapeHtml(seg.processLabel || seg.processName || "-")}</div>
-    <div class="tipRow"><span class="tipLabel">Started By:</span> ${escapeHtml(seg.employeeName || "-")} (${escapeHtml(seg.employeeNumber || "-")})</div>
-    <div class="tipRow"><span class="tipLabel">Resumed By:</span> ${escapeHtml(seg.resumedByName || "-")} (${escapeHtml(seg.resumedByNumber || "-")})</div>
-    <div class="tipRow"><span class="tipLabel">Manpower:</span> ${seg.manpower ?? "-"}</div>
-    <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(realFrom))}</div>
-    <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
-    <div class="tipRow"><span class="tipLabel">Effective Duration:</span> ${escapeHtml(formatDuration(sliceEffectiveMs))}</div>
-    <div class="tipRow"><span class="tipLabel">Total Effective Duration:</span> ${escapeHtml(formatDuration(totalEffectiveMs))}</div>
-  `;
-}
-
-function waitingTipTextBuilder(start, end) {
-  const durationMs = Math.max(0, end.getTime() - start.getTime());
-
-  return `
-    <div class="tipTitle">Waiting</div>
-    <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(start))}</div>
-    <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(formatDateTime(end))}</div>
-    <div class="tipRow"><span class="tipLabel">Duration:</span> ${escapeHtml(formatDuration(durationMs))}</div>
-  `;
-}
-
-function holdTipTextBuilder(seg, start, end, part) {
-  const holdReason = normalizeHoldReason(part?.holdReason || seg?.holdReason);
-  const remarks = part?.remarks || seg?.remarks || "-";
-  const durationMs = Math.max(0, end.getTime() - start.getTime());
-
-  const endText = part?.isOpen
-    ? `Now (${formatDateTime(new Date())})`
-    : formatDateTime(end);
-
-  return `
-    <div class="tipTitle">On Hold</div>
-    <div class="tipRow"><span class="tipLabel">Start:</span> ${escapeHtml(formatDateTime(start))}</div>
-    <div class="tipRow"><span class="tipLabel">End:</span> ${escapeHtml(endText)}</div>
-    <div class="tipRow"><span class="tipLabel">Duration:</span> ${escapeHtml(formatDuration(durationMs))}</div>
-    <b><div class="tipRow">Hold Reason:</span> ${escapeHtml(holdReason)}</div></b>
-    <b><div class="tipRow">Remarks: ${escapeHtml(remarks)}</div></b>
-  `;
-}
-
 function drawNowLine(rangeMin, rangeMax, hourW) {
   const now = new Date();
 
@@ -1605,15 +1498,13 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
                 seg.phase === "waiting" ||
                 seg.status === "waiting";
 
-              const tipText = isWaiting
-                ? waitingTipTextBuilder(sliceStart, sliceEnd)
-                : stationTipTextBuilder(
-                    seg,
-                    sliceStart,
-                    sliceEnd,
-                    isHoldGap ? "on_hold_gap" : "process",
-                    p
-                  );
+              const tipText = tipTextBuilder(
+                seg,
+                sliceStart,
+                sliceEnd,
+                isHoldGap ? "on_hold_gap" : isWaiting ? "waiting" : "process",
+                p
+              );
 
               const barStationCls =
                 isHoldGap ? "st-holdgap" :

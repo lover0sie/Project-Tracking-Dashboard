@@ -121,6 +121,10 @@ export const LEGEND_STATUS = [
   { cls: "swatch-hold", label: "On Hold" }
 ];
 
+export const STANDARD_BASELINE_FROM = "2026-05-01";
+export const STANDARD_BASELINE_TO = "2026-07-30";
+export const STANDARD_FACTOR = 0.8;
+
 /* Helpers for time */
 
 const TZ = "Asia/Kuala_Lumpur";
@@ -477,9 +481,7 @@ export function getTotalDurationMs(seg) {
   return seg.end.getTime() - seg.start.getTime();
 }
 
-export const STANDARD_BASELINE_FROM = "2026-05-01";
-export const STANDARD_BASELINE_TO = "2026-07-15";
-export const STANDARD_FACTOR = 0.8;
+
 
 function parseDateStartMs(value) {
   if (!value) return null;

@@ -562,6 +562,19 @@
   background: #8a032d;
 }
 
+/* DIL standard time is shown as a striped blue series. */
+.lbLegendSwatch.planned,
+.lbBar.planned {
+  background-color: #93c5fd;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(29, 78, 216, 0.95) 0,
+    rgba(29, 78, 216, 0.95) 4px,
+    rgba(147, 197, 253, 0.95) 4px,
+    rgba(147, 197, 253, 0.95) 8px
+  );
+}
+
 .lbLegendLine {
   width: 18px;
   border-top: 2px dashed #ef4444;

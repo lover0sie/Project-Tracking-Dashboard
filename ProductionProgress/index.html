@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Production Progress Tracker</title>
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <main class="app-shell">
+
+    <header class="hero">
+      <div>
+        <h1>Production Progress Tracker</h1>
+        <p class="subtitle">
+          Target vs actual production progress
+        </p>
+      </div>
+
+      <button id="refreshBtn" class="btn btn-light hero-refresh">
+        Refresh
+      </button>
+    </header>
+
+    <!-- Filters -->
+    <section class="toolbar card">
+
+      <div class="field">
+        <label for="periodPicker">Date</label>
+        <input type="date" id="periodPicker" />
+      </div>
+
+      <div class="field">
+        <label for="stationSelect">Display / Station</label>
+
+        <select id="stationSelect">
+          <option value="">Select station</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="processSelect">Process</label>
+
+        <select id="processSelect" disabled>
+          <option value="">Select process</option>
+        </select>
+      </div>
+
+      <div class="last-update">
+        <span>Last Update</span>
+        <strong id="lastUpdateText">-</strong>
+      </div>
+
+    </section>
+
+    <!-- Summary -->
+    <section class="summary-grid">
+
+      <article class="metric-card card">
+        <span class="metric-label">Station</span>
+        <strong id="selectedStationText">-</strong>
+      </article>
+
+      <article class="metric-card card">
+        <span class="metric-label">Projects</span>
+        <strong id="projectCountText">0</strong>
+      </article>
+
+      <article class="metric-card card">
+        <span class="metric-label">Completed</span>
+        <strong id="completedCountText">0</strong>
+      </article>
+
+      <article class="metric-card card">
+        <span class="metric-label">Running</span>
+        <strong id="runningCountText">0</strong>
+      </article>
+
+      <article class="metric-card card">
+        <span class="metric-label">On Hold</span>
+        <strong id="onHoldCountText">0</strong>
+      </article>
+
+    </section>
+
+    <!-- Process table -->
+    <section class="card progress-panel">
+
+      <div class="panel-head">
+        <div>
+          <h2 id="progressTitle">Daily Process Progress</h2>
+
+          <p id="progressSubTitle">
+            Select a station and process to view project progress.
+          </p>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+
+        <table class="progress-table">
+
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Project Name</th>
+              <th>Model</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Start</th>
+              <th>Expected Completion</th>
+              <th>Standard</th>
+              <th>Actual</th>
+              <th>Progress</th>
+            </tr>
+          </thead>
+
+          <tbody id="progressTableBody">
+            <tr>
+              <td colspan="10" class="empty-cell">
+                Select a station and process.
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <script type="module" src="./progress.js"></script>
+</body>
+</html>

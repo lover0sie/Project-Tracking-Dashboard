@@ -8,7 +8,7 @@ import {
   STANDARD_FACTOR
 } from "./helpers.js";
 
-import { PV_COMBINED_LINE_BALANCE } from "./pv-combined-list.js";
+import { CHILLER_LINE_BALANCE, PV_COMBINED_LINE_BALANCE } from "./pv-combined-list.js";
 
 import { loadProjectHeadersFallbackFromRuns, loadRunsForProject } from "./timeline.js";
 import {
@@ -56,7 +56,8 @@ let combinedLineBalanceDebugRows = [];
 let lineBalanceView = {
   showStandard: true, // default on
   showActual: true,   // default on
-  showTotal: false    // default off
+  showTotal: false,    // default off
+  showPlanned: false
 };
 
 let lineBalanceVesselView = {
@@ -66,6 +67,9 @@ let lineBalanceVesselView = {
   ECONOMIZER: true
 };
 
+const PV1_MODELS = ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS", "ZUWY"];
+
+// Define the order of chiller processes by cooling type
 const CHILLER_PROCESS_ORDER = {
   "AIR-COOLED": [
     "PIPING SHOP",
@@ -115,6 +119,7 @@ const CHILLER_PROCESS_RANKS = Object.fromEntries(
   ])
 );
 
+// Get the sort time for a project, using the first available timestamp in order of preference
 function getProjectSortTime(project) {
   return Number(
     project.latestStart ||
@@ -126,6 +131,7 @@ function getProjectSortTime(project) {
   );
 }
 
+// Get the segment type for a given segment, defaulting to "CHILLER" if not PV
 function getSegmentType(seg) {
   if (String(seg?.qrKind || "").toUpperCase() === "PV") {
     return String(seg?.vesselType || "PV").trim();
@@ -134,6 +140,7 @@ function getSegmentType(seg) {
   return "CHILLER";
 }
 
+// Get a standardized key for a model, type, and process code combination
 function getStandardKey(model, type, processCode) {
   return [
     String(model || "").trim(),
@@ -142,6 +149,7 @@ function getStandardKey(model, type, processCode) {
   ].join("__");
 }
 
+// Sort projects based on the selected sort mode
 function sortProjects(projects) {
   const list = Array.isArray(projects) ? [...projects] : [];
 
@@ -168,8 +176,7 @@ function sortProjects(projects) {
   });
 }
 
-const PV1_MODELS = ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS", "ZUWY"];
-
+// Check if a given model is part of the PV1 models list
 function isPv1Model(model = "") {
   const modelKey = String(model || "").trim().toUpperCase();
   return PV1_MODELS.includes(modelKey);
@@ -192,6 +199,7 @@ function normalizeProcessCodeForCombined(processCode, model = "") {
   return code;
 }
 
+// Determine if a process should be skipped for combined chart based on model and process code
 function shouldSkipProcessForCombined(processCode, model = "") {
   const code = String(processCode || "").trim().toUpperCase();
   const modelKey = String(model || "").trim().toUpperCase();
@@ -226,9 +234,51 @@ function applyProcess13LargestOnly(rows) {
 function getPvCombinedConfig(model) {
   const modelKey = String(model || "").trim().toUpperCase();
 
-  return PV_COMBINED_LINE_BALANCE.find(config =>
+  const matches = PV_COMBINED_LINE_BALANCE.filter(config =>
     config.models.some(m => String(m).toUpperCase() === modelKey)
   );
+
+  // A model-specific combined config is preferred when duplicate model entries are defined.
+  return matches.find(config => config.models.length === 1) || matches[0];
+}
+
+function shouldShowPlannedForPvCombined(model = "") {
+  // DIL standard time is limited to the ZUWV PV combined chart.
+  return String(model || "").trim().toUpperCase() === "ZUWV";
+}
+
+function getChillerLineBalanceConfig(model) {
+  const modelKey = String(model || "").trim().toUpperCase();
+
+  return CHILLER_LINE_BALANCE.find(config =>
+    config.models.some(m => String(m).toUpperCase() === modelKey)
+  );
+}
+
+function shouldShowPlannedForChiller(model = "") {
+  // DIL standard time is limited to the ZUWV CHILLER chart.
+  return String(model || "").trim().toUpperCase() === "ZUWV";
+}
+
+function getChillerDilStandardTime(config, processCode) {
+  const code = normalizeProcessOrderCode(processCode);
+  const group = config?.groups?.find(item =>
+    item.processes.some(process => normalizeProcessOrderCode(process) === code)
+  );
+
+  return Number(group?.plannedTime || 0);
+}
+
+function applyChillerDilStandardTime(data, model) {
+  const config = getChillerLineBalanceConfig(model);
+
+  if (!config) return data;
+
+  // DIL standard time is attached to CHILLER rows by normalized process code.
+  return (Array.isArray(data) ? data : []).map(row => ({
+    ...row,
+    planned: getChillerDilStandardTime(config, row.label || row.fullLabel)
+  }));
 }
 
 function findCombinedGroup(config, vesselType, processCode) {
@@ -1072,10 +1122,24 @@ function clearCharts() {
 }
 
 function createChartCard(titleText, options = {}) {
-  const vesselTitle = ["CHILLER", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"]
-    .find(type => String(titleText || "").includes(type));
+
+  const vesselTitle = [
+    "CHILLER",
+    "EVAPORATOR",
+    "CONDENSER",
+    "OIL SEPARATOR",
+    "ECONOMIZER"
+  ].find(type => String(titleText || "").includes(type));
+
   const displayTitle = vesselTitle || titleText;
   const showVesselLegend = !!options.showVesselLegend && lineBalanceView.showActual;
+  const showPlannedToggle =
+    !!options.showPlanned ||
+    (
+      lineBalanceMode === "MODEL" &&
+      String(titleText || "").toUpperCase().includes("CHILLER") &&
+      shouldShowPlannedForChiller(selectedModel)
+    );
   const actualLegendClass = String(options.actualVesselClass || "").trim();
   const summaryText = String(options.summaryText || "").trim();
   const summaryHtml = summaryText
@@ -1115,6 +1179,15 @@ function createChartCard(titleText, options = {}) {
         Standard Time
       </label>
 
+      <!-- DIL standard time is placed beside standard time in the legend. -->
+      ${showPlannedToggle ? `
+        <label class="lbLegendItem">
+          <input type="checkbox" class="lbTogglePlanned" ${lineBalanceView.showPlanned ? "checked" : ""}>
+          <span class="lbLegendSwatch planned"></span>
+          DIL Standard Time
+        </label>
+      ` : ""}
+
       <label class="lbLegendItem">
         <input type="checkbox" class="lbToggleActual" ${lineBalanceView.showActual ? "checked" : ""}>
         <span class="lbLegendSwatch actual ${escapeHtml(actualLegendClass)}"></span>
@@ -1141,6 +1214,7 @@ function createChartCard(titleText, options = {}) {
   const standardToggle = wrap.querySelector(".lbToggleStandard");
   const actualToggle = wrap.querySelector(".lbToggleActual");
   const totalToggle = wrap.querySelector(".lbToggleTotal");
+  const plannedToggle = wrap.querySelector(".lbTogglePlanned");
   const vesselToggles = wrap.querySelectorAll(".lbToggleVessel");
 
   function rerenderActiveChart() {
@@ -1180,6 +1254,11 @@ function createChartCard(titleText, options = {}) {
     rerenderActiveChart();
   });
 
+  plannedToggle?.addEventListener("change", () => {
+    lineBalanceView.showPlanned = plannedToggle.checked;
+    rerenderActiveChart();
+  });
+
   vesselToggles.forEach(toggle => {
     toggle.addEventListener("change", () => {
       const vessel = toggle.dataset.vessel;
@@ -1208,6 +1287,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   }
 
   const takt = Number(options.taktTime ?? 450);
+  const showPlanned = options.showPlanned === true && lineBalanceView.showPlanned;
   const defaultActualVesselClass = options.actualVesselClass || "";
   const filterVessels = !!options.filterVessels && lineBalanceView.showActual;
   const isVisibleVessel = part => !filterVessels || lineBalanceVesselView[String(part?.key || "").toUpperCase()] !== false;
@@ -1245,7 +1325,8 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
     ...chartData.flatMap(d => [
       lineBalanceView.showStandard ? Number(d.standard || 0) : 0,
       lineBalanceView.showActual ? Number(d.actual || 0) : 0,
-      lineBalanceView.showTotal ? Number(d.total || 0) : 0
+      lineBalanceView.showTotal ? Number(d.total || 0) : 0,
+      showPlanned ? Number(d.planned || 0) : 0
     ])
   );
 
@@ -1274,6 +1355,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
     const standardPct = (Number(d.standard || 0) / chartMax) * 100;
     const actualPct = (Number(d.actual || 0) / chartMax) * 100;
     const totalPct = (Number(d.total || 0) / chartMax) * 100;
+    const plannedPct = (Number(d.planned || 0) / chartMax) * 100;
     const standardStackParts = Array.isArray(d.stackParts)
       ? d.stackParts.filter(part => Number(part.standard || 0) > 0)
       : [];
@@ -1336,6 +1418,15 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
       }
     }
 
+    // DIL standard time is rendered immediately after standard time in each bar group.
+    if (showPlanned) {
+      barsHtml += `
+        <div class="lbBar planned" style="height:${plannedPct}%">
+          <span class="lbBarValue">${Number(d.planned || 0).toFixed(0)}</span>
+        </div>
+      `;
+    }
+
     if (lineBalanceView.showActual) {
       if (showActualStack) {
         barsHtml += renderStackBar({
@@ -1370,6 +1461,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
           data-actual="${Number(d.actual || 0).toFixed(1)}"
           data-standard="${Number(d.standard || 0).toFixed(1)}"
           data-total="${Number(d.total || 0).toFixed(1)}"
+          data-planned="${Number(d.planned || 0).toFixed(1)}"
           data-stack-parts="${escapeHtml(actualStackParts.map(part => `${part.label || part.key}: ${Number(part.actual || 0).toFixed(1)}`).join(" | "))}"
           data-standard-stack-parts="${escapeHtml(standardStackParts.map(part => `${part.label || part.key}: ${Number(part.standard || 0).toFixed(1)}`).join(" | "))}"
           data-manpower="${roundManpower(d.avgManpower)}">
@@ -1418,6 +1510,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
       const actual = col.dataset.actual || "0.0";
       const standard = col.dataset.standard || "0.0";
       const total = col.dataset.total || "0.0";
+      const planned = col.dataset.planned || "0.0";
       const stackParts = col.dataset.stackParts || "";
       const standardStackParts = col.dataset.standardStackParts || "";
       const manpower = col.dataset.manpower || "1";
@@ -1469,6 +1562,10 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
 
       if (lineBalanceView.showTotal) {
         tooltipRows += `<div>Total Duration: ${escapeHtml(total)} min</div>`;
+      }
+
+      if (showPlanned) {
+        tooltipRows += `<div>DIL Standard: ${escapeHtml(planned)} min</div>`;
       }
 
 
@@ -1561,6 +1658,7 @@ function addCombinedRow(combinedMap, vessel, row, group, groupIndex) {
       actual: 0,
       standard: 0,
       total: 0,
+      planned: Number(group.plannedTime || 0),
       manpowerSum: 0,
       count: 0,
       parts: new Map(),
@@ -1714,7 +1812,8 @@ function buildPvCombinedFromVesselCharts(pvSegs, averageMode = false) {
       groupLabel: group.processes.join(", "),
       actual: Number(row.actual || 0).toFixed(1),
       standard: Number(row.standard || 0).toFixed(1),
-      total: Number(row.total || 0).toFixed(1)
+      total: Number(row.total || 0).toFixed(1),
+      planned: Number(row.planned || 0).toFixed(1)
     });
 
     addCombinedRow(combinedMap, vessel, row, group, groupIndex);
@@ -1730,6 +1829,7 @@ function buildPvCombinedFromVesselCharts(pvSegs, averageMode = false) {
     actual: Number(row.actual.toFixed(1)),
     standard: Number(row.standard.toFixed(1)),
     total: Number(row.total.toFixed(1)),
+    planned: Number(row.planned.toFixed(1)),
     avgManpower: roundManpower(row.manpowerSum / Math.max(row.count, 1)),
     stackParts: Array.from(row.parts.values()).map(part => ({
       ...part,
@@ -1769,11 +1869,17 @@ function renderSelectedProjectCharts(project) {
       String(seg.qrKind || "").trim() === "CHILLER"
     );
 
-    const data = buildProcessChartData(chillerSegs);
+    const chillerModel = project.model || chillerSegs[0]?.model;
+    const data = applyChillerDilStandardTime(
+      buildProcessChartData(chillerSegs),
+      chillerModel
+    );
+    const showPlanned = shouldShowPlannedForChiller(chillerModel);
     const mount = createChartCard(
       `${project.projectName || project.chillerSerialNumber} — CHILLER`
+      ,{ showPlanned }
     );
-    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+    renderCustomLineBalanceChart(mount, data, { taktTime: 450, showPlanned });
     return;
   }
 
@@ -1783,8 +1889,12 @@ function renderSelectedProjectCharts(project) {
   );
 
   const combinedData = buildPvCombinedFromVesselCharts(pvSegs, false);
-  const combinedMount = createChartCard(`${project.projectName || project.chillerSerialNumber} — PV COMBINED`, { showVesselLegend: true });
-  renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true });
+  const showPlanned = shouldShowPlannedForPvCombined(project.model || pvSegs[0]?.model);
+  const combinedMount = createChartCard(`${project.projectName || project.chillerSerialNumber} — PV COMBINED`, {
+    showVesselLegend: true,
+    showPlanned
+  });
+  renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true, showPlanned });
 
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
 
@@ -1975,10 +2085,14 @@ function renderModelCharts(modelRow) {
       String(seg.qrKind || "").trim() === "CHILLER"
     );
 
-    const data = buildAverageProcessChartData(chillerSegs);
+    const data = applyChillerDilStandardTime(
+      buildAverageProcessChartData(chillerSegs),
+      modelRow.model
+    );
+    const showPlanned = shouldShowPlannedForChiller(modelRow.model);
     const mount = createChartCard(`${modelRow.model} — CHILLER`);
 
-    renderCustomLineBalanceChart(mount, data, { taktTime: 450 });
+    renderCustomLineBalanceChart(mount, data, { taktTime: 450, showPlanned });
     return;
   }
 
@@ -1992,10 +2106,15 @@ function renderModelCharts(modelRow) {
   const combinedActualTotal = getCombinedActualTotal(combinedData, true);
   const combinedMount = createChartCard(`${modelRow.model} — PV COMBINED`, {
     showVesselLegend: true,
+    showPlanned: shouldShowPlannedForPvCombined(modelRow.model),
     summaryText: `Total Actual: ${formatActualDurationSummary(combinedActualTotal)}`
   });
 
-  renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true });
+  renderCustomLineBalanceChart(combinedMount, combinedData, {
+    taktTime: 450,
+    filterVessels: true,
+    showPlanned: shouldShowPlannedForPvCombined(modelRow.model)
+  });
 
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
 
