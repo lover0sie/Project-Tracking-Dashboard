@@ -13,20 +13,20 @@ body {
 .app-shell {
   width: min(1500px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 24px 0;
+  padding: 16px 0;
 }
 
 .hero {
   background: linear-gradient(135deg, #1e3a8a, #2563eb);
   color: white;
-  padding: 28px;
-  border-radius: 24px;
+  padding: 18px 22px;
+  border-radius: 8px;
   box-shadow: var(--shadow, 0 8px 22px rgba(15, 23, 42, 0.10));
   display: flex;
   justify-content: space-between;
   gap: 18px;
   align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .eyebrow {
@@ -39,8 +39,8 @@ body {
 
 .hero h1 {
   margin-top: 0;
-  margin-bottom: 8px;
-  font-size: clamp(26px, 4vw, 44px);
+  margin-bottom: 4px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1.1;
 }
@@ -49,7 +49,7 @@ body {
   margin-top: 0;
   margin-bottom: 0;
   color: rgba(255, 255, 255, 0.92);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 400;
   line-height: 1.35;
 }
@@ -78,7 +78,7 @@ body {
 
 .hero-refresh {
   min-width: 114px;
-  min-height: 54px;
+  min-height: 44px;
   border-color: rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
@@ -105,8 +105,8 @@ body {
   grid-template-columns: repeat(3, minmax(180px, 1fr)) minmax(150px, auto);
   align-items: end;
   gap: 14px;
-  margin-bottom: 16px;
-  padding: 16px;
+  margin-bottom: 10px;
+  padding: 12px;
 }
 
 .field {
@@ -143,18 +143,18 @@ body {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .metric-card {
-  min-height: 88px;
-  padding: 20px;
+  min-height: 70px;
+  padding: 14px;
 }
 
 .metric-card strong {
   display: block;
-  margin-top: 8px;
-  font-size: 22px;
+  margin-top: 6px;
+  font-size: 20px;
   line-height: 1.2;
 }
 
@@ -167,13 +167,13 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid #e8ebf0;
 }
 
 .panel-head h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .panel-head p {
@@ -200,25 +200,26 @@ select:disabled {
 
 .table-wrapper {
   width: 100%;
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .progress-table {
   width: 100%;
-  min-width: 1250px;
-  border-collapse: collapse;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0 8px;
 }
 
 .progress-table th,
 .progress-table td {
-  padding: 14px 12px;
-  border-bottom: 1px solid #e8ebf0;
+  padding: 10px 12px;
+  border-bottom: 0;
   text-align: left;
   vertical-align: middle;
 }
 
 .progress-table th {
-  background: #f7f8fa;
+  background: transparent;
   color: #4b5563;
   font-size: 0.8rem;
   font-weight: 700;
@@ -228,6 +229,62 @@ select:disabled {
 
 .progress-table tbody tr:hover {
   background: #fafbfc;
+}
+
+.progress-table th:nth-child(1) {
+  width: 28%;
+}
+
+.progress-table th:nth-child(2) {
+  width: 9%;
+}
+
+.progress-table th:nth-child(3),
+.progress-table th:nth-child(4),
+.progress-table th:nth-child(5) {
+  width: 9%;
+}
+
+.progress-table th:nth-child(6) {
+  width: 36%;
+}
+
+.progress-table td:nth-child(2),
+.progress-table td:nth-child(3),
+.progress-table td:nth-child(4),
+.progress-table td:nth-child(5) {
+  font-size: 0.86rem;
+}
+
+.performance-row {
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.performance-row td:first-child {
+  border-radius: 8px 0 0 8px;
+  border-left: 12px solid #cbd5e1;
+}
+
+.performance-row td:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.performance-row.performance-on-track td:first-child {
+  border-left-color: #10b981;
+}
+
+.performance-row.performance-running td:first-child,
+.performance-row.performance-warning td:first-child {
+  border-left-color: #f59e0b;
+}
+
+.performance-row.performance-hold td:first-child {
+  border-left-color: #3b82f6;
+}
+
+.performance-row.performance-exceeded td:first-child {
+  border-left-color: #ef4444;
 }
 
 .empty-cell {
@@ -252,15 +309,15 @@ select:disabled {
   align-items: center;
   justify-content: center;
   min-width: 88px;
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
 .status-running {
-  color: #e68805;
-  background: #f7f1ba;
+  color: #92400e;
+  background: #fef3c7;
 }
 
 .status-completed {
@@ -269,54 +326,91 @@ select:disabled {
 }
 
 .status-hold {
-  color: #740303;
-  background: #ff7d7d;
+  color: #b91c1c;
+  background: #fee2e2;
 }
 
-.progress-column {
-  min-width: 170px;
+.project-cell strong,
+.performance-meta strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.row-progress-track {
+.performance-column {
+  min-width: 360px;
+}
+
+.performance-meta {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) 1fr;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 7px;
+}
+
+.performance-meta span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.row-performance-track {
   width: 100%;
-  height: 8px;
-  margin-bottom: 6px;
+  height: 12px;
   overflow: hidden;
   background: #e5e7eb;
   border-radius: 999px;
 }
 
-.row-progress-bar {
+.row-performance-bar {
   height: 100%;
   border-radius: inherit;
   transition: width 0.3s ease;
 }
 
-/*
- * Existing progress colors may be reused instead.
- */
-.progress-normal {
+.performance-row.performance-on-track .performance-meta strong {
   color: #047857;
 }
 
-.row-progress-bar.progress-normal {
+.row-performance-bar.performance-on-track {
   background: #10b981;
 }
 
-.progress-warning {
+.performance-row.performance-running .performance-meta strong,
+.performance-row.performance-warning .performance-meta strong {
   color: #b45309;
 }
 
-.row-progress-bar.progress-warning {
+.row-performance-bar.performance-running,
+.row-performance-bar.performance-warning {
   background: #f59e0b;
 }
 
-.progress-overdue {
+.performance-row.performance-exceeded .performance-meta strong {
   color: #b91c1c;
 }
 
-.row-progress-bar.progress-overdue {
+.row-performance-bar.performance-exceeded {
   background: #ef4444;
+}
+
+.performance-row.performance-hold .performance-meta strong {
+  color: #1d4ed8;
+}
+
+.row-performance-bar.performance-hold {
+  background: #3b82f6;
+}
+
+.performance-row.performance-unknown .performance-meta strong {
+  color: #475569;
+}
+
+.row-performance-bar.performance-unknown {
+  background: #94a3b8;
 }
 
 @media (max-width: 1100px) {

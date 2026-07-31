@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>Production Progress Tracker</title>
+  <title>Production Performance Tracker</title>
 
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -14,9 +14,9 @@
 
     <header class="hero">
       <div>
-        <h1>Production Progress Tracker</h1>
+        <h1>Production Performance Tracker</h1>
         <p class="subtitle">
-          Target vs actual production progress
+          Live process performance against standard time
         </p>
       </div>
 
@@ -86,15 +86,15 @@
 
     </section>
 
-    <!-- Process table -->
+    <!-- Process performance table -->
     <section class="card progress-panel">
 
       <div class="panel-head">
         <div>
-          <h2 id="progressTitle">Daily Process Progress</h2>
+          <h2 id="progressTitle">Daily Process Performance</h2>
 
           <p id="progressSubTitle">
-            Select a station and process to view project progress.
+            Select a station and process to view performance.
           </p>
         </div>
       </div>
@@ -105,22 +105,18 @@
 
           <thead>
             <tr>
-              <th>No.</th>
-              <th>Project Name</th>
-              <th>Model</th>
-              <th>Type</th>
+              <th>Project</th>
               <th>Status</th>
               <th>Start</th>
-              <th>Expected Completion</th>
+              <th>End</th>
               <th>Standard</th>
-              <th>Actual</th>
-              <th>Progress</th>
+              <th>Performance</th>
             </tr>
           </thead>
 
           <tbody id="progressTableBody">
             <tr>
-              <td colspan="10" class="empty-cell">
+              <td colspan="6" class="empty-cell">
                 Select a station and process.
               </td>
             </tr>

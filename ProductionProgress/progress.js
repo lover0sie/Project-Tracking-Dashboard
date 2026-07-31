@@ -177,7 +177,7 @@ function formatClockTime(ms) {
   return new Date(ms).toLocaleTimeString("en-MY", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
     timeZone: "Asia/Kuala_Lumpur"
   });
 }
@@ -202,6 +202,16 @@ function formatDuration(minutes) {
   }
 
   return `${hours} hr ${remainingMinutes} min`;
+}
+
+function formatPerformanceMinutes(minutes) {
+  const value = Number(minutes);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 min";
+  }
+
+  return formatDuration(value);
 }
 
 function clamp(value, min, max) {
@@ -511,109 +521,30 @@ function normalizeStatus(status = "") {
   return value.toLowerCase();
 }
 
-/*
- * For completed records, use the saved effective duration if available.
- *
- * For running and on-hold records, calculate elapsed time from the
- * process start until now or the latest hold time.
- *
- * This subtracts recorded hold periods but does not independently
- * recalculate factory recesses. For exact consistency, the best
- * approach is to expose a shared live-duration helper from helpers.js.
- */
 function getLiveEffectiveDurationMs(run) {
-  const status = normalizeStatus(run.status);
+  const normalizedRun = {
+    ...run,
+    serialNumber:
+      run.serialNumber ||
+      run.pvSerialNumber ||
+      run.chillerSerialNumber ||
+      ""
+  };
 
-  const savedDuration = Number(
-    run.durationMs ||
-    run.effectiveDurationMs ||
-    0
-  );
+  const result =
+    buildSegmentsFromRuns([normalizedRun]);
 
-  if (
-    status === "completed" &&
-    savedDuration > 0
-  ) {
-    return savedDuration;
-  }
+  const segments =
+    Array.isArray(result)
+      ? result
+      : result.segments || [];
 
-  const startMs = getTimestampMs(
-    run.startEpochMs ||
-    run.startAt
-  );
+  const segment =
+    segments[0];
 
-  if (!Number.isFinite(startMs)) {
-    return 0;
-  }
-
-  let calculationEndMs = Date.now();
-
-  // For completed runs, use the end time as the end point for elapsed calculation
-  if (status === "completed") {
-    calculationEndMs =
-      getTimestampMs(
-        run.endEpochMs ||
-        run.endAt
-      ) || calculationEndMs;
-  }
-
-  // For on-hold runs, use the hold time as the end point for elapsed calculation
-  if (status === "on_hold") {
-    calculationEndMs =
-      getTimestampMs(
-        run.holdEpochMs ||
-        run.holdAt
-      ) || calculationEndMs;
-  }
-
-  let elapsedMs = Math.max(0, calculationEndMs - startMs);
-
-  const holds =
-    Array.isArray(run.holds)
-      ? [...run.holds]
-      : [];
-
-  const resumes =
-    Array.isArray(run.resumes)
-      ? [...run.resumes]
-      : [];
-
-  holds.sort(
-    (a, b) =>
-      Number(a.holdAtEpochMs || 0) -
-      Number(b.holdAtEpochMs || 0)
-  );
-
-  resumes.sort(
-    (a, b) =>
-      Number(a.resumedAtEpochMs || 0) -
-      Number(b.resumedAtEpochMs || 0)
-  );
-
-  for (let index = 0; index < holds.length; index++) {
-    const holdMs = getTimestampMs(
-      holds[index].holdAtEpochMs ||
-      holds[index].holdAt
-    );
-
-    if (!Number.isFinite(holdMs)) continue;
-
-    const resumeMs = getTimestampMs(
-      resumes[index]?.resumedAtEpochMs ||
-      resumes[index]?.resumedAt
-    );
-
-    const holdEndMs =
-      Number.isFinite(resumeMs)
-        ? resumeMs
-        : calculationEndMs;
-
-    if (holdEndMs > holdMs) {
-      elapsedMs -= holdEndMs - holdMs;
-    }
-  }
-
-  return Math.max(0, elapsedMs);
+  return segment
+    ? getActualEffectiveDurationMs(segment)
+    : 0;
 }
 
 
@@ -832,16 +763,84 @@ function getStatusClass(status) {
   return "";
 }
 
-function getProgressClass(percent) {
-  if (percent < 80) {
-    return "progress-normal";
+function getPerformanceState(run, actualMinutes, standardMinutes) {
+  const status =
+    normalizeStatus(run.status);
+
+  if (
+    !Number.isFinite(standardMinutes) ||
+    standardMinutes <= 0
+  ) {
+    return {
+      className: "performance-unknown",
+      label: "No standard",
+      detail: `${formatPerformanceMinutes(actualMinutes)} recorded`,
+      barPercent: 0
+    };
   }
 
-  if (percent <= 100) {
-    return "progress-warning";
+  const varianceMinutes =
+    standardMinutes - actualMinutes;
+
+  const exceededMinutes =
+    Math.abs(varianceMinutes);
+
+  const barPercent =
+    status === "completed" && varianceMinutes >= 0
+      ? 100
+      : clamp(actualMinutes / standardMinutes * 100, 0, 100);
+
+  if (status === "completed") {
+    if (varianceMinutes >= 0) {
+      return {
+        className: "performance-on-track",
+        label: "Completed on track",
+        detail: `${formatPerformanceMinutes(varianceMinutes)} within standard`,
+        barPercent
+      };
+    }
+
+    return {
+      className: "performance-exceeded",
+      label: "Completed exceeded",
+      detail: `${formatPerformanceMinutes(exceededMinutes)} over standard`,
+      barPercent: 100
+    };
   }
 
-  return "progress-overdue";
+  if (varianceMinutes <= 0) {
+    return {
+      className: "performance-exceeded",
+      label: "Exceeded standard",
+      detail: `${formatPerformanceMinutes(exceededMinutes)} over standard`,
+      barPercent: 100
+    };
+  }
+
+  if (varianceMinutes <= 15) {
+    return {
+      className: "performance-warning",
+      label: "Ending soon",
+      detail: `${formatPerformanceMinutes(varianceMinutes)} before standard ends`,
+      barPercent
+    };
+  }
+
+  if (status === "on_hold") {
+    return {
+      className: "performance-hold",
+      label: "On hold",
+      detail: `${formatPerformanceMinutes(actualMinutes)} active time`,
+      barPercent
+    };
+  }
+
+  return {
+    className: "performance-running",
+    label: "Running",
+    detail: `${formatPerformanceMinutes(actualMinutes)} currently running`,
+    barPercent
+  };
 }
 
 function buildTableRows(runs) {
@@ -853,20 +852,18 @@ function buildTableRows(runs) {
       const actualMinutes =
         getLiveEffectiveDurationMs(run) / 60000;
 
-      const rawPercent =
-        standardMinutes > 0
-          ? actualMinutes / standardMinutes * 100
-          : 0;
-
-      const displayPercent =
-        Math.round(rawPercent);
+      const performance =
+        getPerformanceState(
+          run,
+          actualMinutes,
+          standardMinutes
+        );
 
       return {
         run,
         standardMinutes,
         actualMinutes,
-        rawPercent,
-        displayPercent,
+        performance,
 
         expectedCompletionMs:
           getExpectedCompletionMs(
@@ -909,7 +906,7 @@ function renderTable(runs) {
   ) {
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="10" class="empty-cell">
+        <td colspan="6" class="empty-cell">
           Select a station and process.
         </td>
       </tr>
@@ -921,7 +918,7 @@ function renderTable(runs) {
   if (!runs.length) {
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="10" class="empty-cell">
+        <td colspan="6" class="empty-cell">
           No projects found for this selection.
         </td>
       </tr>
@@ -940,55 +937,43 @@ function renderTable(runs) {
       const statusClass =
         getStatusClass(run.status);
 
-      const progressClass =
-        getProgressClass(row.rawPercent);
-
-      const barWidth =
-        clamp(row.rawPercent, 0, 100);
-
       const standardDisplay =
         row.standardMinutes > 0
           ? formatDuration(row.standardMinutes)
           : "No standard";
 
-      const actualDisplay =
-        formatDuration(row.actualMinutes);
-
-      const progressDisplay =
-        row.standardMinutes > 0
-          ? `${row.displayPercent}%`
+      const endDisplay =
+        normalizeStatus(run.status) === "completed"
+          ? formatClockTime(
+              getTimestampMs(
+                run.endEpochMs ||
+                run.endAt
+              )
+            )
           : "-";
 
+      const performance =
+        row.performance;
+
       return `
-        <tr>
+        <tr class="performance-row ${performance.className}">
 
-          <td>${index + 1}</td>
-
-          <td>
+          <td class="project-cell">
             <strong>
               ${escapeHtml(run.projectName || "-")}
             </strong>
 
             <small class="serial-text">
-              ${escapeHtml(
-                run.pvSerialNumber ||
-                run.chillerSerialNumber ||
-                run.serialNumber ||
-                ""
+              Material Number: ${escapeHtml(run.materialNumber || "-")}
+            </small>
+
+            <small class="serial-text">
+              Type: ${escapeHtml(
+                normalizeUpper(run.qrKind) === "PV"
+                  ? run.vesselType || "-"
+                  : run.coolingType || "CHILLER"
               )}
             </small>
-          </td>
-
-          <td>
-            ${escapeHtml(run.model || "-")}
-          </td>
-
-          <td>
-            ${escapeHtml(
-              normalizeUpper(run.qrKind) === "PV"
-                ? run.vesselType || "-"
-                : run.coolingType || "CHILLER"
-            )}
           </td>
 
           <td>
@@ -1007,31 +992,26 @@ function renderTable(runs) {
           </td>
 
           <td>
-            ${formatClockTime(
-              row.expectedCompletionMs
-            )}
+            ${endDisplay}
           </td>
 
           <td>
             ${standardDisplay}
           </td>
 
-          <td>
-            ${actualDisplay}
-          </td>
+          <td class="performance-column">
 
-          <td class="progress-column">
-
-            <div class="row-progress-track">
-              <div
-                class="row-progress-bar ${progressClass}"
-                style="width: ${barWidth}%">
-              </div>
+            <div class="performance-meta">
+              <strong>${escapeHtml(performance.label)}</strong>
+              <span>${escapeHtml(performance.detail)}</span>
             </div>
 
-            <strong class="${progressClass}">
-              ${progressDisplay}
-            </strong>
+            <div class="row-performance-track">
+              <div
+                class="row-performance-bar ${performance.className}"
+                style="width: ${performance.barPercent}%">
+              </div>
+            </div>
 
           </td>
 
@@ -1078,7 +1058,7 @@ function renderSummary(runs) {
   progressTitle.textContent =
     selectedProcess
       ? selectedProcess.label
-      : "Daily Process Progress";
+      : "Daily Process Performance";
 
   progressSubTitle.textContent =
     selectedStation
