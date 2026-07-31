@@ -795,7 +795,7 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
       return {
         className: "performance-on-track",
         label: "Completed on track",
-        detail: `${formatPerformanceMinutes(varianceMinutes)} within standard`,
+        detail: `${formatPerformanceMinutes(actualMinutes)} within standard`,
         barPercent
       };
     }
