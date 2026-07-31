@@ -243,8 +243,11 @@ function getPvCombinedConfig(model) {
 }
 
 function shouldShowPlannedForPvCombined(model = "") {
-  // DIL standard time is limited to the ZUWV PV combined chart.
-  return String(model || "").trim().toUpperCase() === "ZUWV";
+  const config = getPvCombinedConfig(model);
+
+  return !!config?.groups?.some(group =>
+    Number(group?.plannedTime || 0) > 0
+  );
 }
 
 function getChillerLineBalanceConfig(model) {
@@ -256,8 +259,11 @@ function getChillerLineBalanceConfig(model) {
 }
 
 function shouldShowPlannedForChiller(model = "") {
-  // DIL standard time is limited to the ZUWV CHILLER chart.
-  return String(model || "").trim().toUpperCase() === "ZUWV";
+  const config = getChillerLineBalanceConfig(model);
+
+  return !!config?.groups?.some(group =>
+    Number(group?.plannedTime || 0) > 0
+  );
 }
 
 function getChillerDilStandardTime(config, processCode) {
@@ -274,7 +280,7 @@ function applyChillerDilStandardTime(data, model) {
 
   if (!config) return data;
 
-  // DIL standard time is attached to CHILLER rows by normalized process code.
+  // DAIPL standard time is attached to CHILLER rows by normalized process code.
   return (Array.isArray(data) ? data : []).map(row => ({
     ...row,
     planned: getChillerDilStandardTime(config, row.label || row.fullLabel)
@@ -1179,12 +1185,12 @@ function createChartCard(titleText, options = {}) {
         Standard Time
       </label>
 
-      <!-- DIL standard time is placed beside standard time in the legend. -->
+      <!-- DAIPL standard time is placed beside standard time in the legend. -->
       ${showPlannedToggle ? `
         <label class="lbLegendItem">
           <input type="checkbox" class="lbTogglePlanned" ${lineBalanceView.showPlanned ? "checked" : ""}>
           <span class="lbLegendSwatch planned"></span>
-          DIL Standard Time
+          DAIPL Standard Time
         </label>
       ` : ""}
 
@@ -1418,7 +1424,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
       }
     }
 
-    // DIL standard time is rendered immediately after standard time in each bar group.
+    // DAIPL standard time is rendered immediately after standard time in each bar group.
     if (showPlanned) {
       barsHtml += `
         <div class="lbBar planned" style="height:${plannedPct}%">
@@ -1527,6 +1533,9 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
         const stackValue = stackPart.dataset.stackValue || "0.0";
         const label = stackSeries === "standard" ? "Standard breakdown" : "Actual breakdown";
         tooltipRows += `<div>${label}: ${escapeHtml(stackLabel)} ${escapeHtml(stackValue)} min</div>`;
+        if (showPlanned) {
+          tooltipRows += `<div>DAIPL Standard: ${escapeHtml(planned)} min</div>`;
+        }
         showTooltip(tooltipRows, e.clientX, e.clientY);
         return;
       }
@@ -1538,6 +1547,10 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
 
         if (lineBalanceView.showActual) {
           tooltipRows += `<div>Actual: ${escapeHtml(actual)} min</div>`;
+        }
+
+        if (showPlanned) {
+          tooltipRows += `<div>DAIPL Standard: ${escapeHtml(planned)} min</div>`;
         }
 
         showTooltip(tooltipRows, e.clientX, e.clientY);
@@ -1565,7 +1578,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
       }
 
       if (showPlanned) {
-        tooltipRows += `<div>DIL Standard: ${escapeHtml(planned)} min</div>`;
+        tooltipRows += `<div>DAIPL Standard: ${escapeHtml(planned)} min</div>`;
       }
 
 

@@ -92,7 +92,7 @@ export const PV_COMBINED_LINE_BALANCE = [
     category: "PV1",
     models: ["ZUWV"],
     groups: [
-        { vessels: ["EVAPORATOR"], processes: ["6", "7", "8", "10A"], plannedTime: 1340},
+        { vessels: ["EVAPORATOR"], processes: ["6", "7", "8", "10A"], plannedTime: 1340 },
 
         { vessels: ["CONDENSER"], processes: ["6", "7", "8", "10A"], plannedTime: 1280 },
 
@@ -102,40 +102,40 @@ export const PV_COMBINED_LINE_BALANCE = [
 
         { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["14A", "14B"], plannedTime: 440 },
 
-        { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["15"], plannedTime: 514.2}, //30% of total process 15,18,19
+        { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["15"], plannedTime: 604.8},
 
-        { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["16"], plannedTime: 254 },
+        { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["16"], plannedTime: 350 },
 
-        { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["17"], plannedTime: 336 },
+        { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["17"], plannedTime: 240 },
 
-        { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["18,19"], plannedTime: 623 },
+        { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["18,19"], plannedTime: 648.7 },
 
-        { vessels: ["OIL SEPARATOR", "ECONOMIZER"], processes: ["18,19"], plannedTime: 576.8666 }
+        { vessels: ["OIL SEPARATOR", "ECONOMIZER"], processes: ["18,19"], plannedTime: 421.6 }
     ]
   },
   {
     category: "PV1",
     models: ["ZUWY"],
     groups: [
-      { vessels: ["EVAPORATOR"], processes: ["6", "7", "10A"] },
+      { vessels: ["EVAPORATOR"], processes: ["6", "7", "10A"], plannedTime: 1340 },
 
-      { vessels: ["CONDENSER"], processes: ["6", "7", "8", "10A"] },
+      { vessels: ["CONDENSER"], processes: ["6", "7", "8", "10A"], plannedTime: 1280 },
 
-      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["10B", "11"] },
+      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["10B", "11"], plannedTime: 720 },
 
-      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["12", "13"] },
+      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["12", "13"], plannedTime: 850 },
 
-      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["14A", "14B"] },
+      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["14A", "14B"], plannedTime: 440 },
 
-      { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["15"] },
+      { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["15"], plannedTime: 604.8},
 
-      { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["16"] },
+      { vessels: ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"], processes: ["16"], plannedTime: 350 },
 
-      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["17"] },
+      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["17"], plannedTime: 240 },
 
-      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["18,19"] },
+      { vessels: ["EVAPORATOR", "CONDENSER"], processes: ["18,19"], plannedTime: 648.7 },
 
-      { vessels: ["OIL SEPARATOR", "ECONOMIZER"], processes: ["18,19"] },
+      { vessels: ["OIL SEPARATOR", "ECONOMIZER"], processes: ["18,19"], plannedTime: 421.6 }
     ]
   }
 ];
@@ -143,33 +143,33 @@ export const PV_COMBINED_LINE_BALANCE = [
 export const CHILLER_LINE_BALANCE = [
   {
     category: "CHILLER",
-    models: ["ZUWV"],
+    models: ["ZUWV", "ZUWY"],
     groups: [
       { processes: ["PIPING SHOP"], plannedTime: 700 },
 
-      { processes: ["STEEL PIPE SUB-ASSEMBLY (FITTING)"], plannedTime: 210 },
+      { processes: ["STEEL PIPE SUB-ASSEMBLY (FITTING)"], plannedTime: 182.3 },
 
-      { processes: ["STEEL PIPE SUB-ASSEMBLY (WELDING)"], plannedTime: 210 },
+      { processes: ["STEEL PIPE SUB-ASSEMBLY (WELDING)"], plannedTime: 237.7 },
 
       { processes: ["A"], plannedTime: 348 },
 
       { processes: ["B"], plannedTime: 522 },
 
-      { processes: ["C"], plannedTime: 345 }, // Need to check if this is correct for percentage
+      { processes: ["C"], plannedTime: 366.5 },
 
-      { processes: ["D"], plannedTime: 345 }, // Need to check if this is correct for percentage
+      { processes: ["D"], plannedTime: 292.4 },
 
-      { processes: ["E"], plannedTime: 460 }, // Need to check if this is correct for percentage
+      { processes: ["E"], plannedTime: 491.1 },
 
       { processes: ["F"], plannedTime: 480 },
 
       { processes: ["G"], plannedTime: 1220 },
 
-      { processes: ["H1"], plannedTime: 100 },
+      { processes: ["H1"], plannedTime: 94.4 },
 
-      { processes: ["H2"], plannedTime: 100 },
+      { processes: ["H2"], plannedTime: 59.7 },
 
-      { processes: ["H3"], plannedTime: 50 }
+      { processes: ["H3"], plannedTime: 95.9 }
     ]
   }
 ];
