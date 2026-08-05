@@ -107,7 +107,10 @@ function updateUrlState() {
   }
 
   if (selectedProcessKey) {
-    params.set("process", selectedProcessKey);
+    params.set(
+      "process",
+      formatProcessKeyForUrl(selectedProcessKey)
+    );
   } else {
     params.delete("process");
   }
@@ -140,6 +143,15 @@ function normalizeText(value = "") {
 
 function normalizeUpper(value = "") {
   return normalizeText(value).toUpperCase();
+}
+
+function formatTitleCase(value = "") {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(
+      /(^|[\s(/-])([a-z])/g,
+      (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`
+    );
 }
 
 function escapeHtml(value = "") {
@@ -279,6 +291,54 @@ function getProcessOptionLabel(run) {
   const processName = getFullProcessName(run);
 
   return processName;
+}
+
+function formatProcessKeyForUrl(key = "") {
+  const [productionGroup = "", ...processParts] =
+    String(key).split("__");
+
+  const rawProcessName =
+    normalizeText(processParts.join("__"));
+
+  const codeMatch =
+    rawProcessName.match(/^([A-Z0-9,]+[A-Z]?)\s+-\s+(.+)$/i);
+
+  const processName =
+    codeMatch
+      ? `${codeMatch[1].toUpperCase()} ${formatTitleCase(codeMatch[2])}`
+      : formatTitleCase(rawProcessName);
+
+  if (!productionGroup) return processName;
+
+  return `${productionGroup} - ${processName}`;
+}
+
+function getComparableProcessUrlValue(value = "") {
+  return normalizeUpper(value)
+    .replace(/__/g, " ")
+    .replace(/\s*-\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveProcessSelectionKey(value, processes) {
+  if (!value) return "";
+
+  if (processes.some(process => process.key === value)) {
+    return value;
+  }
+
+  const comparableValue =
+    getComparableProcessUrlValue(value);
+
+  const matchingProcess =
+    processes.find(process =>
+      getComparableProcessUrlValue(process.key) === comparableValue ||
+      getComparableProcessUrlValue(formatProcessKeyForUrl(process.key)) === comparableValue ||
+      getComparableProcessUrlValue(`${process.productionGroup} - ${process.label}`) === comparableValue
+    );
+
+  return matchingProcess?.key || "";
 }
 
 function getProcessCodeForRun(run) {
@@ -672,6 +732,14 @@ function renderProcessOptions() {
       dailyRuns,
       selectedStation
     );
+
+  if (selectedProcessKey) {
+    selectedProcessKey =
+      resolveProcessSelectionKey(
+        selectedProcessKey,
+        processes
+      );
+  }
 
   processSelect.disabled = false;
 
