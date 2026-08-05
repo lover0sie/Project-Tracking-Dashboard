@@ -310,7 +310,12 @@ function formatProcessKeyForUrl(key = "") {
 
   if (!productionGroup) return processName;
 
-  return `${productionGroup} - ${processName}`;
+  return `${formatProductionGroupForUrl(productionGroup)} - ${processName}`;
+}
+
+function formatProductionGroupForUrl(value = "") {
+  return normalizeUpper(value)
+    .replace(/^PV(\d+)$/, "PV $1");
 }
 
 function getComparableProcessUrlValue(value = "") {
