@@ -102,7 +102,7 @@ body {
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr)) minmax(150px, auto);
+  grid-template-columns: repeat(2, minmax(180px, 1fr)) minmax(150px, auto);
   align-items: end;
   gap: 14px;
   margin-bottom: 10px;
@@ -232,27 +232,28 @@ select:disabled {
 }
 
 .progress-table th:nth-child(1) {
-  width: 28%;
+  width: 24%;
 }
 
 .progress-table th:nth-child(2) {
-  width: 9%;
+  width: 18%;
 }
 
 .progress-table th:nth-child(3),
 .progress-table th:nth-child(4),
-.progress-table th:nth-child(5) {
+.progress-table th:nth-child(5),
+.progress-table th:nth-child(6) {
   width: 9%;
 }
 
-.progress-table th:nth-child(6) {
-  width: 36%;
+.progress-table th:nth-child(7) {
+  width: 31%;
 }
 
-.progress-table td:nth-child(2),
 .progress-table td:nth-child(3),
 .progress-table td:nth-child(4),
-.progress-table td:nth-child(5) {
+.progress-table td:nth-child(5),
+.progress-table td:nth-child(6) {
   font-size: 0.86rem;
 }
 
@@ -331,6 +332,7 @@ select:disabled {
 }
 
 .project-cell strong,
+.process-cell strong,
 .performance-meta strong {
   display: block;
   overflow: hidden;

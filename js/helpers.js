@@ -664,6 +664,36 @@ function isValidDate(value) {
   return value instanceof Date && Number.isFinite(value.getTime());
 }
 
+function normalizeStationLabel(value = "") {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+export function getStationLabelFromRun(run = {}) {
+  const station = normalizeStationLabel(
+    run.station ||
+    run.stationName ||
+    run.processStation ||
+    ""
+  );
+
+  const stationKey = station.toUpperCase();
+  const processKey = normalizeStationLabel(
+    run.processName ||
+    run.processLabel ||
+    ""
+  ).toUpperCase();
+
+  if (
+    stationKey === "PIPING" ||
+    stationKey === "PIPING SHOP" ||
+    processKey === "PIPING SHOP"
+  ) {
+    return "Piping Shop";
+  }
+
+  return station;
+}
+
 export function getMYTodayKey() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: TZ,
@@ -769,7 +799,7 @@ export function buildSegmentsFromRuns(runs) {
 
   for (const r of runs) {
     const serial = r.serialNumber || "";
-    const station = r.station || "";
+    const station = getStationLabelFromRun(r);
     const id = r.id
 
     const start = tsOrMsToDate(r.startAt, r.startEpochMs);
@@ -870,7 +900,24 @@ export function buildSegmentsFromRuns(runs) {
 export function getStationOptionsFromSegments(segments) {
   return Array.from(
     new Set(
-      segments.map(seg => String(seg?.station || "UNKNOWN").trim() || "UNKNOWN")
+      segments.map(seg => {
+        const station = normalizeStationLabel(seg?.station || "UNKNOWN");
+        const processKey = normalizeStationLabel(
+          seg?.processLabel ||
+          seg?.processName ||
+          ""
+        ).toUpperCase();
+
+        if (
+          station.toUpperCase() === "PIPING" ||
+          station.toUpperCase() === "PIPING SHOP" ||
+          processKey === "PIPING SHOP"
+        ) {
+          return "Piping Shop";
+        }
+
+        return station || "UNKNOWN";
+      })
     )
   ).sort((a, b) => a.localeCompare(b));
 }

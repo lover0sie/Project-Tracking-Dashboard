@@ -41,14 +41,6 @@
         </select>
       </div>
 
-      <div class="field">
-        <label for="processSelect">Process</label>
-
-        <select id="processSelect" disabled>
-          <option value="">Select process</option>
-        </select>
-      </div>
-
       <div class="last-update">
         <span>Last Update</span>
         <strong id="lastUpdateText">-</strong>
@@ -94,7 +86,7 @@
           <h2 id="progressTitle">Daily Process Performance</h2>
 
           <p id="progressSubTitle">
-            Select a station and process to view performance.
+            Select a date and station to view performance.
           </p>
         </div>
       </div>
@@ -106,6 +98,7 @@
           <thead>
             <tr>
               <th>Project</th>
+              <th>Process</th>
               <th>Status</th>
               <th>Start</th>
               <th>End</th>
@@ -116,8 +109,8 @@
 
           <tbody id="progressTableBody">
             <tr>
-              <td colspan="6" class="empty-cell">
-                Select a station and process.
+              <td colspan="7" class="empty-cell">
+                Select a date and station.
               </td>
             </tr>
           </tbody>

@@ -1,16 +1,9 @@
 import {
-  collectionGroup,
-  getDocs,
-  query,
-  where
-} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
-
-import { db } from "../js/firebase.js";
-
-import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
   getProcessCode,
+  getStationLabelFromRun,
+  getStationOptionsFromSegments,
   STANDARD_BASELINE_FROM,
   STANDARD_BASELINE_TO,
   STANDARD_FACTOR
@@ -18,6 +11,7 @@ import {
 
 import {
   loadProjectHeadersFallbackFromRuns,
+  loadRunsForDayWithCarryForward,
   loadRunsForProject
 } from "../js/timeline.js";
 
@@ -28,7 +22,6 @@ import {
 
 const periodPicker = document.getElementById("periodPicker");
 const stationSelect = document.getElementById("stationSelect");
-const processSelect = document.getElementById("processSelect");
 const refreshBtn = document.getElementById("refreshBtn");
 
 const selectedStationText = document.getElementById("selectedStationText");
@@ -46,13 +39,6 @@ const lastUpdateText = document.getElementById("lastUpdateText");
    CONSTANTS
 ========================================================= */
 
-const PV2_MODELS = [
-  "MUWD",
-  "UWD",
-  "UAAST3",
-  "UAASV3"
-];
-
 const STATUS_ORDER = {
   running: 1,
   on_hold: 2,
@@ -69,7 +55,6 @@ let allHistoricalSegments = [];
 let historicalStandards = {};
 
 let selectedStation = "";
-let selectedProcessKey = "";
 
 let autoRefreshTimer = null;
 let lastDashboardUpdateAt = null;
@@ -85,8 +70,7 @@ function getUrlState() {
 
   return {
     date: normalizeText(params.get("date") || ""),
-    station: normalizeText(params.get("station") || ""),
-    process: normalizeText(params.get("process") || "")
+    station: normalizeText(params.get("station") || "")
   };
 }
 
@@ -106,14 +90,7 @@ function updateUrlState() {
     params.delete("station");
   }
 
-  if (selectedProcessKey) {
-    params.set(
-      "process",
-      formatProcessKeyForUrl(selectedProcessKey)
-    );
-  } else {
-    params.delete("process");
-  }
+  params.delete("process");
 
   const query =
     params.toString();
@@ -143,15 +120,6 @@ function normalizeText(value = "") {
 
 function normalizeUpper(value = "") {
   return normalizeText(value).toUpperCase();
-}
-
-function formatTitleCase(value = "") {
-  return normalizeText(value)
-    .toLowerCase()
-    .replace(
-      /(^|[\s(/-])([a-z])/g,
-      (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`
-    );
 }
 
 function escapeHtml(value = "") {
@@ -232,43 +200,6 @@ function clamp(value, min, max) {
 
 
 /* =========================================================
-   PV LINE CLASSIFICATION
-========================================================= */
-
-function getPvLine(model = "") {
-  const modelKey = normalizeUpper(model);
-
-  return PV2_MODELS.includes(modelKey)
-    ? "PV2"
-    : "PV1";
-}
-
-function getProductionGroup(run) {
-  const qrKind = normalizeUpper(run.qrKind);
-
-  if (qrKind === "PV") {
-    return getPvLine(run.model);
-  }
-
-  if (qrKind === "CHILLER") {
-    const coolingType = normalizeUpper(run.coolingType);
-
-    if (coolingType.includes("AIR")) {
-      return "AC";
-    }
-
-    if (coolingType.includes("WATER")) {
-      return "WC";
-    }
-
-    return "CHILLER";
-  }
-
-  return qrKind || "OTHER";
-}
-
-
-/* =========================================================
    PROCESS IDENTIFICATION
 ========================================================= */
 
@@ -278,72 +209,6 @@ function getFullProcessName(run) {
     run.processLabel ||
     ""
   );
-}
-
-function getProcessSelectionKey(run) {
-  const productionGroup = getProductionGroup(run);
-  const processName = normalizeUpper(getFullProcessName(run));
-
-  return `${productionGroup}__${processName}`;
-}
-
-function getProcessOptionLabel(run) {
-  const processName = getFullProcessName(run);
-
-  return processName;
-}
-
-function formatProcessKeyForUrl(key = "") {
-  const [productionGroup = "", ...processParts] =
-    String(key).split("__");
-
-  const rawProcessName =
-    normalizeText(processParts.join("__"));
-
-  const codeMatch =
-    rawProcessName.match(/^([A-Z0-9,]+[A-Z]?)\s+-\s+(.+)$/i);
-
-  const processName =
-    codeMatch
-      ? `${codeMatch[1].toUpperCase()} ${formatTitleCase(codeMatch[2])}`
-      : formatTitleCase(rawProcessName);
-
-  if (!productionGroup) return processName;
-
-  return `${formatProductionGroupForUrl(productionGroup)} - ${processName}`;
-}
-
-function formatProductionGroupForUrl(value = "") {
-  return normalizeUpper(value)
-    .replace(/^PV(\d+)$/, "PV $1");
-}
-
-function getComparableProcessUrlValue(value = "") {
-  return normalizeUpper(value)
-    .replace(/__/g, " ")
-    .replace(/\s*-\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function resolveProcessSelectionKey(value, processes) {
-  if (!value) return "";
-
-  if (processes.some(process => process.key === value)) {
-    return value;
-  }
-
-  const comparableValue =
-    getComparableProcessUrlValue(value);
-
-  const matchingProcess =
-    processes.find(process =>
-      getComparableProcessUrlValue(process.key) === comparableValue ||
-      getComparableProcessUrlValue(formatProcessKeyForUrl(process.key)) === comparableValue ||
-      getComparableProcessUrlValue(`${process.productionGroup} - ${process.label}`) === comparableValue
-    );
-
-  return matchingProcess?.key || "";
 }
 
 function getProcessCodeForRun(run) {
@@ -358,55 +223,40 @@ function getProcessCodeForRun(run) {
 ========================================================= */
 
 function getRunStation(run) {
-  return normalizeText(
-    run.station ||
-    run.stationName ||
-    run.processStation ||
-    ""
-  );
+  return getStationLabelFromRun(run);
 }
 
-// Determine if a process is excluded from auto-hold based on its name
-function getUniqueStations(runs) {
-  return Array.from(
-    new Set(
-      runs
-        .map(getRunStation)
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b));
+function getComparableStationValue(value = "") {
+  return normalizeUpper(value)
+    .replace(/\s+/g, "");
 }
 
-function getProcessesForStation(runs, station) {
-  const map = new Map();
+function resolveStationSelection(value, stations) {
+  if (!value) return "";
 
-  for (const run of runs) {
-    if (getRunStation(run) !== station) continue;
-
-    const processName = getFullProcessName(run);
-
-    if (!processName) continue;
-
-    const key = getProcessSelectionKey(run);
-
-    if (!map.has(key)) {
-      map.set(key, {
-        key,
-        label: getProcessOptionLabel(run),
-        processName,
-        productionGroup: getProductionGroup(run)
-      });
-    }
+  if (stations.includes(value)) {
+    return value;
   }
 
-  return Array.from(map.values())
-    .sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, {
-        numeric: true
-      })
-    );
+  const comparableValue =
+    getComparableStationValue(value);
+
+  return stations.find(station =>
+    getComparableStationValue(station) === comparableValue
+  ) || "";
 }
 
+function getUniqueStations(runs) {
+  const result =
+    buildSegmentsFromRuns(runs);
+
+  const segments =
+    Array.isArray(result)
+      ? result
+      : result.segments || [];
+
+  return getStationOptionsFromSegments(segments);
+}
 
 /* =========================================================
    STANDARD TIME
@@ -646,18 +496,8 @@ function getExpectedCompletionMs(run, standardMinutes) {
    DATA LOADING
 ========================================================= */
 
-async function loadDailyRuns(dateKey) {
-  const dailyQuery = query(
-    collectionGroup(db, "runs"),
-    where("runDate", "==", dateKey)
-  );
-
-  const snapshot = await getDocs(dailyQuery);
-
-  return snapshot.docs.map(documentSnapshot => ({
-    id: documentSnapshot.id,
-    ...documentSnapshot.data()
-  }));
+async function loadDailyRuns(dateKey, forceRefresh = false) {
+  return loadRunsForDayWithCarryForward(dateKey, forceRefresh);
 }
 
 async function loadHistoricalSegments() {
@@ -693,6 +533,12 @@ function renderStationOptions() {
   const stations =
     getUniqueStations(dailyRuns);
 
+  selectedStation =
+    resolveStationSelection(
+      selectedStation,
+      stations
+    );
+
   stationSelect.innerHTML = `
     <option value="">Select station</option>
 
@@ -710,7 +556,6 @@ function renderStationOptions() {
     stationSelect.value = selectedStation;
   } else {
     selectedStation = stations[0] || "";
-    selectedProcessKey = "";
 
     stationSelect.value =
       selectedStation;
@@ -719,79 +564,17 @@ function renderStationOptions() {
   updateUrlState();
 }
 
-function renderProcessOptions() {
-  if (!selectedStation) {
-    processSelect.disabled = true;
-
-    processSelect.innerHTML = `
-      <option value="">
-        Select station first
-      </option>
-    `;
-
-    return;
-  }
-
-  const processes =
-    getProcessesForStation(
-      dailyRuns,
-      selectedStation
-    );
-
-  if (selectedProcessKey) {
-    selectedProcessKey =
-      resolveProcessSelectionKey(
-        selectedProcessKey,
-        processes
-      );
-  }
-
-  processSelect.disabled = false;
-
-  processSelect.innerHTML = `
-    <option value="">Select process</option>
-
-    ${processes.map(process => `
-      <option value="${escapeHtml(process.key)}">
-        ${escapeHtml(process.label)}
-      </option>
-    `).join("")}
-  `;
-
-  if (
-    selectedProcessKey &&
-    processes.some(
-      process => process.key === selectedProcessKey
-    )
-  ) {
-    processSelect.value = selectedProcessKey;
-  } else {
-    selectedProcessKey =
-      processes[0]?.key || "";
-
-    processSelect.value =
-      selectedProcessKey;
-  }
-
-  updateUrlState();
-}
-
-
 /* =========================================================
    FILTERING
 ========================================================= */
 
 function getSelectedRuns() {
-  if (
-    !selectedStation ||
-    !selectedProcessKey
-  ) {
+  if (!selectedStation) {
     return [];
   }
 
   return dailyRuns.filter(run =>
-    getRunStation(run) === selectedStation &&
-    getProcessSelectionKey(run) === selectedProcessKey
+    getRunStation(run) === selectedStation
   );
 }
 
@@ -973,14 +756,11 @@ function buildTableRows(runs) {
 ========================================================= */
 
 function renderTable(runs) {
-  if (
-    !selectedStation ||
-    !selectedProcessKey
-  ) {
+  if (!selectedStation) {
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="empty-cell">
-          Select a station and process.
+        <td colspan="7" class="empty-cell">
+          Select a date and station.
         </td>
       </tr>
     `;
@@ -991,7 +771,7 @@ function renderTable(runs) {
   if (!runs.length) {
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="empty-cell">
+        <td colspan="7" class="empty-cell">
           No projects found for this selection.
         </td>
       </tr>
@@ -1047,6 +827,12 @@ function renderTable(runs) {
                   : run.coolingType || "CHILLER"
               )}
             </small>
+          </td>
+
+          <td class="process-cell">
+            <strong>
+              ${escapeHtml(getFullProcessName(run) || "-")}
+            </strong>
           </td>
 
           <td>
@@ -1114,29 +900,20 @@ function renderSummary(runs) {
   selectedStationText.textContent =
     selectedStation || "-";
 
-  const selectedProcess =
-    getProcessesForStation(
-      dailyRuns,
-      selectedStation
-    ).find(
-      process => process.key === selectedProcessKey
-    );
-
-
   projectCountText.textContent = runs.length;
   completedCountText.textContent = completed;
   runningCountText.textContent = running;
   onHoldCountText.textContent = onHold;
 
   progressTitle.textContent =
-    selectedProcess
-      ? selectedProcess.label
+    selectedStation
+      ? `${selectedStation} Process Performance`
       : "Daily Process Performance";
 
   progressSubTitle.textContent =
     selectedStation
       ? `Station: ${selectedStation}`
-      : "Select a station and process to view project progress.";
+      : "Select a date and station to view project progress.";
 }
 
 function renderDashboard() {
@@ -1208,7 +985,6 @@ function setLoading(isLoading) {
 
   periodPicker.disabled = isLoading;
   stationSelect.disabled = isLoading;
-  processSelect.disabled = isLoading || !selectedStation;
 }
 
 
@@ -1216,7 +992,7 @@ function setLoading(isLoading) {
    MAIN LOAD FUNCTIONS
 ========================================================= */
 
-async function loadDailyDashboard() {
+async function loadDailyDashboard({ forceRefresh = false } = {}) {
   try {
     setLoading(true);
 
@@ -1224,10 +1000,9 @@ async function loadDailyDashboard() {
       periodPicker.value;
 
     dailyRuns =
-      await loadDailyRuns(selectedDate);
+      await loadDailyRuns(selectedDate, forceRefresh);
 
     renderStationOptions();
-    renderProcessOptions();
     renderDashboard();
 
   } catch (error) {
@@ -1238,7 +1013,7 @@ async function loadDailyDashboard() {
 
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="10" class="empty-cell error-cell">
+        <td colspan="7" class="empty-cell error-cell">
           Failed to load Firebase data.
         </td>
       </tr>
@@ -1284,21 +1059,18 @@ async function initializeDashboard() {
   selectedStation =
     urlState.station;
 
-  selectedProcessKey =
-    urlState.process;
-
-  setLoading(true);
-
-  /*
-   * Load the historical standard-time dataset once,
-   * then load the selected day's active runs.
-   */
-  await initializeStandards();
   await loadDailyDashboard();
+
+  initializeStandards()
+    .then(() => {
+      if (dailyRuns.length) {
+        renderDashboard();
+      }
+    });
 
   autoRefreshTimer =
     setInterval(
-      loadDailyDashboard,
+      () => loadDailyDashboard({ forceRefresh: true }),
       60000
     );
 
@@ -1317,7 +1089,6 @@ periodPicker.addEventListener(
   "change",
   async () => {
     selectedStation = "";
-    selectedProcessKey = "";
 
     await loadDailyDashboard();
   }
@@ -1329,20 +1100,6 @@ stationSelect.addEventListener(
     selectedStation =
       stationSelect.value;
 
-    selectedProcessKey = "";
-
-    renderProcessOptions();
-    renderDashboard();
-    updateUrlState();
-  }
-);
-
-processSelect.addEventListener(
-  "change",
-  () => {
-    selectedProcessKey =
-      processSelect.value;
-
     renderDashboard();
     updateUrlState();
   }
@@ -1350,7 +1107,7 @@ processSelect.addEventListener(
 
 refreshBtn.addEventListener(
   "click",
-  loadDailyDashboard
+  () => loadDailyDashboard({ forceRefresh: true })
 );
 
 
