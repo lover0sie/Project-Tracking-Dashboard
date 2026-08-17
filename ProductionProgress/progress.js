@@ -688,6 +688,37 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
   const actualHms =
     formatReadableTimeFromMinutes(actualMinutes);
 
+  const actualBarPercent =
+    clamp(actualMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100);
+
+  function buildSingleSegment(className, percent = actualBarPercent) {
+    return [
+      {
+        className,
+        percent
+      }
+    ];
+  }
+
+  function buildExceededSegments(baseClassName) {
+    const standardPercent =
+      clamp(standardMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100);
+
+    const exceededPercent =
+      clamp((actualMinutes - standardMinutes) / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100 - standardPercent);
+
+    return [
+      {
+        className: baseClassName,
+        percent: standardPercent
+      },
+      {
+        className: "performance-exceeded",
+        percent: exceededPercent
+      }
+    ].filter(segment => segment.percent > 0);
+  }
+
   if (
     !Number.isFinite(standardMinutes) ||
     standardMinutes <= 0
@@ -703,7 +734,8 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
       className: noStandardClass,
       label: "No standard",
       detail: `${actualHms} elapsed time`,
-      barPercent: clamp(actualMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100),
+      barPercent: actualBarPercent,
+      segments: buildSingleSegment("performance-no-standard"),
       sectionWidthPercent: 10
     };
   }
@@ -711,16 +743,14 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
   const varianceMinutes =
     standardMinutes - actualMinutes;
 
-  const barPercent =
-    clamp(actualMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100);
-
   if (status === "completed") {
     if (varianceMinutes >= 0) {
       return {
         className: "performance-on-track",
         label: "Completed on track",
         detail: `${actualHms} within standard`,
-        barPercent,
+        barPercent: actualBarPercent,
+        segments: buildSingleSegment("performance-on-track"),
         sectionWidthPercent: 10
       };
     }
@@ -729,7 +759,8 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
       className: "performance-completed-exceeded",
       label: "Completed exceeded",
       detail: `${actualHms} exceeded standard`,
-      barPercent,
+      barPercent: actualBarPercent,
+      segments: buildExceededSegments("performance-on-track"),
       sectionWidthPercent: 10
     };
   }
@@ -741,7 +772,8 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
       detail: varianceMinutes >= 0
         ? `${actualHms} within standard`
         : `${actualHms} exceeded standard`,
-      barPercent,
+      barPercent: actualBarPercent,
+      segments: buildSingleSegment("performance-hold"),
       sectionWidthPercent: 10
     };
   }
@@ -751,7 +783,8 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
       className: "performance-running-exceeded",
       label: "Exceeded standard",
       detail: `${actualHms} exceeded standard`,
-      barPercent,
+      barPercent: actualBarPercent,
+      segments: buildExceededSegments("performance-running"),
       sectionWidthPercent: 10
     };
   }
@@ -760,7 +793,8 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     className: "performance-running",
     label: "Running",
     detail: `${actualHms} currently running`,
-    barPercent,
+    barPercent: actualBarPercent,
+    segments: buildSingleSegment("performance-running"),
     sectionWidthPercent: 10
   };
 }
@@ -936,10 +970,12 @@ function renderTable(runs) {
           <div
             class="row-performance-track"
             style="--section-width: ${performance.sectionWidthPercent || 10}%">
-            <div
-              class="row-performance-bar ${performance.className}"
-              style="width: ${performance.barPercent}%">
-            </div>
+            ${(performance.segments || []).map(segment => `
+              <div
+                class="row-performance-bar ${segment.className}"
+                style="width: ${segment.percent}%">
+              </div>
+            `).join("")}
           </div>
         </td>
       </tr>
