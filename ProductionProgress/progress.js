@@ -39,12 +39,6 @@ const lastUpdateText = document.getElementById("lastUpdateText");
    CONSTANTS
 ========================================================= */
 
-const STATUS_ORDER = {
-  running: 1,
-  on_hold: 2,
-  completed: 3
-};
-
 const NO_STANDARD_REFERENCE_MINUTES = 450;
 
 /* =========================================================
@@ -229,6 +223,54 @@ function getFullProcessName(run) {
     run.processLabel ||
     ""
   );
+}
+
+function getProcessDisplayName(run) {
+  const processName =
+    getFullProcessName(run);
+
+  const dashIndex =
+    processName.indexOf("-");
+
+  if (dashIndex < 0) {
+    return processName;
+  }
+
+  return normalizeText(
+    processName.slice(0, dashIndex)
+  );
+}
+
+function getProcessSortParts(run) {
+  const displayName =
+    getProcessDisplayName(run);
+
+  const match =
+    displayName.match(/^(\d+)([A-Z]*)/i);
+
+  if (!match) {
+    return {
+      number: Number.MAX_SAFE_INTEGER,
+      suffix: normalizeUpper(displayName)
+    };
+  }
+
+  return {
+    number: Number(match[1]),
+    suffix: normalizeUpper(match[2] || "")
+  };
+}
+
+function getTypeDisplayName(type) {
+  const normalized =
+    normalizeUpper(type);
+
+  if (normalized === "EVAPORATOR") return "EVAP";
+  if (normalized === "CONDENSER") return "COND";
+  if (normalized === "ECONOMIZER") return "ECON";
+  if (normalized === "OIL SEPARATOR") return "OIL SEP";
+
+  return normalizeText(type);
 }
 
 function getProcessCodeForRun(run) {
@@ -650,8 +692,15 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     !Number.isFinite(standardMinutes) ||
     standardMinutes <= 0
   ) {
+    const noStandardClass =
+      status === "completed"
+        ? "performance-no-standard-completed"
+        : status === "on_hold"
+          ? "performance-no-standard-hold"
+          : "performance-no-standard-running";
+
     return {
-      className: "performance-no-standard",
+      className: noStandardClass,
       label: "No standard",
       detail: `${actualHms} elapsed time`,
       barPercent: clamp(actualMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100),
@@ -663,10 +712,7 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     standardMinutes - actualMinutes;
 
   const barPercent =
-    clamp(actualMinutes / standardMinutes * 100, 0, 100);
-
-  const standardSectionWidthPercent =
-    clamp(standardMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 4, 100);
+    clamp(actualMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100);
 
   if (status === "completed") {
     if (varianceMinutes >= 0) {
@@ -675,16 +721,16 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
         label: "Completed on track",
         detail: `${actualHms} within standard`,
         barPercent,
-        sectionWidthPercent: standardSectionWidthPercent
+        sectionWidthPercent: 10
       };
     }
 
     return {
-      className: "performance-on-track",
+      className: "performance-completed-exceeded",
       label: "Completed exceeded",
       detail: `${actualHms} exceeded standard`,
       barPercent,
-      sectionWidthPercent: standardSectionWidthPercent
+      sectionWidthPercent: 10
     };
   }
 
@@ -696,17 +742,17 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
         ? `${actualHms} within standard`
         : `${actualHms} exceeded standard`,
       barPercent,
-      sectionWidthPercent: standardSectionWidthPercent
+      sectionWidthPercent: 10
     };
   }
 
   if (varianceMinutes < 0) {
     return {
-      className: "performance-exceeded",
+      className: "performance-running-exceeded",
       label: "Exceeded standard",
       detail: `${actualHms} exceeded standard`,
       barPercent,
-      sectionWidthPercent: standardSectionWidthPercent
+      sectionWidthPercent: 10
     };
   }
 
@@ -715,7 +761,7 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     label: "Running",
     detail: `${actualHms} currently running`,
     barPercent,
-    sectionWidthPercent: standardSectionWidthPercent
+    sectionWidthPercent: 10
   };
 }
 
@@ -749,18 +795,25 @@ function buildTableRows(runs) {
       };
     })
     .sort((a, b) => {
-      const aStatus =
-        STATUS_ORDER[
-          normalizeStatus(a.run.status)
-        ] || 99;
+      const aProcess =
+        getProcessSortParts(a.run);
 
-      const bStatus =
-        STATUS_ORDER[
-          normalizeStatus(b.run.status)
-        ] || 99;
+      const bProcess =
+        getProcessSortParts(b.run);
 
-      if (aStatus !== bStatus) {
-        return aStatus - bStatus;
+      if (aProcess.number !== bProcess.number) {
+        return aProcess.number - bProcess.number;
+      }
+
+      const suffixCompare =
+        aProcess.suffix.localeCompare(
+          bProcess.suffix,
+          undefined,
+          { numeric: true }
+        );
+
+      if (suffixCompare !== 0) {
+        return suffixCompare;
       }
 
       return (
@@ -778,9 +831,11 @@ function buildTableRows(runs) {
 function renderTable(runs) {
   if (!selectedStation) {
     progressTableBody.innerHTML = `
-      <div class="empty-cell">
-        Select a date and station.
-      </div>
+      <tr>
+        <td colspan="8" class="empty-cell">
+          Select a date and station.
+        </td>
+      </tr>
     `;
 
     return;
@@ -788,9 +843,11 @@ function renderTable(runs) {
 
   if (!runs.length) {
     progressTableBody.innerHTML = `
-      <div class="empty-cell">
-        No projects found for this selection.
-      </div>
+      <tr>
+        <td colspan="8" class="empty-cell">
+          No projects found for this selection.
+        </td>
+      </tr>
     `;
 
     return;
@@ -799,15 +856,8 @@ function renderTable(runs) {
   const rows =
     buildTableRows(runs);
 
-  const splitIndex =
-    Math.ceil(rows.length / 2);
-
-  const columns = [
-    rows.slice(0, splitIndex),
-    rows.slice(splitIndex)
-  ];
-
-  function renderProcessCard(row) {
+  progressTableBody.innerHTML =
+    rows.map(row => {
     const run = row.run;
 
     const statusClass =
@@ -837,18 +887,18 @@ function renderTable(runs) {
       );
 
     const typeDisplay =
-      normalizeUpper(run.qrKind) === "PV"
-        ? run.vesselType || "-"
-        : run.coolingType || "CHILLER";
+      getTypeDisplayName(
+        normalizeUpper(run.qrKind) === "PV"
+          ? run.vesselType || "-"
+          : run.coolingType || "CHILLER"
+      );
 
     const performance =
       row.performance;
 
     return `
-      <article class="process-card ${performance.className}">
-
-        <div class="process-card-head">
-          <div class="project-cell">
+      <tr class="performance-row ${performance.className}">
+        <td class="project-cell">
             <strong>
               ${escapeHtml(run.projectName || "-")}
             </strong>
@@ -856,45 +906,29 @@ function renderTable(runs) {
             <small class="serial-text">
               Material Number: ${escapeHtml(run.materialNumber || "-")}
             </small>
-          </div>
+        </td>
 
+        <td class="process-cell">
+          <strong>
+            ${escapeHtml(getProcessDisplayName(run) || "-")}
+          </strong>
+        </td>
+
+        <td>
           <span class="status-badge ${statusClass}">
             ${escapeHtml(getStatusLabel(run.status))}
           </span>
-        </div>
+        </td>
 
-        <div class="process-card-body">
-          <div class="process-cell">
-            <span class="process-label">Process</span>
-            <strong>
-              ${escapeHtml(getFullProcessName(run) || "-")}
-            </strong>
-          </div>
+        <td>${escapeHtml(typeDisplay)}</td>
 
-          <div class="process-facts">
-            <div>
-              <span>Type</span>
-              <strong>${escapeHtml(typeDisplay)}</strong>
-            </div>
+        <td>${startDisplay}</td>
 
-            <div>
-              <span>Start</span>
-              <strong>${startDisplay}</strong>
-            </div>
+        <td>${endDisplay}</td>
 
-            <div>
-              <span>End</span>
-              <strong>${endDisplay}</strong>
-            </div>
+        <td>${standardDisplay}</td>
 
-            <div>
-              <span>Standard</span>
-              <strong>${standardDisplay}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="performance-column">
+        <td class="performance-column">
           <div class="performance-meta">
             <span>${escapeHtml(performance.detail)}</span>
           </div>
@@ -907,18 +941,10 @@ function renderTable(runs) {
               style="width: ${performance.barPercent}%">
             </div>
           </div>
-        </div>
-
-      </article>
+        </td>
+      </tr>
     `;
-  }
-
-  progressTableBody.innerHTML =
-    columns.map((columnRows, index) => `
-      <div class="process-grid-column" aria-label="Process column ${index + 1}">
-        ${columnRows.map(renderProcessCard).join("")}
-      </div>
-    `).join("");
+  }).join("");
 }
 
 

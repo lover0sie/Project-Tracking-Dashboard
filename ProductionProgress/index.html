@@ -57,21 +57,21 @@
       </article>
 
       <article class="metric-card card">
-        <span class="metric-label">Projects</span>
+        <span class="metric-label">Process</span>
         <strong id="projectCountText">0</strong>
       </article>
 
-      <article class="metric-card card">
+      <article class="metric-card metric-completed card">
         <span class="metric-label">Completed</span>
         <strong id="completedCountText">0</strong>
       </article>
 
-      <article class="metric-card card">
+      <article class="metric-card metric-running card">
         <span class="metric-label">Running</span>
         <strong id="runningCountText">0</strong>
       </article>
 
-      <article class="metric-card card">
+      <article class="metric-card metric-on-hold card">
         <span class="metric-label">On Hold</span>
         <strong id="onHoldCountText">0</strong>
       </article>
@@ -91,12 +91,33 @@
         </div>
       </div>
 
-      <div class="process-grid-wrapper">
-        <div id="progressTableBody" class="process-grid">
-          <div class="empty-cell">
-            Select a date and station.
-          </div>
-        </div>
+      <div class="table-wrapper">
+
+        <table class="progress-table">
+
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Process</th>
+              <th>Status</th>
+              <th>Type</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Standard</th>
+              <th>Performance</th>
+            </tr>
+          </thead>
+
+          <tbody id="progressTableBody">
+            <tr>
+              <td colspan="8" class="empty-cell">
+                Select a date and station.
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+
       </div>
 
     </section>
