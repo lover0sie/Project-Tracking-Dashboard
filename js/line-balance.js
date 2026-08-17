@@ -1283,7 +1283,7 @@ function createChartCard(titleText, options = {}) {
 
       <span class="lbLegendItem">
         <span class="lbLegendLine"></span>
-        Actual Takt Time (ATT) (690 min)
+        Actual Takt Time (ATT) (660 min)
       </span>
     </div>
 
@@ -1372,7 +1372,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   }
 
   const takt = Number(options.taktTime ?? 450);
-  const actualTakt = 690;
+  const actualTakt = 660;
   const showPlanned = options.showPlanned === true && lineBalanceView.showPlanned;
   const defaultActualVesselClass = options.actualVesselClass || "";
   const filterVessels = !!options.filterVessels && lineBalanceView.showActual;
