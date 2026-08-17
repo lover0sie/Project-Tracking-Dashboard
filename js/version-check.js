@@ -1,6 +1,6 @@
 /* App versioning checking */
 
-const APP_VERSION = "2026-07-31-01"; /* Update here */
+const APP_VERSION = "2026-08-17-01"; /* Update here */
 let versionTimer = null;
 const VERSION_REFRESHED_KEY = "projectDashboardRefreshedVersion";
 

@@ -48,7 +48,7 @@ let allSegmentsCache = [];
 let tooltipEl = null;
 let selectedProjectSegments = [];
 let projectSearchTerm = "";
-let lineBalanceMode = "PROJECT";
+let lineBalanceMode = "MODEL";
 let currentModels = [];
 let selectedModel = "";
 let modelDateFrom = "";
@@ -72,6 +72,13 @@ let lineBalanceVesselView = {
 };
 
 const DEFAULT_PV_VESSELS = ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
+const EXCLUDED_CHILLER_LINE_BALANCE_PROCESSES = new Set([
+  "PIPING SHOP",
+  "STEEL PIPE SUB-ASSEMBLY (FITTING)",
+  "STEEL PIPE SUB-ASSEMBLY WELDING",
+  "STEEL PIPE SUB-ASSEMBLY (WELDING)",
+  "STEEL PIPE SUB-ASSEMBLY"
+]);
 
 const PV1_MODELS = ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS", "ZUWY"];
 
@@ -703,6 +710,27 @@ function getLineBalanceProcessCode(processName = "", chillerType = "") {
   return getKnownChillerProcessCode(processName, chillerType) || getProcessCode(processName);
 }
 
+function shouldExcludeChillerLineBalanceProcess(seg) {
+  const chillerType = getChillerProcessType(seg);
+  const processCode = normalizeProcessOrderCode(
+    getLineBalanceProcessCode(getSegmentProcessLabel(seg), chillerType)
+  );
+
+  return EXCLUDED_CHILLER_LINE_BALANCE_PROCESSES.has(processCode);
+}
+
+function isLineBalanceChillerSegment(seg) {
+  const qrKind = String(seg?.qrKind || "").trim().toUpperCase();
+  return qrKind === "CHILLER" || qrKind !== "PV";
+}
+
+function getLineBalanceChillerSegments(segments) {
+  return (Array.isArray(segments) ? segments : []).filter(seg =>
+    isLineBalanceChillerSegment(seg) &&
+    !shouldExcludeChillerLineBalanceProcess(seg)
+  );
+}
+
 function inferChillerProcessType(segments) {
   let airSignals = 0;
   let waterSignals = 0;
@@ -1165,14 +1193,18 @@ function clearCharts() {
 function createChartCard(titleText, options = {}) {
 
   const vesselTitle = [
-    "CHILLER",
     "EVAPORATOR",
     "CONDENSER",
     "OIL SEPARATOR",
     "ECONOMIZER"
   ].find(type => String(titleText || "").includes(type));
 
-  const displayTitle = vesselTitle || titleText;
+  const rawTitle = String(titleText || "");
+  const chillerTitleIndex = rawTitle.toUpperCase().indexOf("CHILLER");
+  const displayTitle =
+    chillerTitleIndex >= 0
+      ? rawTitle.slice(chillerTitleIndex).trim()
+      : (vesselTitle || titleText);
   const showVesselLegend = !!options.showVesselLegend && lineBalanceView.showActual;
   const showPlannedToggle =
     !!options.showPlanned ||
@@ -1929,32 +1961,76 @@ function getVesselStackClass(vesselType) {
   return "vessel-other";
 }
 
+function renderChillerLineBalanceChart(title, segments, model, {
+  averageMode = false,
+  excludeProcesses = false
+} = {}) {
+  const mount = createChartCard(title, {
+    showPlanned: shouldShowPlannedForChiller(model)
+  });
+
+  try {
+    const chillerSegs = excludeProcesses
+      ? getLineBalanceChillerSegments(segments)
+      : (Array.isArray(segments) ? segments : []).filter(seg =>
+          isLineBalanceChillerSegment(seg)
+        );
+    if (!chillerSegs.length) {
+      mount.innerHTML = `<div class="emptyState">No Chiller data found for this view.</div>`;
+      return false;
+    }
+
+    const baseData = averageMode
+      ? buildAverageProcessChartData(chillerSegs)
+      : buildProcessChartData(chillerSegs);
+    if (!baseData.length) {
+      mount.innerHTML = `<div class="emptyState">No Chiller process records found for this view.</div>`;
+      return false;
+    }
+
+    const chartModel = model || chillerSegs[0]?.model;
+    const showPlanned = shouldShowPlannedForChiller(chartModel);
+    const data = applyChillerDilStandardTime(baseData, chartModel);
+
+    renderCustomLineBalanceChart(mount, data, { taktTime: 450, showPlanned });
+    return true;
+  } catch (err) {
+    console.error("Failed to render Chiller line balance chart:", err);
+    mount.innerHTML = `<div class="emptyState">Failed to render Chiller line balance chart.</div>`;
+    return false;
+  }
+}
+
+function renderProjectChillerLineBalanceCharts(project, projectSegments, chillerModel) {
+  const titleBase = project.projectName || project.chillerSerialNumber;
+
+  renderChillerLineBalanceChart(
+    `${titleBase} - CHILLER - EXCLUDE SUB ASSEMBLY`,
+    projectSegments,
+    chillerModel,
+    { excludeProcesses: true }
+  );
+
+  renderChillerLineBalanceChart(
+    `${titleBase} - CHILLER - ALL PROCESS`,
+    projectSegments,
+    chillerModel
+  );
+}
+
 function renderSelectedProjectCharts(project) {
   clearCharts();
 
   const projectSegments = selectedProjectSegments;
-  const qrKindView = qrKindViewEl?.value || "CHILLER";
-
+  const qrKindView = String(qrKindViewEl?.value || "CHILLER").trim().toUpperCase();
+  const chillerModel = project.model || projectSegments.find(seg =>
+    isLineBalanceChillerSegment(seg)
+  )?.model;
   if (qrKindView === "CHILLER") {
-    const chillerSegs = projectSegments.filter(seg =>
-      String(seg.qrKind || "").trim() === "CHILLER"
-    );
-
-    const chillerModel = project.model || chillerSegs[0]?.model;
-    const data = applyChillerDilStandardTime(
-      buildProcessChartData(chillerSegs),
-      chillerModel
-    );
-    const showPlanned = shouldShowPlannedForChiller(chillerModel);
-    const mount = createChartCard(
-      `${project.projectName || project.chillerSerialNumber} — CHILLER`
-      ,{ showPlanned }
-    );
-    renderCustomLineBalanceChart(mount, data, { taktTime: 450, showPlanned });
+    renderProjectChillerLineBalanceCharts(project, projectSegments, chillerModel);
     return;
   }
 
-  
   const pvSegs = projectSegments.filter(seg =>
     String(seg.qrKind || "").trim() === "PV"
   );
@@ -2157,9 +2233,23 @@ async function onModelClick(modelRow) {
 function renderModelCharts(modelRow) {
   clearCharts();
 
-  const qrKindView = qrKindViewEl?.value || "PV";
+  const qrKindView = String(qrKindViewEl?.value || "PV").trim().toUpperCase();
 
   if (qrKindView === "CHILLER") {
+    renderChillerLineBalanceChart(
+      `${modelRow.model} - CHILLER - EXCLUDE SUB ASSEMBLY`,
+      selectedProjectSegments,
+      modelRow.model,
+      { averageMode: true, excludeProcesses: true }
+    );
+    renderChillerLineBalanceChart(
+      `${modelRow.model} - CHILLER - ALL PROCESS`,
+      selectedProjectSegments,
+      modelRow.model,
+      { averageMode: true }
+    );
+    return;
+
     const chillerSegs = selectedProjectSegments.filter(seg =>
       String(seg.qrKind || "").trim() === "CHILLER"
     );
@@ -2536,6 +2626,10 @@ document.getElementById("exportCombinedRawBtn")?.addEventListener("click", () =>
         model: selectedModel || projectNameEl?.textContent || "Selected"
     });
 });
+
+if (modeViewEl) {
+  modeViewEl.value = lineBalanceMode;
+}
 
 updateToolbarModeUi();
 updateSearchClearVisibility();
