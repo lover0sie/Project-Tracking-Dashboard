@@ -733,6 +733,7 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     return {
       className: noStandardClass,
       label: "No standard",
+      totalTimeText: `Total Time: ${actualHms}`,
       detail: `${actualHms} elapsed time`,
       barPercent: actualBarPercent,
       segments: buildSingleSegment("performance-no-standard"),
@@ -743,11 +744,17 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
   const varianceMinutes =
     standardMinutes - actualMinutes;
 
+  const exceededHms =
+    formatReadableTimeFromMinutes(
+      Math.max(0, actualMinutes - standardMinutes)
+    );
+
   if (status === "completed") {
     if (varianceMinutes >= 0) {
       return {
         className: "performance-on-track",
         label: "Completed on track",
+        totalTimeText: `Total Time: ${actualHms}`,
         detail: `${actualHms} within standard`,
         barPercent: actualBarPercent,
         segments: buildSingleSegment("performance-on-track"),
@@ -758,7 +765,8 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     return {
       className: "performance-completed-exceeded",
       label: "Completed exceeded",
-      detail: `${actualHms} exceeded standard`,
+      totalTimeText: `Total Time: ${actualHms}`,
+      detail: `${exceededHms} exceeded standard`,
       barPercent: actualBarPercent,
       segments: buildExceededSegments("performance-on-track"),
       sectionWidthPercent: 10
@@ -769,9 +777,10 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     return {
       className: "performance-hold",
       label: "On hold",
+      totalTimeText: `Total Time: ${actualHms}`,
       detail: varianceMinutes >= 0
         ? `${actualHms} within standard`
-        : `${actualHms} exceeded standard`,
+        : `${exceededHms} exceeded standard`,
       barPercent: actualBarPercent,
       segments: buildSingleSegment("performance-hold"),
       sectionWidthPercent: 10
@@ -782,7 +791,8 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     return {
       className: "performance-running-exceeded",
       label: "Exceeded standard",
-      detail: `${actualHms} exceeded standard`,
+      totalTimeText: `Total Time: ${actualHms}`,
+      detail: `${exceededHms} exceeded standard`,
       barPercent: actualBarPercent,
       segments: buildExceededSegments("performance-running"),
       sectionWidthPercent: 10
@@ -792,6 +802,7 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
   return {
     className: "performance-running",
     label: "Running",
+    totalTimeText: `Total Time: ${actualHms}`,
     detail: `${actualHms} currently running`,
     barPercent: actualBarPercent,
     segments: buildSingleSegment("performance-running"),
@@ -964,6 +975,9 @@ function renderTable(runs) {
 
         <td class="performance-column">
           <div class="performance-meta">
+            <span class="performance-total-time">
+              ${escapeHtml(performance.totalTimeText || "-")}
+            </span>
             <span>${escapeHtml(performance.detail)}</span>
           </div>
 

@@ -388,7 +388,8 @@ select:disabled {
 
 .performance-meta {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 7px;
 }
 
@@ -397,6 +398,11 @@ select:disabled {
   font-size: 0.82rem;
   font-weight: 700;
   text-align: right;
+}
+
+.performance-meta .performance-total-time {
+  color: #111827;
+  text-align: left;
 }
 
 .row-performance-track {
@@ -542,6 +548,10 @@ select:disabled {
 
 .performance-row.performance-no-standard .performance-meta span {
   color: #374151;
+}
+
+.performance-row .performance-meta span.performance-total-time {
+  color: #111827;
 }
 
 @media (max-width: 1100px) {
