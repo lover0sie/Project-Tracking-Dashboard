@@ -1,3 +1,9 @@
+/*
+  Chiller cycle time data is loaded from project runs, converted into segments,
+  filtered by the selected date range, grouped by chiller model and process,
+  and rendered as a summary table, model frequency chart, and process detail modal
+*/
+
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
@@ -71,6 +77,7 @@ const CHILLER_PROCESS_RANKS = Object.fromEntries(
   ])
 );
 
+// HTML-sensitive characters are escaped before values are rendered into markup
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -80,6 +87,7 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+// Process labels are normalized so matching and sorting can be performed consistently
 function normalizeProcessKey(value = "") {
   return String(value || "")
     .trim()
@@ -88,10 +96,12 @@ function normalizeProcessKey(value = "") {
     .toUpperCase();
 }
 
+// Chiller type values are normalized before process-order lookups are performed
 function normalizeChillerType(value = "") {
   return String(value || "").trim().toUpperCase();
 }
 
+// Minute values are formatted with one decimal place for table display
 function formatMinutes(value) {
   return Number(value || 0).toLocaleString(undefined, {
     minimumFractionDigits: 1,
@@ -99,6 +109,7 @@ function formatMinutes(value) {
   });
 }
 
+// Minute values are converted into hours and formatted with one decimal place
 function formatHours(value) {
   return (Number(value || 0) / 60).toLocaleString(undefined, {
     minimumFractionDigits: 1,
@@ -106,6 +117,7 @@ function formatHours(value) {
   });
 }
 
+// Epoch milliseconds are converted into the YYYY-MM-DD value expected by date inputs
 function formatDateInputValue(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return "";
 
@@ -117,6 +129,7 @@ function formatDateInputValue(ms) {
   return `${year}-${month}-${day}`;
 }
 
+// The selected start date is parsed as the first millisecond of the local day
 function parseDateStartMs(value) {
   if (!value) return null;
 
@@ -126,6 +139,7 @@ function parseDateStartMs(value) {
   return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
 }
 
+// The selected end date is parsed as the final millisecond of the local day
 function parseDateEndMs(value) {
   if (!value) return null;
 
@@ -135,6 +149,7 @@ function parseDateEndMs(value) {
   return new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 }
 
+// A segment is checked against the active date range before it is included
 function isSegmentInDateRange(seg) {
   const startMs = seg?.start instanceof Date ? seg.start.getTime() : 0;
   const fromMs = parseDateStartMs(dateFromEl?.value);
@@ -145,11 +160,13 @@ function isSegmentInDateRange(seg) {
   return true;
 }
 
+// A valid manpower value is resolved for a segment, with one person used as the fallback
 function getSegmentManpower(seg) {
   const manpower = Number(seg?.manpower || seg?.run?.manpower || 1);
   return Number.isFinite(manpower) && manpower > 0 ? manpower : 1;
 }
 
+// The cooling type is derived from segment data, known model mappings, or a water-cooled fallback
 function getSegmentCoolingType(seg) {
   const model = normalizeChillerType(seg?.model);
   const coolingType = normalizeChillerType(seg?.coolingType);
@@ -159,6 +176,7 @@ function getSegmentCoolingType(seg) {
   return "WATER-COOLED";
 }
 
+// A known chiller process code is matched from the configured process order
 function getKnownChillerProcessCode(processName = "", coolingType = "") {
   const label = normalizeProcessKey(processName);
   const type = normalizeChillerType(coolingType);
@@ -177,10 +195,12 @@ function getKnownChillerProcessCode(processName = "", coolingType = "") {
   ) || "";
 }
 
+// A process code is resolved from known chiller processes before the shared parser is used
 function getCycleProcessCode(processName = "", coolingType = "") {
   return getKnownChillerProcessCode(processName, coolingType) || getProcessCode(processName);
 }
 
+// A sorting rank is assigned to a process code based on the cooling-type process order
 function getProcessRank(processCode = "", coolingType = "") {
   const code = normalizeProcessKey(processCode);
   const type = normalizeChillerType(coolingType);
@@ -194,6 +214,7 @@ function getProcessRank(processCode = "", coolingType = "") {
   return 9999;
 }
 
+// Chiller segments are grouped by model and process, then average cycle metrics are calculated
 function buildCycleRows(segments) {
   const modelMap = new Map();
 
@@ -281,6 +302,7 @@ function buildCycleRows(segments) {
   );
 }
 
+// The model summary table and aggregate counters are rendered from the prepared cycle rows
 function renderSummary() {
   if (modelCountEl) modelCountEl.textContent = String(modelRows.length);
   if (recordCountEl) {
@@ -341,6 +363,7 @@ function renderSummary() {
   renderModelFrequencyChart();
 }
 
+// A bar chart is rendered to show the number of chiller units found per model
 function renderModelFrequencyChart() {
   if (!modelChartEl) return;
 
@@ -396,6 +419,7 @@ function renderModelFrequencyChart() {
   `;
 }
 
+// The process detail modal is opened for the selected model row
 function openProcessModal(modelRow) {
   if (!processModalEl || !processModalBodyEl) return;
 
@@ -411,6 +435,7 @@ function openProcessModal(modelRow) {
   processModalEl.classList.remove("hidden");
 }
 
+// The modal process table is rendered with average duration, manpower, and cycle-time metrics
 function renderProcessModalTable(modelRow) {
   if (!processModalBodyEl) return;
 
@@ -446,10 +471,12 @@ function renderProcessModalTable(modelRow) {
   `;
 }
 
+// The process detail modal is hidden when dismissal is requested
 function closeProcessModal() {
   processModalEl?.classList.add("hidden");
 }
 
+// Project runs are loaded, converted into cycle rows, and rendered into the page
 async function loadCycleTime() {
   if (summaryTableEl) {
     summaryTableEl.innerHTML = `<div class="emptyState">Loading chiller cycle time...</div>`;
@@ -483,6 +510,7 @@ async function loadCycleTime() {
   }
 }
 
+// Empty date filters are initialized from the earliest and latest available project timestamps
 function initializeDateFilters(projects) {
   if (dateFromEl?.value || dateToEl?.value) return;
 

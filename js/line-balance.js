@@ -8,7 +8,11 @@ import {
   STANDARD_FACTOR
 } from "./helpers.js";
 
-import { CHILLER_LINE_BALANCE, PV_COMBINED_LINE_BALANCE } from "./pv-combined-list.js";
+import {
+  CHILLER_LINE_BALANCE,
+  MODEL_VESSEL_LIST,
+  PV_COMBINED_LINE_BALANCE
+} from "./pv-combined-list.js";
 
 import { loadProjectHeadersFallbackFromRuns, loadRunsForProject } from "./timeline.js";
 import {
@@ -66,6 +70,8 @@ let lineBalanceVesselView = {
   "OIL SEPARATOR": true,
   ECONOMIZER: true
 };
+
+const DEFAULT_PV_VESSELS = ["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
 
 const PV1_MODELS = ["HXE-TT", "HXE-M", "HXE-TG", "HXE-HT", "ZUWV", "ZUWS", "ZUWY"];
 
@@ -246,7 +252,7 @@ function shouldShowPlannedForPvCombined(model = "") {
   const config = getPvCombinedConfig(model);
 
   return !!config?.groups?.some(group =>
-    Number(group?.plannedTime || 0) > 0
+    getDaiplStandardTime(group) > 0
   );
 }
 
@@ -262,8 +268,12 @@ function shouldShowPlannedForChiller(model = "") {
   const config = getChillerLineBalanceConfig(model);
 
   return !!config?.groups?.some(group =>
-    Number(group?.plannedTime || 0) > 0
+    getDaiplStandardTime(group) > 0
   );
+}
+
+function getDaiplStandardTime(group) {
+  return Number(group?.DAIPLtime ?? group?.plannedTime ?? 0);
 }
 
 function getChillerDilStandardTime(config, processCode) {
@@ -272,7 +282,7 @@ function getChillerDilStandardTime(config, processCode) {
     item.processes.some(process => normalizeProcessOrderCode(process) === code)
   );
 
-  return Number(group?.plannedTime || 0);
+  return getDaiplStandardTime(group);
 }
 
 function applyChillerDilStandardTime(data, model) {
@@ -597,10 +607,35 @@ function formatActualDurationSummary(value) {
   })} days`;
 }
 
-function getCombinedActualTotal(data, filterVessels = false) {
+function getModelVesselTypes(model = "") {
+  const modelKey = String(model || "").trim().toUpperCase();
+  const config = MODEL_VESSEL_LIST.find(item =>
+    item.models?.some(itemModel => String(itemModel || "").trim().toUpperCase() === modelKey)
+  );
+
+  const vessels = config?.vesselType?.length ? config.vesselType : DEFAULT_PV_VESSELS;
+
+  return vessels.map(vessel => String(vessel || "").trim().toUpperCase()).filter(Boolean);
+}
+
+function getAllowedVesselSet(vessels) {
+  return Array.isArray(vessels) && vessels.length
+    ? new Set(vessels.map(vessel => String(vessel || "").trim().toUpperCase()))
+    : null;
+}
+
+function isVesselAllowed(vessel, allowedVesselSet = null) {
+  if (!allowedVesselSet) return true;
+  return allowedVesselSet.has(String(vessel || "").trim().toUpperCase());
+}
+
+function getCombinedActualTotal(data, filterVessels = false, allowedVessels = null) {
+  const allowedVesselSet = getAllowedVesselSet(allowedVessels);
+
   return (Array.isArray(data) ? data : []).reduce((sum, row) => {
     if (filterVessels && Array.isArray(row.stackParts)) {
       const visibleParts = row.stackParts.filter(part =>
+        isVesselAllowed(part?.key, allowedVesselSet) &&
         lineBalanceVesselView[String(part?.key || "").toUpperCase()] !== false
       );
 
@@ -1151,10 +1186,13 @@ function createChartCard(titleText, options = {}) {
   const summaryHtml = summaryText
     ? `<div class="lbChartSummary">${escapeHtml(summaryText)}</div>`
     : "";
+  const vesselToggleList = getAllowedVesselSet(options.allowedVessels)
+    ? options.allowedVessels
+    : DEFAULT_PV_VESSELS;
   const vesselLegendHtml = showVesselLegend
     ? `
       <div class="lbLegend lbVesselLegend">
-        ${["EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"].map(vessel => `
+        ${vesselToggleList.map(vessel => `
           <label class="lbLegendItem vesselFilter">
             <input
               type="checkbox"
@@ -1209,6 +1247,11 @@ function createChartCard(titleText, options = {}) {
       <span class="lbLegendItem">
         <span class="lbLegendLine"></span>
         Takt Time (450 min)
+      </span>
+
+      <span class="lbLegendItem">
+        <span class="lbLegendLine"></span>
+        Actual Takt Time (ATT) (690 min)
       </span>
     </div>
 
@@ -1272,7 +1315,11 @@ function createChartCard(titleText, options = {}) {
 
       lineBalanceVesselView[vessel] = toggle.checked;
 
-      if (!Object.values(lineBalanceVesselView).some(Boolean)) {
+      const hasVisibleVesselSelected = Array.from(vesselToggles).some(item =>
+        lineBalanceVesselView[item.dataset.vessel] !== false
+      );
+
+      if (!hasVisibleVesselSelected) {
         lineBalanceVesselView[vessel] = true;
         toggle.checked = true;
       }
@@ -1293,10 +1340,17 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   }
 
   const takt = Number(options.taktTime ?? 450);
+  const actualTakt = 690;
   const showPlanned = options.showPlanned === true && lineBalanceView.showPlanned;
   const defaultActualVesselClass = options.actualVesselClass || "";
   const filterVessels = !!options.filterVessels && lineBalanceView.showActual;
-  const isVisibleVessel = part => !filterVessels || lineBalanceVesselView[String(part?.key || "").toUpperCase()] !== false;
+  const allowedVesselSet = getAllowedVesselSet(options.allowedVessels);
+  const isVisibleVessel = part =>
+    !filterVessels ||
+    (
+      isVesselAllowed(part?.key, allowedVesselSet) &&
+      lineBalanceVesselView[String(part?.key || "").toUpperCase()] !== false
+    );
   const chartData = data
     .map(row => {
       const stackParts = Array.isArray(row.stackParts)
@@ -1328,6 +1382,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
 
   const rawMax = Math.max(
     takt,
+    actualTakt,
     ...chartData.flatMap(d => [
       lineBalanceView.showStandard ? Number(d.standard || 0) : 0,
       lineBalanceView.showActual ? Number(d.actual || 0) : 0,
@@ -1337,7 +1392,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   );
 
   const chartMax = Math.max(500, Math.ceil((rawMax * 1.12) / 50) * 50);
-  const tickCount = 5;
+  const tickCount = 10;
 
   const yAxisHtml = Array.from({ length: tickCount + 1 }, (_, i) => {
     const value = (chartMax / tickCount) * (tickCount - i);
@@ -1356,6 +1411,7 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
   }).join("");
 
   const taktPct = (takt / chartMax) * 100;
+  const actualTaktPct = (actualTakt / chartMax) * 100;
 
   const colsHtml = chartData.map((d, idx) => {
     const standardPct = (Number(d.standard || 0) / chartMax) * 100;
@@ -1497,6 +1553,8 @@ function renderCustomLineBalanceChart(container, data, options = {}) {
           <div class="lbGrid">
             ${gridHtml}
             <div class="lbTaktLine" style="bottom:${taktPct}%">
+            </div>
+            <div class="lbTaktLine" style="bottom:${actualTaktPct}%">
             </div>
           </div>
 
@@ -1671,7 +1729,7 @@ function addCombinedRow(combinedMap, vessel, row, group, groupIndex) {
       actual: 0,
       standard: 0,
       total: 0,
-      planned: Number(group.plannedTime || 0),
+      planned: getDaiplStandardTime(group),
       manpowerSum: 0,
       count: 0,
       parts: new Map(),
@@ -1902,12 +1960,20 @@ function renderSelectedProjectCharts(project) {
   );
 
   const combinedData = buildPvCombinedFromVesselCharts(pvSegs, false);
-  const showPlanned = shouldShowPlannedForPvCombined(project.model || pvSegs[0]?.model);
+  const pvModel = project.model || pvSegs[0]?.model;
+  const allowedVessels = getModelVesselTypes(pvModel);
+  const showPlanned = shouldShowPlannedForPvCombined(pvModel);
   const combinedMount = createChartCard(`${project.projectName || project.chillerSerialNumber} — PV COMBINED`, {
     showVesselLegend: true,
-    showPlanned
+    showPlanned,
+    allowedVessels
   });
-  renderCustomLineBalanceChart(combinedMount, combinedData, { taktTime: 450, filterVessels: true, showPlanned });
+  renderCustomLineBalanceChart(combinedMount, combinedData, {
+    taktTime: 450,
+    filterVessels: true,
+    showPlanned,
+    allowedVessels
+  });
 
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
 
@@ -2116,17 +2182,20 @@ function renderModelCharts(modelRow) {
 
   // Build combined PV chart for the model view using averages
   const combinedData = buildPvCombinedFromVesselCharts(pvSegs, true);
-  const combinedActualTotal = getCombinedActualTotal(combinedData, true);
+  const allowedVessels = getModelVesselTypes(modelRow.model);
+  const combinedActualTotal = getCombinedActualTotal(combinedData, true, allowedVessels);
   const combinedMount = createChartCard(`${modelRow.model} — PV COMBINED`, {
     showVesselLegend: true,
     showPlanned: shouldShowPlannedForPvCombined(modelRow.model),
+    allowedVessels,
     summaryText: `Total Actual: ${formatActualDurationSummary(combinedActualTotal)}`
   });
 
   renderCustomLineBalanceChart(combinedMount, combinedData, {
     taktTime: 450,
     filterVessels: true,
-    showPlanned: shouldShowPlannedForPvCombined(modelRow.model)
+    showPlanned: shouldShowPlannedForPvCombined(modelRow.model),
+    allowedVessels
   });
 
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
