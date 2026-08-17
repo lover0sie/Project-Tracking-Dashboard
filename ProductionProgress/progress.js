@@ -45,6 +45,7 @@ const STATUS_ORDER = {
   completed: 3
 };
 
+const NO_STANDARD_REFERENCE_MINUTES = 450;
 
 /* =========================================================
    STATE
@@ -192,6 +193,25 @@ function formatPerformanceMinutes(minutes) {
   }
 
   return formatDuration(value);
+}
+
+function formatReadableTimeFromMinutes(minutes) {
+  const value = Number(minutes);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 hr 0 min";
+  }
+
+  const totalSeconds =
+    Math.floor(value * 60);
+
+  const hours =
+    Math.floor(totalSeconds / 3600);
+
+  const minutesPart =
+    Math.floor((totalSeconds % 3600) / 60);
+
+  return `${hours} hr ${minutesPart} min`;
 }
 
 function clamp(value, min, max) {
@@ -623,62 +643,48 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
   const status =
     normalizeStatus(run.status);
 
+  const actualHms =
+    formatReadableTimeFromMinutes(actualMinutes);
+
   if (
     !Number.isFinite(standardMinutes) ||
     standardMinutes <= 0
   ) {
     return {
-      className: "performance-unknown",
+      className: "performance-no-standard",
       label: "No standard",
-      detail: `${formatPerformanceMinutes(actualMinutes)} recorded`,
-      barPercent: 0
+      detail: `${actualHms} elapsed time`,
+      barPercent: clamp(actualMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100),
+      sectionWidthPercent: 10
     };
   }
 
   const varianceMinutes =
     standardMinutes - actualMinutes;
 
-  const exceededMinutes =
-    Math.abs(varianceMinutes);
-
   const barPercent =
-    status === "completed" && varianceMinutes >= 0
-      ? 100
-      : clamp(actualMinutes / standardMinutes * 100, 0, 100);
+    clamp(actualMinutes / standardMinutes * 100, 0, 100);
+
+  const standardSectionWidthPercent =
+    clamp(standardMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 4, 100);
 
   if (status === "completed") {
     if (varianceMinutes >= 0) {
       return {
         className: "performance-on-track",
         label: "Completed on track",
-        detail: `${formatPerformanceMinutes(actualMinutes)} within standard`,
-        barPercent
+        detail: `${actualHms} within standard`,
+        barPercent,
+        sectionWidthPercent: standardSectionWidthPercent
       };
     }
 
     return {
-      className: "performance-exceeded",
+      className: "performance-on-track",
       label: "Completed exceeded",
-      detail: `${formatPerformanceMinutes(exceededMinutes)} over standard`,
-      barPercent: 100
-    };
-  }
-
-  if (varianceMinutes <= 0) {
-    return {
-      className: "performance-exceeded",
-      label: "Exceeded standard",
-      detail: `${formatPerformanceMinutes(exceededMinutes)} over standard`,
-      barPercent: 100
-    };
-  }
-
-  if (varianceMinutes <= 15) {
-    return {
-      className: "performance-warning",
-      label: "Ending soon",
-      detail: `${formatPerformanceMinutes(varianceMinutes)} before standard ends`,
-      barPercent
+      detail: `${actualHms} exceeded standard`,
+      barPercent,
+      sectionWidthPercent: standardSectionWidthPercent
     };
   }
 
@@ -686,16 +692,30 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     return {
       className: "performance-hold",
       label: "On hold",
-      detail: `${formatPerformanceMinutes(actualMinutes)} active time`,
-      barPercent
+      detail: varianceMinutes >= 0
+        ? `${actualHms} within standard`
+        : `${actualHms} exceeded standard`,
+      barPercent,
+      sectionWidthPercent: standardSectionWidthPercent
+    };
+  }
+
+  if (varianceMinutes < 0) {
+    return {
+      className: "performance-exceeded",
+      label: "Exceeded standard",
+      detail: `${actualHms} exceeded standard`,
+      barPercent,
+      sectionWidthPercent: standardSectionWidthPercent
     };
   }
 
   return {
     className: "performance-running",
     label: "Running",
-    detail: `${formatPerformanceMinutes(actualMinutes)} currently running`,
-    barPercent
+    detail: `${actualHms} currently running`,
+    barPercent,
+    sectionWidthPercent: standardSectionWidthPercent
   };
 }
 
@@ -758,11 +778,9 @@ function buildTableRows(runs) {
 function renderTable(runs) {
   if (!selectedStation) {
     progressTableBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="empty-cell">
-          Select a date and station.
-        </td>
-      </tr>
+      <div class="empty-cell">
+        Select a date and station.
+      </div>
     `;
 
     return;
@@ -770,11 +788,9 @@ function renderTable(runs) {
 
   if (!runs.length) {
     progressTableBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="empty-cell">
-          No projects found for this selection.
-        </td>
-      </tr>
+      <div class="empty-cell">
+        No projects found for this selection.
+      </div>
     `;
 
     return;
@@ -783,35 +799,56 @@ function renderTable(runs) {
   const rows =
     buildTableRows(runs);
 
-  progressTableBody.innerHTML =
-    rows.map((row, index) => {
-      const run = row.run;
+  const splitIndex =
+    Math.ceil(rows.length / 2);
 
-      const statusClass =
-        getStatusClass(run.status);
+  const columns = [
+    rows.slice(0, splitIndex),
+    rows.slice(splitIndex)
+  ];
 
-      const standardDisplay =
-        row.standardMinutes > 0
-          ? formatDuration(row.standardMinutes)
-          : "No standard";
+  function renderProcessCard(row) {
+    const run = row.run;
 
-      const endDisplay =
-        normalizeStatus(run.status) === "completed"
-          ? formatClockTime(
-              getTimestampMs(
-                run.endEpochMs ||
-                run.endAt
-              )
+    const statusClass =
+      getStatusClass(run.status);
+
+    const standardDisplay =
+      row.standardMinutes > 0
+        ? formatDuration(row.standardMinutes)
+        : "No standard";
+
+    const endDisplay =
+      normalizeStatus(run.status) === "completed"
+        ? formatClockTime(
+            getTimestampMs(
+              run.endEpochMs ||
+              run.endAt
             )
-          : "-";
+          )
+        : "-";
 
-      const performance =
-        row.performance;
+    const startDisplay =
+      formatClockTime(
+        getTimestampMs(
+          run.startEpochMs ||
+          run.startAt
+        )
+      );
 
-      return `
-        <tr class="performance-row ${performance.className}">
+    const typeDisplay =
+      normalizeUpper(run.qrKind) === "PV"
+        ? run.vesselType || "-"
+        : run.coolingType || "CHILLER";
 
-          <td class="project-cell">
+    const performance =
+      row.performance;
+
+    return `
+      <article class="process-card ${performance.className}">
+
+        <div class="process-card-head">
+          <div class="project-cell">
             <strong>
               ${escapeHtml(run.projectName || "-")}
             </strong>
@@ -819,64 +856,69 @@ function renderTable(runs) {
             <small class="serial-text">
               Material Number: ${escapeHtml(run.materialNumber || "-")}
             </small>
+          </div>
 
-            <small class="serial-text">
-              Type: ${escapeHtml(
-                normalizeUpper(run.qrKind) === "PV"
-                  ? run.vesselType || "-"
-                  : run.coolingType || "CHILLER"
-              )}
-            </small>
-          </td>
+          <span class="status-badge ${statusClass}">
+            ${escapeHtml(getStatusLabel(run.status))}
+          </span>
+        </div>
 
-          <td class="process-cell">
+        <div class="process-card-body">
+          <div class="process-cell">
+            <span class="process-label">Process</span>
             <strong>
               ${escapeHtml(getFullProcessName(run) || "-")}
             </strong>
-          </td>
+          </div>
 
-          <td>
-            <span class="status-badge ${statusClass}">
-              ${escapeHtml(getStatusLabel(run.status))}
-            </span>
-          </td>
-
-          <td>
-            ${formatClockTime(
-              getTimestampMs(
-                run.startEpochMs ||
-                run.startAt
-              )
-            )}
-          </td>
-
-          <td>
-            ${endDisplay}
-          </td>
-
-          <td>
-            ${standardDisplay}
-          </td>
-
-          <td class="performance-column">
-
-            <div class="performance-meta">
-              <strong>${escapeHtml(performance.label)}</strong>
-              <span>${escapeHtml(performance.detail)}</span>
+          <div class="process-facts">
+            <div>
+              <span>Type</span>
+              <strong>${escapeHtml(typeDisplay)}</strong>
             </div>
 
-            <div class="row-performance-track">
-              <div
-                class="row-performance-bar ${performance.className}"
-                style="width: ${performance.barPercent}%">
-              </div>
+            <div>
+              <span>Start</span>
+              <strong>${startDisplay}</strong>
             </div>
 
-          </td>
+            <div>
+              <span>End</span>
+              <strong>${endDisplay}</strong>
+            </div>
 
-        </tr>
-      `;
-    }).join("");
+            <div>
+              <span>Standard</span>
+              <strong>${standardDisplay}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="performance-column">
+          <div class="performance-meta">
+            <span>${escapeHtml(performance.detail)}</span>
+          </div>
+
+          <div
+            class="row-performance-track"
+            style="--section-width: ${performance.sectionWidthPercent || 10}%">
+            <div
+              class="row-performance-bar ${performance.className}"
+              style="width: ${performance.barPercent}%">
+            </div>
+          </div>
+        </div>
+
+      </article>
+    `;
+  }
+
+  progressTableBody.innerHTML =
+    columns.map((columnRows, index) => `
+      <div class="process-grid-column" aria-label="Process column ${index + 1}">
+        ${columnRows.map(renderProcessCard).join("")}
+      </div>
+    `).join("");
 }
 
 

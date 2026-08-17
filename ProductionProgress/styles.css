@@ -198,99 +198,109 @@ select:disabled {
   cursor: not-allowed;
 }
 
-.table-wrapper {
+.process-grid-wrapper {
   width: 100%;
-  overflow: visible;
+  padding: 12px;
 }
 
-.progress-table {
+.process-grid {
   width: 100%;
-  table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: 0 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.progress-table th,
-.progress-table td {
-  padding: 10px 12px;
-  border-bottom: 0;
-  text-align: left;
-  vertical-align: middle;
+.process-grid-column {
+  display: grid;
+  align-content: start;
+  gap: 12px;
 }
 
-.progress-table th {
-  background: transparent;
-  color: #4b5563;
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.progress-table tbody tr:hover {
-  background: #fafbfc;
-}
-
-.progress-table th:nth-child(1) {
-  width: 24%;
-}
-
-.progress-table th:nth-child(2) {
-  width: 18%;
-}
-
-.progress-table th:nth-child(3),
-.progress-table th:nth-child(4),
-.progress-table th:nth-child(5),
-.progress-table th:nth-child(6) {
-  width: 9%;
-}
-
-.progress-table th:nth-child(7) {
-  width: 31%;
-}
-
-.progress-table td:nth-child(3),
-.progress-table td:nth-child(4),
-.progress-table td:nth-child(5),
-.progress-table td:nth-child(6) {
-  font-size: 0.86rem;
-}
-
-.performance-row {
+.process-card {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  min-height: 190px;
+  padding: 14px 14px 14px 18px;
+  overflow: hidden;
+  border: 1px solid #e1e6ef;
+  border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
-.performance-row td:first-child {
-  border-radius: 8px 0 0 8px;
-  border-left: 12px solid #cbd5e1;
+.process-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 8px;
+  content: "";
+  background: #cbd5e1;
 }
 
-.performance-row td:last-child {
-  border-radius: 0 8px 8px 0;
+.process-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
 }
 
-.performance-row.performance-on-track td:first-child {
-  border-left-color: #10b981;
+.process-card-body {
+  display: grid;
+  gap: 12px;
 }
 
-.performance-row.performance-running td:first-child,
-.performance-row.performance-warning td:first-child {
-  border-left-color: #f59e0b;
+.process-label,
+.process-facts span {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.performance-row.performance-hold td:first-child {
-  border-left-color: #3b82f6;
+.process-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #edf1f7;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
-.performance-row.performance-exceeded td:first-child {
-  border-left-color: #ef4444;
+.process-facts strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #111827;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-card.performance-on-track::before {
+  background: #10b981;
+}
+
+.process-card.performance-running::before,
+.process-card.performance-warning::before {
+  background: #f59e0b;
+}
+
+.process-card.performance-hold::before {
+  background: #ef4444;
+}
+
+.process-card.performance-exceeded::before {
+  background: #ef4444;
 }
 
 .empty-cell {
-  padding: 36px !important;
-  text-align: center !important;
+  grid-column: 1 / -1;
+  padding: 36px;
+  text-align: center;
   color: #6b7280;
 }
 
@@ -341,14 +351,12 @@ select:disabled {
 }
 
 .performance-column {
-  min-width: 360px;
+  min-width: 0;
 }
 
 .performance-meta {
-  display: grid;
-  grid-template-columns: minmax(110px, auto) 1fr;
-  gap: 8px;
-  align-items: baseline;
+  display: flex;
+  justify-content: flex-end;
   margin-bottom: 7px;
 }
 
@@ -360,11 +368,27 @@ select:disabled {
 }
 
 .row-performance-track {
+  position: relative;
   width: 100%;
   height: 12px;
   overflow: hidden;
   background: #e5e7eb;
   border-radius: 999px;
+}
+
+.row-performance-track::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--section-width, 10%) - 1px),
+      rgba(15, 23, 42, 0.22) calc(var(--section-width, 10%) - 1px),
+      rgba(15, 23, 42, 0.22) var(--section-width, 10%)
+    );
 }
 
 .row-performance-bar {
@@ -373,7 +397,7 @@ select:disabled {
   transition: width 0.3s ease;
 }
 
-.performance-row.performance-on-track .performance-meta strong {
+.process-card.performance-on-track .performance-meta strong {
   color: #047857;
 }
 
@@ -381,8 +405,8 @@ select:disabled {
   background: #10b981;
 }
 
-.performance-row.performance-running .performance-meta strong,
-.performance-row.performance-warning .performance-meta strong {
+.process-card.performance-running .performance-meta strong,
+.process-card.performance-warning .performance-meta strong {
   color: #b45309;
 }
 
@@ -391,7 +415,7 @@ select:disabled {
   background: #f59e0b;
 }
 
-.performance-row.performance-exceeded .performance-meta strong {
+.process-card.performance-exceeded .performance-meta strong {
   color: #b91c1c;
 }
 
@@ -399,20 +423,46 @@ select:disabled {
   background: #ef4444;
 }
 
-.performance-row.performance-hold .performance-meta strong {
-  color: #1d4ed8;
+.process-card.performance-hold .performance-meta strong {
+  color: #b91c1c;
 }
 
 .row-performance-bar.performance-hold {
-  background: #3b82f6;
+  background: #ef4444;
 }
 
-.performance-row.performance-unknown .performance-meta strong {
+.process-card.performance-unknown .performance-meta strong {
   color: #475569;
 }
 
 .row-performance-bar.performance-unknown {
   background: #94a3b8;
+}
+
+.process-card.performance-no-standard::before {
+  background: #111827;
+}
+
+.row-performance-bar.performance-no-standard {
+  background: #111827;
+}
+
+.process-card.performance-on-track .performance-meta span {
+  color: #047857;
+}
+
+.process-card.performance-running .performance-meta span,
+.process-card.performance-warning .performance-meta span {
+  color: #b45309;
+}
+
+.process-card.performance-exceeded .performance-meta span,
+.process-card.performance-hold .performance-meta span {
+  color: #b91c1c;
+}
+
+.process-card.performance-no-standard .performance-meta span {
+  color: #111827;
 }
 
 @media (max-width: 1100px) {
@@ -437,7 +487,12 @@ select:disabled {
   }
 
   .toolbar,
-  .summary-grid {
+  .summary-grid,
+  .process-grid {
     grid-template-columns: 1fr;
+  }
+
+  .process-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
