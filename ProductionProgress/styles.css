@@ -12,7 +12,7 @@ body {
 }
 
 .app-shell {
-  width: min(1500px, calc(100% - 20px));
+  width: min(1500px, calc(100% - 12px));
   height: 100vh;
   margin: 0 auto;
   padding: 6px 0;
@@ -124,7 +124,7 @@ body {
 .last-update span,
 .metric-label {
   color: #64748b;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -190,24 +190,21 @@ body {
 }
 
 .panel-head {
-  display: flex;
+  display: none;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-bottom: 1px solid #e8ebf0;
 }
 
 .panel-head h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .panel-head p {
-  margin: 2px 0 0;
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 600;
+  display: none;
 }
 
 select,
@@ -237,24 +234,35 @@ select:disabled {
   min-width: 0;
   table-layout: fixed;
   border-collapse: separate;
-  border-spacing: 0 3px;
+  border-spacing: 0 2px;
 }
 
 .progress-table th,
 .progress-table td {
-  padding: 4px 6px;
+  padding: 3px 7px;
   border-bottom: 0;
   text-align: left;
   vertical-align: middle;
+  line-height: 1.08;
 }
 
 .progress-table th {
-  background: transparent;
-  color: #4b5563;
-  font-size: 0.62rem;
-  font-weight: 700;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.progress-table th:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.progress-table th:last-child {
+  border-radius: 0 6px 6px 0;
 }
 
 .progress-table tbody tr:hover {
@@ -262,26 +270,32 @@ select:disabled {
 }
 
 .progress-table th:nth-child(1) {
-  width: 27%;
+  width: 24%;
 }
 
 .progress-table th:nth-child(2) {
-  width: 8%;
+  width: 6%;
 }
 
 .progress-table th:nth-child(3) {
   width: 8%;
 }
 
-.progress-table th:nth-child(4),
+.progress-table th:nth-child(4) {
+  width: 5%;
+}
+
 .progress-table th:nth-child(5),
-.progress-table th:nth-child(6),
-.progress-table th:nth-child(7) {
+.progress-table th:nth-child(6) {
   width: 6%;
 }
 
+.progress-table th:nth-child(7) {
+  width: 7%;
+}
+
 .progress-table th:nth-child(8) {
-  width: 41%;
+  width: 38%;
 }
 
 .progress-table td:nth-child(3),
@@ -289,7 +303,7 @@ select:disabled {
 .progress-table td:nth-child(5),
 .progress-table td:nth-child(6),
 .progress-table td:nth-child(7) {
-  font-size: 0.76rem;
+  font-size: 0.82rem;
 }
 
 .performance-row {
@@ -349,27 +363,33 @@ select:disabled {
   display: block;
   margin-top: 2px;
   color: #6b7280;
-  font-size: 0.64rem;
+  font-size: 0.66rem;
 }
 
 .process-cell strong {
-  font-size: 0.7rem;
+  font-size: 0.82rem;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 88px;
-  padding: 3px 6px;
+  min-width: 84px;
+  padding: 3px 7px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 
 .status-running {
   color: #92400e;
   background: #fef3c7;
+}
+
+.status-running-next-day {
+  color: #92400e;
+  background: #fde68a;
+  white-space: normal;
 }
 
 .status-completed {
@@ -392,7 +412,7 @@ select:disabled {
 }
 
 .project-cell strong {
-  font-size: 0.74rem;
+  font-size: 0.82rem;
 }
 
 .performance-column {
@@ -403,12 +423,12 @@ select:disabled {
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .performance-meta span {
   color: #64748b;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-align: right;
 }

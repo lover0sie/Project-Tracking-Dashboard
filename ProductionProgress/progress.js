@@ -217,6 +217,25 @@ function clamp(value, min, max) {
    PROCESS IDENTIFICATION
 ========================================================= */
 
+function normalizePneumaticProcessName(processName) {
+  return "Painting and Vessel Testing";
+
+}
+
+function getStationDisplayName(station) {
+  const stationName =
+    normalizeText(station);
+
+  if (
+    getComparableStationValue(stationName) ===
+    getComparableStationValue("Pneumatic")
+  ) {
+    return normalizePneumaticProcessName(stationName);
+  }
+
+  return stationName;
+}
+
 function getFullProcessName(run) {
   return normalizeText(
     run.processName ||
@@ -524,6 +543,115 @@ function getLiveEffectiveDurationMs(run) {
     : 0;
 }
 
+function getSelectedDayRangeMs() {
+  const dateKey =
+    periodPicker.value;
+
+  if (!dateKey) return null;
+
+  const [year, month, day] =
+    String(dateKey).split("-").map(Number);
+
+  if (!year || !month || !day) return null;
+
+  const startMs =
+    new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+
+  const endMs =
+    new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+
+  return { startMs, endMs };
+}
+
+function getRunSegment(run) {
+  const normalizedRun = {
+    ...run,
+    serialNumber:
+      run.serialNumber ||
+      run.pvSerialNumber ||
+      run.chillerSerialNumber ||
+      ""
+  };
+
+  const result =
+    buildSegmentsFromRuns([normalizedRun]);
+
+  const segments =
+    Array.isArray(result)
+      ? result
+      : result.segments || [];
+
+  return segments[0] || null;
+}
+
+function getEffectiveDurationMsForWindow(run, windowStartMs, windowEndMs) {
+  if (
+    !Number.isFinite(windowStartMs) ||
+    !Number.isFinite(windowEndMs) ||
+    windowEndMs <= windowStartMs
+  ) {
+    return 0;
+  }
+
+  const segment =
+    getRunSegment(run);
+
+  if (!segment?.start || !segment?.end) {
+    return 0;
+  }
+
+  const clippedStartMs =
+    Math.max(segment.start.getTime(), windowStartMs);
+
+  const clippedEndMs =
+    Math.min(segment.end.getTime(), windowEndMs);
+
+  if (clippedEndMs <= clippedStartMs) {
+    return 0;
+  }
+
+  const clippedHoldWindows =
+    (Array.isArray(segment.holdWindows) ? segment.holdWindows : [])
+      .map(window => {
+        const holdStartMs =
+          window.start instanceof Date
+            ? window.start.getTime()
+            : new Date(window.start).getTime();
+
+        const holdEndMs =
+          window.end instanceof Date
+            ? window.end.getTime()
+            : new Date(window.end).getTime();
+
+        const clippedHoldStartMs =
+          Math.max(holdStartMs, clippedStartMs);
+
+        const clippedHoldEndMs =
+          Math.min(holdEndMs, clippedEndMs);
+
+        if (
+          !Number.isFinite(clippedHoldStartMs) ||
+          !Number.isFinite(clippedHoldEndMs) ||
+          clippedHoldEndMs <= clippedHoldStartMs
+        ) {
+          return null;
+        }
+
+        return {
+          ...window,
+          start: new Date(clippedHoldStartMs),
+          end: new Date(clippedHoldEndMs)
+        };
+      })
+      .filter(Boolean);
+
+  return getActualEffectiveDurationMs({
+    ...segment,
+    start: new Date(clippedStartMs),
+    end: new Date(clippedEndMs),
+    holdWindows: clippedHoldWindows
+  });
+}
 
 /* =========================================================
    EXPECTED COMPLETION
@@ -606,7 +734,7 @@ function renderStationOptions() {
 
     ${stations.map(station => `
       <option value="${escapeHtml(station)}">
-        ${escapeHtml(station)}
+        ${escapeHtml(getStationDisplayName(station))}
       </option>
     `).join("")}
   `;
@@ -681,15 +809,82 @@ function getStatusClass(status) {
   return "";
 }
 
-function getPerformanceState(run, actualMinutes, standardMinutes) {
+function doesRunContinueAfterSelectedDay(run) {
+  const selectedDayRange =
+    getSelectedDayRangeMs();
+
+  if (!selectedDayRange) return false;
+
+  const segment =
+    getRunSegment(run);
+
+  if (!segment?.start || !segment?.end) {
+    return false;
+  }
+
+  return (
+    segment.start.getTime() <= selectedDayRange.endMs &&
+    segment.end.getTime() > selectedDayRange.endMs
+  );
+}
+
+function getDisplayStatusLabel(run) {
+  if (doesRunContinueAfterSelectedDay(run)) {
+    return "Next Day";
+  }
+
+  return getStatusLabel(run.status);
+}
+
+function getDisplayStatusClass(run) {
+  if (doesRunContinueAfterSelectedDay(run)) {
+    return "status-running-next-day";
+  }
+
+  return getStatusClass(run.status);
+}
+
+function getDisplayStatusKey(run) {
+  if (doesRunContinueAfterSelectedDay(run)) {
+    return "running";
+  }
+
+  return normalizeStatus(run.status);
+}
+
+function getPerformanceState(run, actualMinutes, standardMinutes, dayActualMinutes, beforeDayActualMinutes) {
   const status =
     normalizeStatus(run.status);
 
   const actualHms =
     formatReadableTimeFromMinutes(actualMinutes);
 
+  const daySliceMinutes =
+    Number.isFinite(dayActualMinutes)
+      ? Math.max(0, dayActualMinutes)
+      : actualMinutes;
+
+  const daySliceHms =
+    formatReadableTimeFromMinutes(daySliceMinutes);
+
+  const beforeSliceMinutes =
+    Number.isFinite(beforeDayActualMinutes)
+      ? Math.max(0, beforeDayActualMinutes)
+      : Math.max(0, actualMinutes - daySliceMinutes);
+
+  function getBarPercent(minutes) {
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      return 0;
+    }
+
+    return Math.max(
+      0.8,
+      clamp(minutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100)
+    );
+  }
+
   const actualBarPercent =
-    clamp(actualMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100);
+    getBarPercent(daySliceMinutes);
 
   function buildSingleSegment(className, percent = actualBarPercent) {
     return [
@@ -701,20 +896,23 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
   }
 
   function buildExceededSegments(baseClassName) {
-    const standardPercent =
-      clamp(standardMinutes / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100);
+    const remainingStandardMinutes =
+      Math.max(0, standardMinutes - beforeSliceMinutes);
 
-    const exceededPercent =
-      clamp((actualMinutes - standardMinutes) / NO_STANDARD_REFERENCE_MINUTES * 100, 0, 100 - standardPercent);
+    const standardSliceMinutes =
+      Math.min(daySliceMinutes, remainingStandardMinutes);
+
+    const exceededSliceMinutes =
+      Math.max(0, daySliceMinutes - standardSliceMinutes);
 
     return [
       {
         className: baseClassName,
-        percent: standardPercent
+        percent: getBarPercent(standardSliceMinutes)
       },
       {
         className: "performance-exceeded",
-        percent: exceededPercent
+        percent: getBarPercent(exceededSliceMinutes)
       }
     ].filter(segment => segment.percent > 0);
   }
@@ -803,7 +1001,7 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
     className: "performance-running",
     label: "Running",
     totalTimeText: `Total Time: ${actualHms}`,
-    detail: `${actualHms} currently running`,
+    detail: `${daySliceHms} currently running today`,
     barPercent: actualBarPercent,
     segments: buildSingleSegment("performance-running"),
     sectionWidthPercent: 10
@@ -811,6 +1009,9 @@ function getPerformanceState(run, actualMinutes, standardMinutes) {
 }
 
 function buildTableRows(runs) {
+  const selectedDayRange =
+    getSelectedDayRangeMs();
+
   return runs
     .map(run => {
       const standardMinutes =
@@ -819,17 +1020,39 @@ function buildTableRows(runs) {
       const actualMinutes =
         getLiveEffectiveDurationMs(run) / 60000;
 
+      const dayActualMinutes =
+        selectedDayRange
+          ? getEffectiveDurationMsForWindow(
+              run,
+              selectedDayRange.startMs,
+              selectedDayRange.endMs
+            ) / 60000
+          : actualMinutes;
+
+      const beforeDayActualMinutes =
+        selectedDayRange
+          ? getEffectiveDurationMsForWindow(
+              run,
+              0,
+              selectedDayRange.startMs
+            ) / 60000
+          : 0;
+
       const performance =
         getPerformanceState(
           run,
           actualMinutes,
-          standardMinutes
+          standardMinutes,
+          dayActualMinutes,
+          beforeDayActualMinutes
         );
 
       return {
         run,
         standardMinutes,
         actualMinutes,
+        dayActualMinutes,
+        beforeDayActualMinutes,
         performance,
 
         expectedCompletionMs:
@@ -906,7 +1129,7 @@ function renderTable(runs) {
     const run = row.run;
 
     const statusClass =
-      getStatusClass(run.status);
+      getDisplayStatusClass(run);
 
     const standardDisplay =
       row.standardMinutes > 0
@@ -961,7 +1184,7 @@ function renderTable(runs) {
 
         <td>
           <span class="status-badge ${statusClass}">
-            ${escapeHtml(getStatusLabel(run.status))}
+            ${escapeHtml(getDisplayStatusLabel(run))}
           </span>
         </td>
 
@@ -1004,19 +1227,24 @@ function renderTable(runs) {
 
 function renderSummary(runs) {
   const completed = runs.filter(
-    run => normalizeStatus(run.status) === "completed"
+    run => getDisplayStatusKey(run) === "completed"
   ).length;
 
   const running = runs.filter(
-    run => normalizeStatus(run.status) === "running"
+    run => getDisplayStatusKey(run) === "running"
   ).length;
 
   const onHold = runs.filter(
-    run => normalizeStatus(run.status) === "on_hold"
+    run => getDisplayStatusKey(run) === "on_hold"
   ).length;
 
+  const selectedStationDisplay =
+    selectedStation
+      ? getStationDisplayName(selectedStation)
+      : "";
+
   selectedStationText.textContent =
-    selectedStation || "-";
+    selectedStationDisplay || "-";
 
   projectCountText.textContent = runs.length;
   completedCountText.textContent = completed;
@@ -1025,12 +1253,12 @@ function renderSummary(runs) {
 
   progressTitle.textContent =
     selectedStation
-      ? `${selectedStation} Process Performance`
+      ? `${selectedStationDisplay} Process Performance`
       : "Daily Process Performance";
 
   progressSubTitle.textContent =
     selectedStation
-      ? `Station: ${selectedStation}`
+      ? `Station: ${selectedStationDisplay}`
       : "Select a date and station to view project progress.";
 }
 
