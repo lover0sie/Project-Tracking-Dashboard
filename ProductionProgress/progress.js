@@ -41,6 +41,25 @@ const lastUpdateText = document.getElementById("lastUpdateText");
 
 const NO_STANDARD_REFERENCE_MINUTES = 450;
 
+const STATION_OPTIONS = [
+  { value: "PV 1", label: "PV 1" },
+  { value: "PV 2", label: "PV 2" },
+  { value: "Sub Assy", label: "Sub Assembly" },
+  {
+    value: "Pneumatic",
+    label: "Painting and Vessel Testing"
+  },
+  { value: "Piping Shop", label: "Piping Shop" },
+  { value: "WC 1", label: "WC 1" },
+  { value: "WC 2", label: "WC 2" },
+  { value: "AC", label: "AC" },
+  { value: "Insulation AB", label: "Insulation AB" },
+  { value: "Insulation G", label: "Insulation G" },
+  { value: "Packing", label: "Packing" },
+  { value: "MIG", label: "MIG" },
+  { value: "Wiring", label: "Wiring" }
+];
+
 /* =========================================================
    STATE
 ========================================================= */
@@ -50,6 +69,8 @@ let allHistoricalSegments = [];
 let historicalStandards = {};
 
 let selectedStation = "";
+
+let shouldFollowCurrentDate = true;
 
 let autoRefreshTimer = null;
 let lastDashboardUpdateAt = null;
@@ -226,6 +247,16 @@ function getStationDisplayName(station) {
   const stationName =
     normalizeText(station);
 
+  const stationOption =
+    STATION_OPTIONS.find(option =>
+      getComparableStationValue(option.value) ===
+      getComparableStationValue(stationName)
+    );
+
+  if (stationOption) {
+    return stationOption.label;
+  }
+
   if (
     getComparableStationValue(stationName) ===
     getComparableStationValue("Pneumatic")
@@ -244,9 +275,36 @@ function getFullProcessName(run) {
   );
 }
 
+function getMigProcessDisplayName(processName) {
+  const normalized =
+    normalizeUpper(processName);
+
+  if (normalized === "STEEL PIPE SUB-ASSEMBLY (FITTING)") {
+    return "Pipe Fitting";
+  }
+
+  if (normalized === "STEEL PIPE SUB-ASSEMBLY (WELDING)") {
+    return "Pipe Welding";
+  }
+
+  return "";
+}
+
 function getProcessDisplayName(run) {
   const processName =
     getFullProcessName(run);
+
+  if (
+    getComparableStationValue(getRunStation(run)) ===
+    getComparableStationValue("MIG")
+  ) {
+    const migProcessName =
+      getMigProcessDisplayName(processName);
+
+    if (migProcessName) {
+      return migProcessName;
+    }
+  }
 
   const dashIndex =
     processName.indexOf("-");
@@ -288,6 +346,10 @@ function getTypeDisplayName(type) {
   if (normalized === "CONDENSER") return "COND";
   if (normalized === "ECONOMIZER") return "ECON";
   if (normalized === "OIL SEPARATOR") return "OIL SEP";
+  if (normalized === "WATER-COOLED") return "WC";
+  if (normalized === "WATER COOLED") return "WC";
+  if (normalized === "AIR-COOLED") return "AC";
+  if (normalized === "AIR COOLED") return "AC";
 
   return normalizeText(type);
 }
@@ -313,18 +375,31 @@ function getComparableStationValue(value = "") {
 }
 
 function resolveStationSelection(value, stations) {
-  if (!value) return "";
+  const selectedValue =
+    normalizeText(value);
 
-  if (stations.includes(value)) {
-    return value;
+  if (!selectedValue) return "";
+
+  if (stations.includes(selectedValue)) {
+    return selectedValue;
   }
 
   const comparableValue =
-    getComparableStationValue(value);
+    getComparableStationValue(selectedValue);
+
+  const optionValue =
+    STATION_OPTIONS.find(option =>
+      getComparableStationValue(option.value) === comparableValue ||
+      getComparableStationValue(option.label) === comparableValue
+    )?.value;
+
+  if (optionValue) {
+    return optionValue;
+  }
 
   return stations.find(station =>
     getComparableStationValue(station) === comparableValue
-  ) || "";
+  ) || selectedValue;
 }
 
 function getUniqueStations(runs) {
@@ -721,28 +796,28 @@ async function loadHistoricalSegments() {
 
 function renderStationOptions() {
   const stations =
-    getUniqueStations(dailyRuns);
+    STATION_OPTIONS.map(option => option.value);
+
+  const requestedStation =
+    selectedStation;
 
   selectedStation =
     resolveStationSelection(
-      selectedStation,
+      requestedStation,
       stations
     );
 
   stationSelect.innerHTML = `
     <option value="">Select station</option>
 
-    ${stations.map(station => `
-      <option value="${escapeHtml(station)}">
-        ${escapeHtml(getStationDisplayName(station))}
+    ${STATION_OPTIONS.map(station => `
+      <option value="${escapeHtml(station.value)}">
+        ${escapeHtml(station.label)}
       </option>
     `).join("")}
   `;
 
-  if (
-    selectedStation &&
-    stations.includes(selectedStation)
-  ) {
+  if (selectedStation) {
     stationSelect.value = selectedStation;
   } else {
     selectedStation = stations[0] || "";
@@ -763,8 +838,12 @@ function getSelectedRuns() {
     return [];
   }
 
+  const selectedStationComparable =
+    getComparableStationValue(selectedStation);
+
   return dailyRuns.filter(run =>
-    getRunStation(run) === selectedStation
+    getComparableStationValue(getRunStation(run)) ===
+    selectedStationComparable
   );
 }
 
@@ -809,6 +888,46 @@ function getStatusClass(status) {
   return "";
 }
 
+function hasHoldHistory(run) {
+  return (
+    (Array.isArray(run?.holds) && run.holds.length > 0) ||
+    Number.isFinite(Number(run?.holdEpochMs))
+  );
+}
+
+function getLatestResumedByName(run) {
+  const resumes =
+    Array.isArray(run?.resumes)
+      ? run.resumes
+      : [];
+
+  for (let index = resumes.length - 1; index >= 0; index--) {
+    const name =
+      normalizeText(
+        resumes[index]?.resumedByName ||
+        resumes[index]?.byName ||
+        ""
+      );
+
+    if (name) {
+      return name;
+    }
+  }
+
+  return normalizeText(run?.resumedByName || "");
+}
+
+function getEmployeeDisplayName(run) {
+  if (hasHoldHistory(run)) {
+    return (
+      getLatestResumedByName(run) ||
+      normalizeText(run?.startedByName || "")
+    );
+  }
+
+  return normalizeText(run?.startedByName || "");
+}
+
 function doesRunContinueAfterSelectedDay(run) {
   const selectedDayRange =
     getSelectedDayRangeMs();
@@ -850,6 +969,17 @@ function getDisplayStatusKey(run) {
   }
 
   return normalizeStatus(run.status);
+}
+
+function getStatusSortRank(run) {
+  const status =
+    getDisplayStatusKey(run);
+
+  if (status === "running") return 0;
+  if (status === "on_hold") return 1;
+  if (status === "completed") return 2;
+
+  return 3;
 }
 
 function getPerformanceState(run, actualMinutes, standardMinutes, dayActualMinutes, beforeDayActualMinutes) {
@@ -934,7 +1064,11 @@ function getPerformanceState(run, actualMinutes, standardMinutes, dayActualMinut
       totalTimeText: `Total Time: ${actualHms}`,
       detail: `${actualHms} elapsed time`,
       barPercent: actualBarPercent,
-      segments: buildSingleSegment("performance-no-standard"),
+      segments: buildSingleSegment(
+        status === "on_hold"
+          ? "performance-no-standard-hold"
+          : "performance-no-standard"
+      ),
       sectionWidthPercent: 10
     };
   }
@@ -1063,6 +1197,14 @@ function buildTableRows(runs) {
       };
     })
     .sort((a, b) => {
+      const statusCompare =
+        getStatusSortRank(a.run) -
+        getStatusSortRank(b.run);
+
+      if (statusCompare !== 0) {
+        return statusCompare;
+      }
+
       const aProcess =
         getProcessSortParts(a.run);
 
@@ -1100,7 +1242,7 @@ function renderTable(runs) {
   if (!selectedStation) {
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="8" class="empty-cell">
+        <td colspan="9" class="empty-cell">
           Select a date and station.
         </td>
       </tr>
@@ -1112,7 +1254,7 @@ function renderTable(runs) {
   if (!runs.length) {
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="8" class="empty-cell">
+        <td colspan="9" class="empty-cell">
           No projects found for this selection.
         </td>
       </tr>
@@ -1164,6 +1306,9 @@ function renderTable(runs) {
     const performance =
       row.performance;
 
+    const employeeDisplay =
+      getEmployeeDisplayName(run) || "-";
+
     return `
       <tr class="performance-row ${performance.className}">
         <td class="project-cell">
@@ -1180,6 +1325,10 @@ function renderTable(runs) {
           <strong>
             ${escapeHtml(getProcessDisplayName(run) || "-")}
           </strong>
+        </td>
+
+        <td class="employee-cell">
+          ${escapeHtml(employeeDisplay)}
         </td>
 
         <td>
@@ -1359,7 +1508,7 @@ async function loadDailyDashboard({ forceRefresh = false } = {}) {
 
     progressTableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-cell error-cell">
+        <td colspan="9" class="empty-cell error-cell">
           Failed to load Firebase data.
         </td>
       </tr>
@@ -1368,6 +1517,21 @@ async function loadDailyDashboard({ forceRefresh = false } = {}) {
   } finally {
     setLoading(false);
   }
+}
+
+async function refreshCurrentDateDashboard() {
+  const stationBeforeRefresh =
+    selectedStation || stationSelect.value;
+
+  if (shouldFollowCurrentDate) {
+    periodPicker.value =
+      getCurrentDateKey();
+  }
+
+  selectedStation =
+    stationBeforeRefresh;
+
+  await loadDailyDashboard({ forceRefresh: true });
 }
 
 async function initializeStandards() {
@@ -1399,8 +1563,15 @@ async function initializeDashboard() {
   const urlState =
     getUrlState();
 
+  const currentDateKey =
+    getCurrentDateKey();
+
   periodPicker.value =
-    urlState.date || getCurrentDateKey();
+    urlState.date || currentDateKey;
+
+  shouldFollowCurrentDate =
+    !urlState.date ||
+    periodPicker.value === currentDateKey;
 
   selectedStation =
     urlState.station;
@@ -1416,7 +1587,7 @@ async function initializeDashboard() {
 
   autoRefreshTimer =
     setInterval(
-      () => loadDailyDashboard({ forceRefresh: true }),
+      refreshCurrentDateDashboard,
       60000
     );
 
@@ -1434,6 +1605,9 @@ async function initializeDashboard() {
 periodPicker.addEventListener(
   "change",
   async () => {
+    shouldFollowCurrentDate =
+      periodPicker.value === getCurrentDateKey();
+
     selectedStation = "";
 
     await loadDailyDashboard();
@@ -1453,7 +1627,7 @@ stationSelect.addEventListener(
 
 refreshBtn.addEventListener(
   "click",
-  () => loadDailyDashboard({ forceRefresh: true })
+  refreshCurrentDateDashboard
 );
 
 

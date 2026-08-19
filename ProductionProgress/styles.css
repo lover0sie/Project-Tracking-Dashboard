@@ -270,7 +270,7 @@ select:disabled {
 }
 
 .progress-table th:nth-child(1) {
-  width: 24%;
+  width: 21%;
 }
 
 .progress-table th:nth-child(2) {
@@ -278,11 +278,11 @@ select:disabled {
 }
 
 .progress-table th:nth-child(3) {
-  width: 8%;
+  width: 9%;
 }
 
 .progress-table th:nth-child(4) {
-  width: 5%;
+  width: 7%;
 }
 
 .progress-table th:nth-child(5),
@@ -291,24 +291,54 @@ select:disabled {
 }
 
 .progress-table th:nth-child(7) {
-  width: 7%;
+  width: 6%;
 }
 
 .progress-table th:nth-child(8) {
-  width: 38%;
+  width: 7%;
+}
+
+.progress-table th:nth-child(9) {
+  width: 32%;
 }
 
 .progress-table td:nth-child(3),
 .progress-table td:nth-child(4),
 .progress-table td:nth-child(5),
 .progress-table td:nth-child(6),
-.progress-table td:nth-child(7) {
+.progress-table td:nth-child(7),
+.progress-table td:nth-child(8) {
   font-size: 0.82rem;
+}
+
+.progress-table th:nth-child(2),
+.progress-table th:nth-child(3),
+.progress-table th:nth-child(4),
+.progress-table td:nth-child(2),
+.progress-table td:nth-child(3),
+.progress-table td:nth-child(4) {
+  text-align: center;
 }
 
 .performance-row {
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.performance-row.performance-on-track td {
+  background: #ecfdf5;
+}
+
+.performance-row.performance-completed-exceeded td {
+  background: #fef2f2;
+}
+
+.progress-table tbody tr.performance-on-track:hover td {
+  background: #d1fae5;
+}
+
+.progress-table tbody tr.performance-completed-exceeded:hover td {
+  background: #fee2e2;
 }
 
 .performance-row td:first-child {
@@ -404,11 +434,18 @@ select:disabled {
 
 .project-cell strong,
 .process-cell strong,
+.employee-cell,
 .performance-meta strong {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.employee-cell {
+  display: table-cell;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .project-cell strong {
@@ -522,7 +559,8 @@ select:disabled {
   color: #b91c1c;
 }
 
-.row-performance-bar.performance-hold {
+.row-performance-bar.performance-hold,
+.row-performance-bar.performance-no-standard-hold {
   background:
     repeating-linear-gradient(
       135deg,
@@ -543,7 +581,6 @@ select:disabled {
 
 .row-performance-bar.performance-no-standard,
 .row-performance-bar.performance-no-standard-running,
-.row-performance-bar.performance-no-standard-hold,
 .row-performance-bar.performance-no-standard-completed {
   background: #374151;
 }
