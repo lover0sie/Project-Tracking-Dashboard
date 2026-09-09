@@ -848,7 +848,7 @@ function buildMonthHeader(days){
 
 
 
-const UNIT_ORDER = ["CHILLER", "COMPRESSOR", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER"];
+const UNIT_ORDER = ["CHILLER", "COMPRESSOR", "EVAPORATOR", "CONDENSER", "OIL SEPARATOR", "ECONOMIZER", "FABRICATION ITEM"];
 
 function unitRank(unitType){
   const u = String(unitType || "").toUpperCase().trim();
@@ -897,6 +897,13 @@ function unitInfoFromSeg(seg) {
     return {
       unitType: String(seg.vesselType || "PV").toUpperCase().trim(),
       unitSerial: pvUnitSerialFromSeg(seg)
+    };
+  }
+
+  if (qrKind === "FABRICATION_ITEM") {
+    return {
+      unitType: "FABRICATION ITEM",
+      unitSerial: seg.serialNumber || seg.serial || "-"
     };
   }
 
