@@ -39,6 +39,7 @@ const CHILLER_PROCESS_ORDER = {
     "B3",
     "B4",
     "B5",
+    "B6",
     "C1",
     "C2",
     "D1",
@@ -47,6 +48,9 @@ const CHILLER_PROCESS_ORDER = {
     "D4",
     "D5",
     "D6",
+    "D7",
+    "G1",
+    "G2",
     "H1",
     "H2",
     "H3"
@@ -63,7 +67,8 @@ const CHILLER_PROCESS_ORDER = {
     "D",
     "E",
     "F",
-    "G",
+    "G1",
+    "G2",
     "H1",
     "H2",
     "H3"
