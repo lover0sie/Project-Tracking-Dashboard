@@ -10,6 +10,7 @@ import {
 
 import {
   CHILLER_LINE_BALANCE,
+  FABRICATION_PROCESSES,
   MODEL_VESSEL_LIST,
   PV_COMBINED_LINE_BALANCE
 } from "./pv-combined-list.js";
@@ -137,6 +138,13 @@ const CHILLER_PROCESS_RANKS = Object.fromEntries(
   ])
 );
 
+const FABRICATION_PROCESS_CODES = FABRICATION_PROCESSES.map(process =>
+  normalizeProcessOrderCode(getProcessCode(process))
+);
+const FABRICATION_PROCESS_RANKS = new Map(
+  FABRICATION_PROCESS_CODES.map((process, index) => [process, index])
+);
+
 // Get the sort time for a project, using the first available timestamp in order of preference
 function getProjectSortTime(project) {
   return Number(
@@ -153,6 +161,10 @@ function getProjectSortTime(project) {
 function getSegmentType(seg) {
   if (String(seg?.qrKind || "").toUpperCase() === "PV") {
     return String(seg?.vesselType || "PV").trim();
+  }
+
+  if (isLineBalanceFabricationSegment(seg)) {
+    return "FABRICATION";
   }
 
   return "CHILLER";
@@ -715,6 +727,28 @@ function getLineBalanceProcessCode(processName = "", chillerType = "") {
   return getKnownChillerProcessCode(processName, chillerType) || getProcessCode(processName);
 }
 
+function getFabricationProcessCode(processName = "") {
+  const processCode = normalizeProcessOrderCode(getProcessCode(processName));
+  const label = normalizeProcessOrderCode(processName);
+
+  if (FABRICATION_PROCESS_RANKS.has(processCode)) return processCode;
+
+  return FABRICATION_PROCESS_CODES.find(code =>
+    label === code ||
+    label.startsWith(`${code} -`) ||
+    label.startsWith(`${code} `)
+  ) || "";
+}
+
+function isLineBalanceFabricationSegment(seg) {
+  const qrKind = String(seg?.qrKind || "").trim().toUpperCase();
+
+  return (
+    qrKind === "FABRICATION_ITEM" ||
+    !!getFabricationProcessCode(getSegmentProcessLabel(seg))
+  );
+}
+
 function shouldExcludeChillerLineBalanceProcess(seg) {
   const chillerType = getChillerProcessType(seg);
   const processCode = normalizeProcessOrderCode(
@@ -726,6 +760,7 @@ function shouldExcludeChillerLineBalanceProcess(seg) {
 
 function isLineBalanceChillerSegment(seg) {
   const qrKind = String(seg?.qrKind || "").trim().toUpperCase();
+  if (isLineBalanceFabricationSegment(seg)) return false;
   return qrKind === "CHILLER" || qrKind !== "PV";
 }
 
@@ -734,6 +769,10 @@ function getLineBalanceChillerSegments(segments) {
     isLineBalanceChillerSegment(seg) &&
     !shouldExcludeChillerLineBalanceProcess(seg)
   );
+}
+
+function getLineBalanceFabricationSegments(segments) {
+  return (Array.isArray(segments) ? segments : []).filter(isLineBalanceFabricationSegment);
 }
 
 function inferChillerProcessType(segments) {
@@ -805,15 +844,20 @@ function getChillerProcessRank(processCode = "", chillerType = "") {
 
 function getProcessSortKey(processName = "", chillerType = "") {
   const code = getLineBalanceProcessCode(processName, chillerType);
+  const fabricationCode = getFabricationProcessCode(processName) || getFabricationProcessCode(code);
   const first = String(code || "").split(",")[0].trim();
   const m = first.match(/^(\d+)([A-Z]?)/i);
   const chillerRank =
     getChillerProcessRank(code, chillerType) ??
     getChillerProcessRank(processName, chillerType);
+  const fabricationRank = fabricationCode
+    ? FABRICATION_PROCESS_RANKS.get(fabricationCode)
+    : null;
 
   if (!m) {
     return {
       chillerRank,
+      fabricationRank,
       major: 9999,
       suffix: "",
       label: normalizeProcessOrderCode(code)
@@ -822,6 +866,7 @@ function getProcessSortKey(processName = "", chillerType = "") {
 
   return {
     chillerRank,
+    fabricationRank,
     major: Number(m[1]),
     suffix: (m[2] || "").toUpperCase(),
     label: normalizeProcessOrderCode(code)
@@ -848,6 +893,17 @@ function formatUniqueList(values) {
 }
 
 function compareProcessSortKey(a, b) {
+  const aFabricationRank = a?.fabricationRank;
+  const bFabricationRank = b?.fabricationRank;
+
+  if (aFabricationRank != null || bFabricationRank != null) {
+    if (aFabricationRank == null) return 1;
+    if (bFabricationRank == null) return -1;
+    if (aFabricationRank !== bFabricationRank) {
+      return aFabricationRank - bFabricationRank;
+    }
+  }
+
   const aRank = a?.chillerRank;
   const bRank = b?.chillerRank;
 
@@ -1966,6 +2022,38 @@ function getVesselStackClass(vesselType) {
   return "vessel-other";
 }
 
+function renderFabricationLineBalanceChart(title, segments, {
+  averageMode = false
+} = {}) {
+  try {
+    const fabricationSegs = getLineBalanceFabricationSegments(segments);
+    if (!fabricationSegs.length) {
+      return false;
+    }
+
+    const data = averageMode
+      ? buildAverageProcessChartData(fabricationSegs)
+      : buildProcessChartData(fabricationSegs);
+    if (!data.length) {
+      return false;
+    }
+
+    const mount = createChartCard(title, {
+      actualVesselClass: "fabrication"
+    });
+    renderCustomLineBalanceChart(mount, data, {
+      taktTime: 450,
+      actualVesselClass: "fabrication"
+    });
+    return true;
+  } catch (err) {
+    console.error("Failed to render Fabrication line balance chart:", err);
+    const mount = createChartCard(title);
+    mount.innerHTML = `<div class="emptyState">Failed to render Fabrication line balance chart.</div>`;
+    return false;
+  }
+}
+
 function renderChillerLineBalanceChart(title, segments, model, {
   averageMode = false,
   excludeProcesses = false
@@ -2055,6 +2143,11 @@ function renderSelectedProjectCharts(project) {
     showPlanned,
     allowedVessels
   });
+
+  renderFabricationLineBalanceChart(
+    `${project.projectName || project.chillerSerialNumber} - FABRICATION`,
+    projectSegments
+  );
 
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
 
@@ -2292,6 +2385,12 @@ function renderModelCharts(modelRow) {
     showPlanned: shouldShowPlannedForPvCombined(modelRow.model),
     allowedVessels
   });
+
+  renderFabricationLineBalanceChart(
+    `${modelRow.model} - FABRICATION`,
+    selectedProjectSegments,
+    { averageMode: true }
+  );
 
   const vesselMap = groupPvSegmentsByVesselType(pvSegs);
 

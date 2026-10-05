@@ -537,6 +537,10 @@
   background: #bd2ff0;
 }
 
+.lbLegendSwatch.actual.fabrication {
+  background: #0f766e;
+}
+
 .lbLegendSwatch.vessel.vessel-evap {
   background: #fc5cb1;
 }
@@ -858,6 +862,10 @@
 
 .lbBar.actual.vessel-other {
   background: #bd2ff0;
+}
+
+.lbBar.actual.fabrication {
+  background: #0f766e;
 }
 
 .lbBar.stacked {

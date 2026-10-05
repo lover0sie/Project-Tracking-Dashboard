@@ -1,4 +1,8 @@
-import { PROCESS_BY_PV, PROCESS_BY_CHILLER } from "./pv-combined-list.js";
+import {
+  FABRICATION_PROCESSES,
+  PROCESS_BY_CHILLER,
+  PROCESS_BY_PV
+} from "./pv-combined-list.js";
 
 const el = (id) => document.getElementById(id);
 // Use a short DOM helper so repeated element lookups stay readable.
@@ -29,6 +33,9 @@ function renderCategoryOptions(){
     <optgroup label="Chiller">
       ${chillerKeys.map(k => `<option value="CHILLER||${k}">${escapeHtml(k)}</option>`).join("")}
     </optgroup>
+    <optgroup label="Fabrication">
+      <option value="FABRICATION||FABRICATION">FABRICATION</option>
+    </optgroup>
   `;
 }
 
@@ -57,6 +64,8 @@ function renderProcessList(value){
     list = PROCESS_BY_PV[key] || [];
   } else if (kind === "CHILLER") {
     list = PROCESS_BY_CHILLER[key] || [];
+  } else if (kind === "FABRICATION") {
+    list = FABRICATION_PROCESSES;
   }
 
   if (!list.length){

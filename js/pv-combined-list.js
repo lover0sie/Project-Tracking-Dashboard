@@ -318,6 +318,26 @@ export const PROCESS_BY_PV = {
   ],
 };
 
+export const FABRICATION_PROCESSES = [
+  "1A - Plasma cutting",
+  "1B - Auto bevelling",
+  "1C - Manual bevelling",
+  "1D - Grinding",
+  "2A - Inhouse shotblast",
+  "2B - Warehouse shotblast",
+  "2C - Chiller shotblast",
+  "2D - Manual shotblast", 
+  "2E - Rolling",
+  "3 - Longitudinal seam welding (SAW)",
+  "4 - Rerolling",
+  "5 - Circular seam welding (SAW)",
+  "Surface treatment",
+  "CNC1 - CNC drilling",
+  "CNC2 - CNC chamfer",
+  "CNC3 - CNC superolling",
+
+];
+
 export const PROCESS_BY_CHILLER = {
    "AIR-COOLED": [
     "Piping shop",
@@ -349,6 +369,8 @@ export const PROCESS_BY_CHILLER = {
     "Piping shop",
     "Steel pipe sub-assembly (Fitting)",
     "Steel pipe sub-assembly (Welding)",
+    "A - Insulation compressor",
+    "B - Insulation evaporator/condenser and economizer/oil separator",
     "C - Major components assembly",
     "D - Steel pipe welding",
     "E - Copper pipe brazing",
