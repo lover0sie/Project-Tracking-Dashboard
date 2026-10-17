@@ -1,0 +1,24 @@
+:root {
+  --fontFamily: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--fontFamily);
+}
+
+button,
+input,
+select,
+textarea,
+optgroup,
+option,
+code,
+kbd,
+pre,
+samp {
+  font-family: inherit;
+}
+
+input::file-selector-button {
+  font-family: inherit;
+}

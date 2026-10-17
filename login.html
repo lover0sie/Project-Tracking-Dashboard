@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login | Project Tracking Dashboard</title>
+  <link rel="stylesheet" href="css/auth.css?v=eye-toggle-1" />
+</head>
+<body class="authPage" data-auth-page="login">
+  <main class="authShell">
+    <section class="authPanel" aria-labelledby="loginTitle">
+      <h1 id="loginTitle" class="authTitle">Production Tracking Login</h1>
+      <p id="loginDescription" class="authSubtitle">Sign in with your employee number and password.</p>
+
+      <form id="loginForm" class="authForm" autocomplete="on">
+        <label class="authField">
+          <span>Employee number</span>
+          <input id="loginEmployeeId" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="40" required />
+        </label>
+
+        <label class="authField">
+          <span>Password</span>
+          <div class="passwordControl">
+            <input id="loginPassword" type="password" autocomplete="current-password" required />
+            <button type="button" class="passwordToggle" data-password-toggle="loginPassword" aria-label="Show password" aria-controls="loginPassword" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+                <path data-eye-slash d="m3 3 18 18" />
+              </svg>
+            </button>
+          </div>
+        </label>
+
+        <p id="loginStatus" class="authStatus" aria-live="polite"></p>
+        <button type="submit" class="authSubmit">Sign In</button>
+        <button type="button" id="showPasswordResetBtn" class="authReset" aria-expanded="false" aria-controls="passwordResetForm">Forgot password?</button>
+      </form>
+
+      <form id="passwordResetForm" class="authForm" hidden>
+        <label class="authField">
+          <span>Email address</span>
+          <input id="resetEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+        </label>
+        <p id="resetStatus" class="authStatus" aria-live="polite"></p>
+        <button type="submit" class="authSubmit">Send reset link</button>
+        <button type="button" id="hidePasswordResetBtn" class="authReset">Back to sign in</button>
+      </form>
+
+      <details id="accountAccessDetails" class="authAccessDetails" hidden>
+        <summary>Account access details</summary>
+        <pre id="accountAccessInfo"></pre>
+      </details>
+
+      <p class="authSwitch">Need an account? <a href="signup.html">Contact your administrator</a></p>
+    </section>
+  </main>
+
+  <script type="module" src="js/auth-page.js?v=employee-login-3"></script>
+</body>
+</html>

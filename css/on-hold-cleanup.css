@@ -4,113 +4,6 @@
   background: #f6f7fb;
 }
 
-.onHoldCleanupPage.cleanupLocked .wrap {
-  display: none;
-}
-
-.cleanupLoginGate {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  overflow: auto;
-  background:
-    linear-gradient(rgba(248, 250, 252, 0.9), rgba(248, 250, 252, 0.9)),
-    #e2e8f0;
-}
-
-.cleanupLoginGate[hidden] {
-  display: none;
-}
-
-.cleanupLoginCard {
-  width: min(390px, 100%);
-  padding: 22px;
-  border: 1px solid #e3e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
-}
-
-.cleanupLoginKicker {
-  margin-bottom: 8px;
-  color: #991b1b;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
-.cleanupLoginCard h1 {
-  margin: 0;
-  color: #111827;
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 0;
-}
-
-.cleanupLoginCard p {
-  margin: 6px 0 18px;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.45;
-}
-
-.cleanupLoginCard label {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
-  color: #334155;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-.cleanupLoginCard input {
-  height: 40px;
-  padding: 8px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  color: #111827;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.cleanupLoginCard input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
-}
-
-.cleanupLoginError {
-  min-height: 18px;
-  margin-bottom: 10px;
-  color: #991b1b;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.cleanupLoginCard button {
-  width: 100%;
-  height: 40px;
-  border: 1px solid #0f3a70;
-  border-radius: 8px;
-  background: #0f3a70;
-  color: #ffffff;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.cleanupLoginCard button:hover {
-  background: #0b2f5d;
-  border-color: #0b2f5d;
-}
 
 .onHoldCleanupPage .wrap {
   gap: 10px;
@@ -132,23 +25,6 @@
   font-weight: 600;
 }
 
-.cleanupLogoutBtn {
-  flex: 0 0 auto;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid #d7dce5;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #111827;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.cleanupLogoutBtn:hover {
-  background: #f8fafc;
-  border-color: #b9c8dc;
-}
 
 .onHoldCleanupShell {
   flex: 1 1 auto;

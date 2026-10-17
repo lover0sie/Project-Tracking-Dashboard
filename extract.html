@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Firebase Data Export</title>
+  <link rel="stylesheet" href="css/typography.css" />
   <style>
     :root {
       color-scheme: light;
@@ -27,7 +28,6 @@
       min-height: 100vh;
       background: var(--bg);
       color: var(--text);
-      font-family: Arial, Helvetica, sans-serif;
     }
 
     main {
@@ -213,10 +213,10 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="css/access-control.css" />
 </head>
 <body>
   <main>
-    <h1>Firebase Data Export</h1>
     <p class="subtitle">
       Export records from every Firestore subcollection named <strong>runs</strong>. Leave filters blank to extract all run data.
     </p>
@@ -293,7 +293,7 @@
     </section>
   </main>
 
-  <script type="module">
+  <script type="dashboard-module">
     import { db } from "./js/firebase.js";
     import {
       collectionGroup,
@@ -793,5 +793,6 @@
       });
     }
   </script>
+  <script type="module" src="js/dashboard-bootstrap.js"></script>
 </body>
 </html>

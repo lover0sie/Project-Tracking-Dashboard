@@ -7,6 +7,7 @@
 import { loadRuns, loadRunsForDay, loadRunsForDayWithCarryForward } from "./timeline.js";
 import { exportExcelReport, exportStationViewExcel } from "./excel-export.js";
 import { db } from "./firebase.js";
+import { getCachedUserProfile } from "./access-control.js";
 import { 
   getMYTodayKey, 
   buildSegmentsFromRuns, 
@@ -41,6 +42,23 @@ const bodyEl = el("ganttBody");
 const monthHeadEl = el("ganttMonthHead");
 const dayHeadEl = el("ganttDayHead");
 const ganttWrapEl = document.querySelector(".ganttWrap");
+
+function showGanttMessage(message) {
+  if (!bodyEl) return;
+  const notice = document.createElement("div");
+  notice.className = "emptyState";
+  notice.textContent = message;
+  bodyEl.replaceChildren(notice);
+}
+
+function showGanttError(error) {
+  const messages = {
+    "permission-denied": "Unable to load the chart: Firestore denied access to run data. Ask your administrator to check the published rules.",
+    "failed-precondition": "Unable to load the chart: a required Firestore index may be missing. Check the browser console for details.",
+    "unavailable": "Unable to load the chart. Check your connection, then select Refresh."
+  };
+  showGanttMessage(messages[error?.code] || "Unable to load the chart. Select Refresh; if it still fails, check the browser console for details.");
+}
 
 let cachedEvents = [];
 const cachedRunsByMonth = new Map();
@@ -1124,7 +1142,7 @@ export async function renderStationOnlyView({ forceRefresh = false } = {}) {
     const runs = await loadRunsForDayWithCarryForward(dayKey, forceRefresh);
 
     if (!runs.length) {
-      bodyEl.innerHTML = "";
+      showGanttMessage("No runs found for the selected day. Try another date.");
       monthHeadEl.innerHTML = "";
       dayHeadEl.innerHTML = "";
       if (stationTitle) stationTitle.textContent = "Station";
@@ -1202,6 +1220,7 @@ export async function renderStationOnlyView({ forceRefresh = false } = {}) {
 
   } catch (err) {
     console.error(err);
+    showGanttError(err);
   }
 }
 
@@ -1257,6 +1276,8 @@ const stationLineCharts = new Map();
 function renderSingleStationLineBalanceChart(data) {
   const canvas = el("stationLineBalanceChart");
   if (!canvas || typeof Chart === "undefined") return;
+
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
 
   if (stationLineBalanceChart) {
     stationLineBalanceChart.destroy();
@@ -2096,7 +2117,7 @@ async function render({ forceRefresh = false } = {}) {
     }
 
     if (!runs.length) {
-      bodyEl.innerHTML = "";
+      showGanttMessage("No runs found for the selected date range. Try another date.");
       monthHeadEl.innerHTML = "";
       dayHeadEl.innerHTML = "";
       return;
@@ -2107,7 +2128,14 @@ async function render({ forceRefresh = false } = {}) {
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);
     
-    const preview = await previewAutoStopRuns();
+    let preview = { eligible: [], reason: null };
+    if (getCachedUserProfile()?.role === "level3") {
+      try {
+        preview = await previewAutoStopRuns();
+      } catch (error) {
+        console.warn("Unable to preview auto-stop candidates", error);
+      }
+    }
 
       const eligibleKeys = new Set(
       preview.eligible.map(e =>
@@ -2256,6 +2284,7 @@ async function render({ forceRefresh = false } = {}) {
 
   } catch (err) {
     console.error(err);
+    showGanttError(err);
   }
 }
 

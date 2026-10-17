@@ -8,6 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
 import { db } from "./firebase.js";
+import { assertLevel3Access } from "./access-control.js";
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
@@ -562,6 +563,7 @@ async function markRowComplete(index) {
   const startMs = Number(row.run?.startEpochMs);
   const durationMs = Number.isFinite(startMs) ? Math.max(0, endMs - startMs) : 0;
 
+  await assertLevel3Access();
   await updateDoc(row.ref, {
     status: "completed",
     endAt: Timestamp.fromMillis(endMs),
@@ -710,6 +712,7 @@ async function correctProcessTime(index) {
 
   const correctedDurationMs = Math.max(0, Math.round(row.averageMs));
 
+  await assertLevel3Access();
   await updateDoc(row.ref, {
     endAt: Timestamp.fromMillis(row.correctedEndMs),
     endEpochMs: row.correctedEndMs,
@@ -902,6 +905,7 @@ async function runProcessNameMigration() {
 
     for (const candidate of candidates) {
       try {
+        await assertLevel3Access();
         await updateDoc(candidate.ref, {
           ...candidate.update,
           migrationAction: "renamed_process_name",
@@ -933,7 +937,8 @@ async function runProcessNameMigration() {
   }
 }
 
-export function initOnHoldCleanup() {
+export async function initOnHoldCleanup() {
+  await assertLevel3Access();
   const refreshBtn = document.getElementById("btnRefreshOnHoldCleanup");
   const body = document.getElementById("onHoldCleanupBody");
   const processRefreshBtn = document.getElementById("btnRefreshProcessTimeCleanup");

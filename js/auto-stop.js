@@ -6,6 +6,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
 import { db } from "./firebase.js";
+import { assertLevel3Access } from "./access-control.js";
 
 function getTodayCutoffMs(hour, minute, now = new Date()) {
   const cutoff = new Date(now);
@@ -140,6 +141,7 @@ function getAutoStopType(now = new Date()) {
 }
 
 export async function autoStopRuns() {
+  await assertLevel3Access();
   const now = getNow();
   const stopType = getAutoStopType(now);
 
@@ -212,6 +214,7 @@ export async function autoStopRuns() {
 }
 
 export async function previewAutoStopRuns() {
+  await assertLevel3Access();
   const now = new Date();
   const stopType = getAutoStopType(now);
 

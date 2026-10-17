@@ -1,3 +1,5 @@
+@import url("../css/typography.css");
+
 * {
   box-sizing: border-box;
 }
@@ -8,7 +10,6 @@ body {
   overflow: hidden;
   background: #f4f6fb;
   color: #111827;
-  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 .app-shell {

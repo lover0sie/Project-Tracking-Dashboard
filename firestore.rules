@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function employeePath() {
+      return /databases/$(database)/documents/employees/$(get(userPath()).data.employeeId);
+    }
+
+    function activeEmployee() {
+      return signedIn()
+        && exists(userPath())
+        && get(userPath()).data.active == true
+        && exists(employeePath())
+        && get(employeePath()).data.employeeId == get(userPath()).data.employeeId
+        && get(employeePath()).data.active == true
+        && get(employeePath()).data.role in ['level1', 'level2', 'level3'];
+    }
+
+    function level3() {
+      return activeEmployee() && get(employeePath()).data.role == 'level3';
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
+    }
+
+    match /employees/{employeeId} {
+      allow get: if signedIn()
+        && exists(userPath())
+        && get(userPath()).data.employeeId == employeeId;
+      allow list, create, update, delete: if false;
+    }
+
+    match /processRuns/{projectId} {
+      allow read: if activeEmployee();
+      allow create, update: if level3();
+      allow delete: if false;
+    }
+
+    match /{path=**}/runs/{runId} {
+      allow read: if activeEmployee();
+      allow create, update: if level3();
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

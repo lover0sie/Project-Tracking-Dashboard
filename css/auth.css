@@ -1,0 +1,241 @@
+@import url("./typography.css");
+
+:root {
+  color-scheme: light;
+  --authBg: #f5f7fb;
+  --authPanel: #ffffff;
+  --authText: #111827;
+  --authMuted: #667085;
+  --authLine: #d9dee7;
+  --authPrimary: #2563eb;
+  --authPrimaryHover: #1d4ed8;
+  --authDanger: #b42318;
+  --authSuccess: #067647;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.authPage {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--authBg);
+  color: var(--authText);
+}
+
+.authShell {
+  width: min(420px, 100%);
+}
+
+.authPanel {
+  padding: 28px;
+  border: 1px solid var(--authLine);
+  border-radius: 8px;
+  background: var(--authPanel);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.10);
+}
+
+.authTitle {
+  margin: 0 0 6px;
+  font-size: 26px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.authSubtitle {
+  margin: 0 0 22px;
+  color: var(--authMuted);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.authForm {
+  display: grid;
+  gap: 14px;
+}
+
+.authField {
+  display: grid;
+  gap: 6px;
+}
+
+.authField span {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.authField input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #c6cfda;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: var(--authText);
+  background: #ffffff;
+  font: inherit;
+}
+
+.passwordControl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #c6cfda;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.passwordControl input {
+  min-height: 40px;
+  border: 0;
+  border-radius: 0;
+}
+
+.passwordControl input:focus {
+  outline: 0;
+}
+
+.passwordControl:focus-within {
+  border-color: var(--authPrimary);
+  outline: 3px solid rgba(37, 99, 235, 0.15);
+}
+
+.passwordToggle {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  border: 0;
+  border-left: 1px solid #d9dee7;
+  background: #f8fafc;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.passwordToggle:hover {
+  background: #eef2f7;
+}
+
+.passwordToggle:focus-visible {
+  outline: 2px solid var(--authPrimary);
+  outline-offset: -3px;
+}
+
+.passwordToggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.passwordToggle [data-eye-slash] {
+  display: none;
+}
+
+.passwordToggle[aria-pressed="true"] [data-eye-slash] {
+  display: block;
+}
+
+.authField input:focus {
+  border-color: var(--authPrimary);
+  outline: 3px solid rgba(37, 99, 235, 0.15);
+}
+
+.authField .passwordControl input:focus {
+  border-color: transparent;
+  outline: 0;
+}
+
+.authSubmit {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: #ffffff;
+  background: var(--authPrimary);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.authSubmit:hover {
+  background: var(--authPrimaryHover);
+}
+
+.authReset {
+  border: 0;
+  padding: 8px;
+  color: var(--authPrimary);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.authForm[hidden] {
+  display: none;
+}
+
+.authReset:hover {
+  text-decoration: underline;
+}
+
+.authReset:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.authSubmit:disabled,
+.authField input:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.authStatus {
+  min-height: 20px;
+  margin: 2px 0 0;
+  color: var(--authMuted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.authStatus.error {
+  color: var(--authDanger);
+}
+
+.authStatus.success {
+  color: var(--authSuccess);
+}
+
+.authSwitch {
+  margin: 18px 0 0;
+  color: var(--authMuted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.authAccessDetails {
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.authAccessDetails pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.authSwitch a {
+  color: var(--authPrimary);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.authSwitch a:hover {
+  text-decoration: underline;
+}

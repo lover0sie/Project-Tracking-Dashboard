@@ -1,4 +1,5 @@
 /* Export the data from firebase to excel workbook */
+import { assertExportAccess } from "./access-control.js";
 
 import {
   buildSegmentsFromRuns,
@@ -105,6 +106,7 @@ function formatExcelTime(date) {
 }
 
 export function exportExcelReport(runs) {
+  assertExportAccess();
   if (typeof XLSX === "undefined") {
     alert("XLSX library not loaded. Check the xlsx script tag in index.html.");
     return;
@@ -355,6 +357,7 @@ export function exportExcelReport(runs) {
 }
 
 export function exportStationViewExcel(segments, options = {}) {
+  assertExportAccess();
   if (typeof XLSX === "undefined") {
     alert("XLSX library not loaded. Check the xlsx script tag in station.html.");
     return;
@@ -438,6 +441,7 @@ export function exportStationViewExcel(segments, options = {}) {
 }
 
 export function exportLineBalanceStandardRawData(segments, options = {}) {
+  assertExportAccess();
   if (typeof XLSX === "undefined") {
     alert("XLSX library not loaded.");
     return;
@@ -609,6 +613,7 @@ export function exportLineBalanceStandardRawData(segments, options = {}) {
 }
 
 export function exportCombinedLineBalanceRawData(rows, options = {}) {
+  assertExportAccess();
   if (typeof XLSX === "undefined") {
     alert("XLSX library not loaded.");
     return;

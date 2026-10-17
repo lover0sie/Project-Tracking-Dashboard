@@ -6,9 +6,10 @@
   <title>Cleanup | Project Tracking Dashboard</title>
   <link rel="stylesheet" href="css/common.css" />
   <link rel="stylesheet" href="css/on-hold-cleanup.css" />
+  <link rel="stylesheet" href="css/access-control.css" />
 </head>
 
-<body class="onHoldCleanupPage cleanupLocked">
+<body class="onHoldCleanupPage">
   <div class="appShell" id="cleanupAppShell">
     <nav class="sideNav" aria-label="Main navigation">
       <div class="sideNavBrand">
@@ -18,7 +19,6 @@
       <div class="sideNavGroup">
         <a class="sideNavLink" data-nav-item="project-gantt" href="index.html">Project Gantt</a>
         <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
-        <a class="sideNavLink" data-nav-item="tree-view" href="tree.html">Tree View</a>
         <a class="sideNavLink" data-nav-item="line-balance" href="line-balance.html">Line Balance</a>
         <a class="sideNavLink" data-nav-item="chiller-cycle-time" href="chiller-cycle-time.html">Chiller Cycle Time</a>
         <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
@@ -27,36 +27,8 @@
       </div>
     </nav>
 
-    <main id="cleanupLoginGate" class="cleanupLoginGate" aria-labelledby="cleanupLoginTitle">
-      <form id="cleanupLoginForm" class="cleanupLoginCard" autocomplete="off">
-        <div class="cleanupLoginKicker">Restricted Tool</div>
-        <h1 id="cleanupLoginTitle">Cleanup</h1>
-        <p>Sign in to use migration and cleanup tools.</p>
 
-        <label>
-          <span>Username</span>
-          <input id="cleanupUsername" name="username" type="text" autocomplete="username" required />
-        </label>
-
-        <label>
-          <span>Password</span>
-          <input id="cleanupPassword" name="password" type="password" autocomplete="current-password" required />
-        </label>
-
-        <div id="cleanupLoginError" class="cleanupLoginError" aria-live="polite"></div>
-
-        <button type="submit">Sign In</button>
-      </form>
-    </main>
-
-    <div class="wrap" id="cleanupContent" aria-hidden="true">
-      <header class="top">
-        <div>
-          <h2>Cleanup</h2>
-          <div class="sub">Choose a maintenance tool to review, correct, or migrate Firebase run records.</div>
-        </div>
-        <button type="button" id="btnCleanupLogout" class="cleanupLogoutBtn">Sign Out</button>
-      </header>
+    <div class="wrap" id="cleanupContent">
 
       <main class="onHoldCleanupShell">
         <div class="cleanupToolChooser" role="tablist" aria-label="Cleanup tools">
@@ -200,75 +172,15 @@
     </div>
   </div>
 
-  <script type="module">
+  <script type="dashboard-module">
     import { initOnHoldCleanup } from "./js/on-hold-cleanup.js";
 
-    const CLEANUP_USERNAME = "admin";
-    const CLEANUP_PASSWORD = "karipap2026";
-    const CLEANUP_SESSION_KEY = "onHoldCleanupAuthenticated";
+    await initOnHoldCleanup();
 
-    const body = document.body;
-    const loginGate = document.getElementById("cleanupLoginGate");
-    const cleanupContent = document.getElementById("cleanupContent");
-    const form = document.getElementById("cleanupLoginForm");
-    const usernameEl = document.getElementById("cleanupUsername");
-    const passwordEl = document.getElementById("cleanupPassword");
-    const errorEl = document.getElementById("cleanupLoginError");
-    const logoutBtn = document.getElementById("btnCleanupLogout");
-
-    let cleanupInitialized = false;
-
-    function unlockCleanupPage() {
-      sessionStorage.setItem(CLEANUP_SESSION_KEY, "1");
-      body.classList.remove("cleanupLocked");
-      loginGate?.setAttribute("hidden", "");
-      cleanupContent?.removeAttribute("aria-hidden");
-
-      if (!cleanupInitialized) {
-        cleanupInitialized = true;
-        initOnHoldCleanup();
-      }
-
-      import(`./js/version-check.js?v=${Date.now()}`)
-        .then(({ startVersionCheck }) => startVersionCheck())
-        .catch(err => console.warn("Version check failed to start", err));
-    }
-
-    function lockCleanupPage() {
-      sessionStorage.removeItem(CLEANUP_SESSION_KEY);
-      body.classList.add("cleanupLocked");
-      loginGate?.removeAttribute("hidden");
-      cleanupContent?.setAttribute("aria-hidden", "true");
-      usernameEl?.focus();
-    }
-
-    form?.addEventListener("submit", event => {
-      event.preventDefault();
-
-      const username = String(usernameEl?.value || "").trim();
-      const password = String(passwordEl?.value || "");
-
-      if (username === CLEANUP_USERNAME && password === CLEANUP_PASSWORD) {
-        if (errorEl) errorEl.textContent = "";
-        if (passwordEl) passwordEl.value = "";
-        unlockCleanupPage();
-        return;
-      }
-
-      if (errorEl) errorEl.textContent = "Invalid username or password.";
-      if (passwordEl) {
-        passwordEl.value = "";
-        passwordEl.focus();
-      }
-    });
-
-    logoutBtn?.addEventListener("click", lockCleanupPage);
-
-    if (sessionStorage.getItem(CLEANUP_SESSION_KEY) === "1") {
-      unlockCleanupPage();
-    } else {
-      lockCleanupPage();
-    }
+    import(`./js/version-check.js?v=${Date.now()}`)
+      .then(({ startVersionCheck }) => startVersionCheck())
+      .catch(err => console.warn("Version check failed to start", err));
   </script>
+  <script type="module" src="js/dashboard-bootstrap.js"></script>
 </body>
 </html>

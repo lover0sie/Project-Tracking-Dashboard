@@ -6,6 +6,7 @@
   <title>Line Balance Chart</title>
   <link rel="stylesheet" href="css/common.css" />
   <link rel="stylesheet" href="css/line-balance.css" />
+  <link rel="stylesheet" href="css/access-control.css" />
 </head>
 <body class="lineBalancePage">
   <div class="appShell">
@@ -17,7 +18,6 @@
       <div class="sideNavGroup">
         <a class="sideNavLink" data-nav-item="project-gantt" href="index.html">Project Gantt</a>
         <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
-        <a class="sideNavLink" data-nav-item="tree-view" href="tree.html">Tree View</a>
         <a class="sideNavLink active" data-nav-item="line-balance" href="line-balance.html" aria-current="page">Line Balance</a>
         <a class="sideNavLink" data-nav-item="chiller-cycle-time" href="chiller-cycle-time.html">Chiller Cycle Time</a>
         <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
@@ -27,10 +27,6 @@
     </nav>
 
   <div class="wrap">
-  <header class="top">
-    <div>
-      <h2>Line Balance Chart</h2>
-  </header>
 
   <section class="card">
     <div class="lineBalanceLayout">
@@ -173,11 +169,12 @@
   </div>
 
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script type="module" src="js/line-balance.js"></script>
-  <script type="module">
+  <script type="dashboard-module" src="js/line-balance.js"></script>
+  <script type="dashboard-module">
     import(`./js/version-check.js?v=${Date.now()}`)
       .then(({ startVersionCheck }) => startVersionCheck())
       .catch(err => console.warn("Version check failed to start", err));
   </script>
+  <script type="module" src="js/dashboard-bootstrap.js"></script>
 </body>
 </html>

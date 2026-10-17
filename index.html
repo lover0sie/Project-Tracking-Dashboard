@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="css/common.css" />
   <link rel="stylesheet" href="css/gantt.css" />
   <link rel="stylesheet" href="css/index.css" />
+  <link rel="stylesheet" href="css/access-control.css" />
 </head>
 
 <body class="dashboardPage">
@@ -20,7 +21,6 @@
       <div class="sideNavGroup">
         <a class="sideNavLink" data-nav-item="project-gantt" href="index.html">Project Gantt</a>
         <a class="sideNavLink" data-nav-item="station-gantt" href="station.html">Station Gantt</a>
-        <a class="sideNavLink" data-nav-item="tree-view" href="tree.html">Tree View</a>
         <a class="sideNavLink" data-nav-item="line-balance" href="line-balance.html">Line Balance</a>
         <a class="sideNavLink" data-nav-item="chiller-cycle-time" href="chiller-cycle-time.html">Chiller Cycle Time</a>
         <a class="sideNavLink" data-nav-item="processes" href="processes.html">Process Description</a>
@@ -30,15 +30,6 @@
     </nav>
 
   <div class="wrap">
-    <!-- Keep the dashboard title and global actions in one header for quick navigation. -->
-    <header class="top">
-      <div>
-        <h2 id="dashboardTitle">
-            Project Gantt Chart
-        </h2>
-      </div>
-
-    </header>
 
 
     <section class="card">
@@ -127,7 +118,7 @@
 
 <!-- View Controller -->
  
-<script type="module">
+<script type="dashboard-module">
   import { clearCache } from "./js/timeline.js";
   import { clearGanttCache, renderGanttView, syncPickers, stopGanttLiveRefresh, updateGanttLeftHeaders } from "./js/gantt.js";
   import { db } from "./js/firebase.js";
@@ -288,5 +279,6 @@
   });
 </script>
 
+  <script type="module" src="js/dashboard-bootstrap.js"></script>
 </body>
 </html>
