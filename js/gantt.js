@@ -7,7 +7,6 @@
 import { loadRuns, loadRunsForDay, loadRunsForDayWithCarryForward } from "./timeline.js";
 import { exportExcelReport, exportStationViewExcel } from "./excel-export.js";
 import { db } from "./firebase.js";
-import { getCachedUserProfile } from "./access-control.js";
 import { 
   getMYTodayKey, 
   buildSegmentsFromRuns, 
@@ -24,7 +23,6 @@ import {
   LEGEND_STATUS, 
   renderLegend} from "./helpers.js";
 
-import { autoStopRuns, previewAutoStopRuns } from "./auto-stop.js";
 
 
 import {
@@ -114,24 +112,6 @@ function assignLane(segments) {
   }
 
   return segments;
-}
-
-function normalize(str) {
-  return String(str || "").toLowerCase().trim();
-}
-
-function isPastCutoff(now = new Date()) {
-  const mins = now.getHours() * 60 + now.getMinutes();
-  return mins <= (7 * 60 + 45) || mins >= (17 * 60 + 30);
-}
-
-function getCutoffState(now = new Date()) {
-  const mins = now.getHours() * 60 + now.getMinutes();
-
-  if (mins <= (7 * 60 + 45)) return "morning"; // Yesterday's runs
-  if (mins >= (21 * 60)) return "night";      // Today's runs, 9:00 PM cutoff
-  if (mins >= (17 * 60 + 30)) return "shift"; // Today's runs, 5:30 PM cutoff
-  return null;
 }
 
 function getHourW(){
@@ -1468,7 +1448,6 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
           cur?.processLabel ||
           group.processNo;
 
-        const hasAutoStopCandidate = sortedSegs.some(s => s.isAutoStopCandidate);
 
         const laneRowsHtml = lanes.map((laneSegs, laneIndex) => {
         const realLaneSegs = laneSegs.filter(seg =>
@@ -1589,7 +1568,6 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         }).join("");
 
         return {
-          hasAutoStopCandidate,
           laneRowCount: lanes.length * 2,
           processName,
           rowsHtml: laneRowsHtml
@@ -1601,11 +1579,10 @@ function renderGanttStation(rangeMin, rangeMax, segments) {
         0
       );
       const processName = renderedEntries.find(entry => entry.processName)?.processName || group.processNo;
-      const hasAutoStopCandidate = renderedEntries.some(entry => entry.hasAutoStopCandidate);
       const laneRowsHtml = renderedEntries.map(entry => entry.rowsHtml).join("");
 
       return `
-        <div class="stationProcBlock ${hasAutoStopCandidate ? "autoStopHighlight" : ""}">
+        <div class="stationProcBlock">
           <div class="ganttCell procNo stationProcessMerged"
               style="grid-column: 1; --processRowSpan: ${processRowSpan};">
             <div class="stationProcessName">${escapeHtml(processName)}</div>
@@ -1715,7 +1692,6 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
 
       // right side rows: each lane gets its own PROC/STATUS/TIMELINE row
       const laneRowsHtml = lanes.map((laneSegs) => {
-        const hasAutoStopCandidate = laneSegs.some(s => s.isAutoStopCandidate);
         const realLaneSegs = laneSegs.filter(seg => seg.phase !== "waiting" && seg.status !== "waiting");
         const cur = latestSegment(realLaneSegs) || null;
         const procNo = getProcessNo(cur);
@@ -1800,7 +1776,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
 
         /* Return two rows - one for standard, and one for actual */
        return `
-        <div class="unitLanePair ${hasAutoStopCandidate ? 'autoStopHighlight' : ''}">
+        <div class="unitLanePair">
           <div class="ganttCell procNo mergedProcNo">
             <div style="font-weight:900;">${escapeHtml(procNo)}</div>
           </div>
@@ -2080,7 +2056,6 @@ async function render({ forceRefresh = false } = {}) {
     const todayKey = getMYTodayKey();
     const dayKey = picker?.value || todayKey;
 
-    updateAutoStopButtonState();
 
     if (mode === "daily" || mode === "station") {
       runs = await loadRunsForDayWithCarryForward(dayKey, forceRefresh);
@@ -2128,33 +2103,6 @@ async function render({ forceRefresh = false } = {}) {
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);
     
-    let preview = { eligible: [], reason: null };
-    if (getCachedUserProfile()?.role === "level3") {
-      try {
-        preview = await previewAutoStopRuns();
-      } catch (error) {
-        console.warn("Unable to preview auto-stop candidates", error);
-      }
-    }
-
-      const eligibleKeys = new Set(
-      preview.eligible.map(e =>
-        `${normalize(e.serialNumber)}|${normalize(e.station)}|${normalize(e.processName)}`
-      )
-    );
-
-    const candidates = segments.filter(seg => {
-      const key = `${normalize(seg.serial)}|${normalize(seg.station)}|${normalize(seg.processName || seg.processLabel)}`;
-      seg.isAutoStopCandidate = eligibleKeys.has(key);
-      return seg.isAutoStopCandidate;
-    });
-
-    console.log("Auto-stop candidates:", candidates, {
-      totalSegments: segments.length,
-      eligiblePreviewCount: preview.eligible.length,
-      reason: preview.reason
-    });
-
     const wrap = document.querySelector(".ganttWrap");
     const grid = document.querySelector(".ganttGrid");
 
@@ -2527,124 +2475,6 @@ window.addEventListener("resize", async () => {
     await renderStationOnlyView();
   }
 });
-
-const btnAutoStop = document.getElementById("btnAutoStop");
-
-function updateAutoStopButtonState({ running = false } = {}) {
-  if (!btnAutoStop) return;
-
-  const available = isPastCutoff();
-  btnAutoStop.disabled = running || !available;
-  btnAutoStop.title = available ? "" : "Available until 7:45 AM or after 5:30 PM";
-  btnAutoStop.textContent = running ? "Running..." : "Run Auto Stop";
-}
-
-function showAutoStopPopup({
-  title = "Auto Stop",
-  message = "",
-  confirmText = "OK",
-  cancelText = "",
-  tone = "info"
-} = {}) {
-  return new Promise(resolve => {
-    document.getElementById("auto-stop-popup")?.remove();
-
-    const popup = document.createElement("div");
-    popup.id = "auto-stop-popup";
-    popup.innerHTML = `
-      <div class="autoStopCard ${escapeHtml(tone)}">
-        <div class="autoStopMark">${tone === "danger" ? "!" : tone === "success" ? "OK" : "i"}</div>
-        <div class="autoStopTitle">${escapeHtml(title)}</div>
-        <div class="autoStopText">${escapeHtml(message)}</div>
-        <div class="autoStopActions">
-          ${cancelText ? `<button type="button" class="autoStopBtn secondary" data-action="cancel">${escapeHtml(cancelText)}</button>` : ""}
-          <button type="button" class="autoStopBtn primary" data-action="confirm">${escapeHtml(confirmText)}</button>
-        </div>
-      </div>
-    `;
-
-    const close = value => {
-      popup.remove();
-      resolve(value);
-    };
-
-    popup.addEventListener("click", e => {
-      if (e.target === popup) close(false);
-      const action = e.target?.dataset?.action;
-      if (action === "confirm") close(true);
-      if (action === "cancel") close(false);
-    });
-
-    document.body.appendChild(popup);
-    popup.querySelector(".autoStopBtn.primary")?.focus();
-  });
-}
-
-if (btnAutoStop) {
-  btnAutoStop.addEventListener("click", async () => {
-  try {
-    const cutoff = getCutoffState();
-
-    if (!cutoff) {
-      await showAutoStopPopup({
-        title: "Auto Stop Not Available",
-        message: "Auto stop is only allowed until 7:45 AM for yesterday's runs or after 5:30 PM for today's runs.",
-        confirmText: "Got it",
-        tone: "info"
-      });
-      return;
-    }
-
-    const preview = await previewAutoStopRuns();
-
-    if (!preview.eligible.length) {
-      await showAutoStopPopup({
-        title: "No Candidates",
-        message: "There are no running processes to auto-stop.",
-        confirmText: "Got it",
-        tone: "info"
-      });
-      return;
-    }
-
-    const ok = await showAutoStopPopup({
-      title: "Run Auto Stop?",
-      message: `${preview.eligible.length} processes will be auto-held. Proceed?`,
-      confirmText: "Run Auto Stop",
-      cancelText: "Cancel",
-      tone: "danger"
-    });
-
-    if (!ok) return;
-
-      updateAutoStopButtonState({ running: true });
-
-      const result = await autoStopRuns();
-
-      console.log("Auto stop result:", result);
-
-      await render(); // refresh dashboard after update
-
-      await showAutoStopPopup({
-        title: "Auto Stop Complete",
-        message: `Updated ${result.updated} run(s).`,
-        confirmText: "Done",
-        tone: "success"
-      });
-    } catch (err) {
-      console.error("Auto stop failed:", err);
-      await showAutoStopPopup({
-        title: "Auto Stop Failed",
-        message: "Auto stop failed. Check console for details.",
-        confirmText: "Close",
-        tone: "danger"
-      });
-    } finally {
-      updateAutoStopButtonState();
-    }
-  });
-
-}
 
 const btnExportStationExcel = document.getElementById("btnExportStationExcel");
 

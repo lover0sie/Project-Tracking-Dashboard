@@ -1,4 +1,4 @@
-﻿/* Shared Gantt, timeline, legend, tree, tooltip, picker, and auto-stop highlight styles. */
+﻿/* Shared Gantt, timeline, legend, tree, tooltip, picker styles. */
 
 /* ==================== Gantt: Wrapper and Grid ==================== */
 /* Gantt scroll behavior and grid sizing are configured here for daily and monthly views. */
@@ -1554,51 +1554,5 @@
 
 .pickerInput{
   background: linear-gradient(#fff, #fbfbfb);
-}
-
-
-/* ======================== AUTO-STOP =========================== */
-
-.autoStopHighlight {
-  background: rgba(239, 68, 68, 0.12);
-  box-shadow: inset 3px 0 0 rgba(239, 68, 68, 0.9);
-}
-
-.autoStopHighlight > .stationProcRow,
-.autoStopHighlight > .stationLaneStatus,
-.autoStopHighlight > .stationProcessMerged,
-.autoStopHighlight .ganttCell {
-  background: rgba(239, 68, 68, 0.12);
-}
-
-.autoStopHighlight .ganttTimeline {
-  background:
-    linear-gradient(rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.12)),
-    repeating-linear-gradient(
-      to right,
-      #fafafa,
-      #fafafa calc(var(--colW) - 1px),
-      var(--ganttGridLine) calc(var(--colW) - 1px),
-      var(--ganttGridLine) var(--colW)
-    );
-}
-
-.autoStopHighlight .ganttTimeline.dailyGrid {
-  background:
-    linear-gradient(rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.12)),
-    repeating-linear-gradient(
-      to right,
-      transparent,
-      transparent calc((var(--colW) / var(--minorDiv)) - 1px),
-      var(--ganttGridLine) calc((var(--colW) / var(--minorDiv)) - 1px),
-      var(--ganttGridLine) calc(var(--colW) / var(--minorDiv))
-    ),
-    repeating-linear-gradient(
-      to right,
-      #fafafa,
-      #fafafa calc(var(--colW) - 1px),
-      var(--ganttGridLine) calc(var(--colW) - 1px),
-      var(--ganttGridLine) var(--colW)
-    );
 }
 

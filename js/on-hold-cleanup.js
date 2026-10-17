@@ -9,6 +9,7 @@ import {
 
 import { db } from "./firebase.js";
 import { assertLevel3Access } from "./access-control.js";
+import { initRunningCleanup, refreshRunningCleanup } from "./running-cleanup.js";
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs,
@@ -939,6 +940,8 @@ async function runProcessNameMigration() {
 
 export async function initOnHoldCleanup() {
   await assertLevel3Access();
+  initRunningCleanup();
+  window.addEventListener("runningCleanup:held", refreshOnHoldCleanup);
   const refreshBtn = document.getElementById("btnRefreshOnHoldCleanup");
   const body = document.getElementById("onHoldCleanupBody");
   const processRefreshBtn = document.getElementById("btnRefreshProcessTimeCleanup");
@@ -960,6 +963,7 @@ export async function initOnHoldCleanup() {
     cleanupToolPanels.forEach(panel => {
       panel.classList.toggle("hidden", panel.dataset.cleanupPanel !== tool);
     });
+    if (tool === "running") refreshRunningCleanup();
   };
 
   cleanupToolTabs.forEach(tab => {

@@ -38,38 +38,44 @@
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px;
-  border: 1px solid #e3e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #dce0e6;
+  border-radius: 12px;
+  background: #eef0f3;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .cleanupToolTab {
-  flex: 0 1 auto;
-  min-height: 34px;
-  padding: 7px 12px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 9px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: #64748b;
   cursor: pointer;
   font-size: 12px;
-  font-weight: 900;
-  line-height: 1.2;
+  font-weight: 600;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
 .cleanupToolTab:hover {
-  background: #f8fafc;
+  background: #e1e5eb;
   color: #111827;
 }
 
 .cleanupToolTab.active {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #d8dee7;
+  color: #172238;
+}
+
+.cleanupToolTab:focus-visible {
+  outline: 2px solid #475569;
+  outline-offset: -2px;
 }
 
 .onHoldCleanupCard {
@@ -83,6 +89,71 @@
   background: #ffffff;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
   overflow: hidden;
+}
+
+.runningCleanupTable {
+  min-width: 1550px;
+}
+
+.onHoldCleanupTable.runningCleanupTable th,
+.onHoldCleanupTable.runningCleanupTable td {
+  width: auto;
+}
+
+.onHoldCleanupTable.runningCleanupTable th:nth-child(4),
+.onHoldCleanupTable.runningCleanupTable td:nth-child(4) {
+  width: 240px;
+}
+
+.onHoldCleanupTable.runningCleanupTable th:nth-child(6),
+.onHoldCleanupTable.runningCleanupTable td:nth-child(6) {
+  width: 220px;
+}
+
+.onHoldCleanupTable.runningCleanupTable th:nth-child(7),
+.onHoldCleanupTable.runningCleanupTable td:nth-child(7) {
+  width: 170px;
+}
+
+.onHoldCleanupTable.runningCleanupTable th:nth-child(9),
+.onHoldCleanupTable.runningCleanupTable td:nth-child(9) {
+  width: 210px;
+}
+
+.runningHoldTime {
+  width: 195px;
+  padding: 7px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+}
+
+.runningHoldTime:focus-visible,
+.runningHoldBtn:focus-visible {
+  outline: 2px solid #475569;
+  outline-offset: 2px;
+}
+
+.runningHoldBtn {
+  padding: 8px 10px;
+  border: 1px solid #475569;
+  border-radius: 7px;
+  background: #475569;
+  color: #ffffff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.runningHoldBtn:hover:not(:disabled) {
+  background: #334155;
+}
+
+.runningHoldBtn:disabled,
+.runningHoldTime:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .onHoldCleanupCard.hidden {

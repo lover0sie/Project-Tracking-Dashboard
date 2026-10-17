@@ -286,7 +286,6 @@ button:active{ transform: translateY(1px); }
 
 #btn-export{ background:var(--accent); color:#fff; font-size:var(--fontSm) }
 #btn-export:hover{ background:var(--accentHover); }
-#btnAutoStop {font-size:var(--fontSm)}
 #btnToday {font-size:var(--fontSm)}
 
 #btn-refresh { font-size:var(--fontSm);}

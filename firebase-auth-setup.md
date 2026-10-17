@@ -76,12 +76,14 @@ The page shows the same confirmation for an existing and an unknown address. Kee
 | Process Description, Acknowledgement | Yes | Yes | Yes |
 | Line Balance, Chiller Cycle Time | No | Yes | Yes |
 | Excel export | No | Yes | Yes |
-| Cleanup, Auto Stop | No | No | Yes |
+| Cleanup | No | No | Yes |
 | Data extraction/import, ProductionProgress | No | No | Yes |
 
 Tree View is removed from every sidebar. It remains accessible at `tree.html` for Level 3.
 
 Cleanup uses the existing dashboard session with no additional username or password. Its link and direct page access are restricted to Level 3, initialization verifies the current employee role, and each write checks Level 3 access. Use the navigation bar's Sign Out button to end the dashboard session.
+
+For overdue running processes, historical shift holds, and automatic daily Auto Stop jobs, see [Running Cleanup and Auto Stop setup](auto-stop-setup.md).
 
 The authoritative role is `employees/{employeeId}.role`, using exactly `level1`, `level2`, or `level3`. Both the employee and UID mapping must have boolean `active: true`. Browser code cannot write either collection. Change employee permissions through Firebase Console or a trusted administrator service. Open dashboards observe role/active changes and recheck access. Authentication state is restored using Firebase's browser persistence; profiles are fetched afresh, with no session-storage authorization fallback.
 
@@ -100,7 +102,7 @@ Verify with one account per role:
 - Incorrect passwords, missing profiles, invalid roles, and inactive employees are rejected.
 - Employee-number/password login uses the existing Gmail Authentication account and retains its UID and role.
 - Forgot password opens a separate email form and works without an employee number or password; unknown addresses receive the same on-screen confirmation.
-- Level 1 sees only the four permitted views and no Excel or Auto Stop controls; direct Level 2/3 URLs redirect to Project Gantt.
+- Level 1 sees only the four permitted views and no Excel controls; direct Level 2/3 URLs redirect to Project Gantt.
 - Level 2 sees the additional two views and can export, but cannot open Cleanup or perform writes.
 - Level 3 can open all views, Cleanup and administrative utilities.
 - All sidebars hide Tree View; Sign Out removes access, including in another open tab.

@@ -126,8 +126,6 @@ function applyRoleUi(profile) {
   document.querySelectorAll("#btn-export, #btnExportStationExcel, #exportStandardRawBtn, #exportCombinedRawBtn").forEach(button => {
     button.hidden = !roleMeetsRequirement(profile.role, "level2");
   });
-  const autoStop = document.getElementById("btnAutoStop");
-  if (autoStop) autoStop.hidden = profile.role !== "level3";
 }
 
 function renderUserBar(profile) {

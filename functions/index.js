@@ -7,6 +7,7 @@ const { HttpsError, onCall } = require("firebase-functions/v2/https");
 
 initializeApp();
 const db = getFirestore();
+Object.assign(exports, require("./scheduled-auto-stop.js"));
 const auth = getAuth();
 const webApiKey = defineString("DASHBOARD_WEB_API_KEY", {
   description: "Web API key from the same Firebase project as the dashboard",

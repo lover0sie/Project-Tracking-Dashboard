@@ -38,6 +38,9 @@
           <button type="button" class="cleanupToolTab" data-cleanup-tool="on-hold" role="tab" aria-selected="false">
             On-Hold Cleanup
           </button>
+          <button type="button" class="cleanupToolTab" data-cleanup-tool="running" role="tab" aria-selected="false">
+            Running Cleanup
+          </button>
           <button type="button" class="cleanupToolTab" data-cleanup-tool="process-time" role="tab" aria-selected="false">
             Process Time Cleanup
           </button>
@@ -123,6 +126,43 @@
                 <tr>
                   <td colspan="11" class="onHoldCleanupEmpty">Loading on-hold records...</td>
                 </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="onHoldCleanupCard hidden" data-cleanup-panel="running">
+          <div class="onHoldCleanupHead">
+            <div>
+              <h3>Processes Running Over 24 Hours</h3>
+              <div class="onHoldCleanupSub">
+                <span id="runningCleanupCount">0</span> process(es) running for more than 24 hours since their latest start or resume.
+                Suggested hold times use the original day's 5:30 PM or 9:30 PM cutoff.
+              </div>
+            </div>
+            <button type="button" id="btnRefreshRunningCleanup" class="secondary">Refresh List</button>
+          </div>
+          <p id="runningCleanupStatus" class="onHoldCleanupSub" role="status" aria-live="polite">
+            Open Running Cleanup to review overdue processes. Placing a process on hold does not mark it completed.
+          </p>
+          <div class="onHoldCleanupTableWrap">
+            <table class="onHoldCleanupTable runningCleanupTable">
+              <thead>
+                <tr>
+                  <th>Serial Number</th>
+                  <th>Chiller Serial Number</th>
+                  <th>PV Serial Number</th>
+                  <th>Project Name</th>
+                  <th>Station</th>
+                  <th>Process</th>
+                  <th>Last Started / Resumed (MYT)</th>
+                  <th>Running Hours</th>
+                  <th>Hold Date / Time (MYT)</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="runningCleanupBody">
+                <tr><td colspan="10" class="onHoldCleanupEmpty">Select Running Cleanup to load overdue processes.</td></tr>
               </tbody>
             </table>
           </div>
