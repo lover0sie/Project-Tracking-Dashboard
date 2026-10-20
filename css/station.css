@@ -57,8 +57,7 @@
 }
 
 .station-page .actions .btn.secondary,
-.station-page .actions button.secondary,
-.station-page #btn-refresh {
+.station-page .actions button.secondary {
   background: #ffffff;
   color: #111827;
   border: 1px solid #d9e1ec;
@@ -66,8 +65,7 @@
 }
 
 .station-page .actions .btn.secondary:hover,
-.station-page .actions button.secondary:hover,
-.station-page #btn-refresh:hover {
+.station-page .actions button.secondary:hover {
   background: #fbfdff;
   border-color: #b9c8dc;
   color: #0f172a;

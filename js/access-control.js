@@ -131,11 +131,15 @@ function applyRoleUi(profile) {
 function renderUserBar(profile) {
   const brand = document.querySelector(".sideNavBrand");
   if (brand) {
-    const home = document.createElement("a");
-    home.className = "sideNavBrandLink";
-    home.href = new URL("index.html", DASHBOARD_ROOT).href;
-    home.setAttribute("aria-label", "Project Tracking Dashboard home");
-    home.innerHTML = `
+    const brandLink = document.createElement("a");
+    brandLink.className = "sideNavBrandLink";
+    brandLink.href = new URL("acknowledgement.html", DASHBOARD_ROOT).href;
+    brandLink.setAttribute("aria-label", "Project Tracking Dashboard acknowledgement");
+    brandLink.title = "Acknowledgement";
+    if (window.location.pathname === new URL(brandLink.href).pathname) {
+      brandLink.setAttribute("aria-current", "page");
+    }
+    brandLink.innerHTML = `
       <span class="sideNavLogo" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">
           <path d="M4 4v16h16" />
@@ -147,7 +151,7 @@ function renderUserBar(profile) {
         <span class="sideNavSub">Dashboard</span>
       </span>
     `;
-    brand.replaceChildren(home);
+    brand.replaceChildren(brandLink);
   }
   const bar = document.createElement("div");
   bar.className = "authUserBar";

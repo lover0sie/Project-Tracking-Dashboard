@@ -1,6 +1,7 @@
-﻿/* Shared tokens, base layout, buttons, cards, filters, and version popup. */
+/* Shared tokens, base layout, buttons, cards, filters, and version popup. */
 
 @import url("./typography.css");
+
 
 /* ==================== Design Tokens ==================== */
 :root{
@@ -288,7 +289,40 @@ button:active{ transform: translateY(1px); }
 #btn-export:hover{ background:var(--accentHover); }
 #btnToday {font-size:var(--fontSm)}
 
-#btn-refresh { font-size:var(--fontSm);}
+/* Shared appearance for refresh actions across all dashboard pages. */
+body button:is(
+  #btn-refresh,
+  #cycleRefreshBtn,
+  #btnRefreshOnHoldCleanup,
+  #btnRefreshRunningCleanup,
+  #btnRefreshProcessTimeCleanup,
+  #refreshBtn,
+  #btn-update-now
+) {
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  font-family: var(--fontFamily);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.14);
+}
+
+body button:is(
+  #btn-refresh,
+  #cycleRefreshBtn,
+  #btnRefreshOnHoldCleanup,
+  #btnRefreshRunningCleanup,
+  #btnRefreshProcessTimeCleanup,
+  #refreshBtn,
+  #btn-update-now
+):hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
+}
 
 a.btn{
   display:inline-flex;

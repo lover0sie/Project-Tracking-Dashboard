@@ -1,0 +1,200 @@
+/* Data extraction and import tools within the shared dashboard shell. */
+.extractPage .extractShell {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 2px 12px;
+}
+
+.extractPage .extractHeader,
+.extractPage .panel {
+  flex: 0 0 auto;
+  border: 1px solid #e2e7ef;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.extractPage h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.extractPage .subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extractPage h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: normal;
+}
+
+.extractPage .grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.extractPage label {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.extractPage input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extractPage input[type="file"] {
+  height: auto;
+  min-height: 36px;
+}
+
+.extractPage input:hover {
+  border-color: #cbd5e1;
+}
+
+.extractPage input:focus-visible,
+.extractPage .extractShell button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.extractPage .actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.extractPage .extractShell button {
+  min-height: 32px;
+  padding: 7px 12px;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.extractPage .extractShell button:hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+
+.extractPage .extractShell button.secondary {
+  background: #ffffff;
+  border-color: #d7dce5;
+  color: #111827;
+}
+
+.extractPage .extractShell button.secondary:hover:not(:disabled) {
+  background: #fbfdff;
+  border-color: #b9c8dc;
+}
+
+.extractPage #btnExportFiltered,
+.extractPage #btnExportAll {
+  background: #0b41b5;
+  border-color: #0b41b5;
+  color: #ffffff;
+}
+
+.extractPage #btnExportFiltered:hover:not(:disabled),
+.extractPage #btnExportAll:hover:not(:disabled) {
+  background: #447df9;
+  border-color: #447df9;
+}
+
+.extractPage .extractShell button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.extractPage #status,
+.extractPage .statusLine {
+  min-height: 18px;
+  margin: 14px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.extractPage #status.error,
+.extractPage .statusLine.error {
+  color: #b42318;
+}
+
+.extractPage #status.success,
+.extractPage .statusLine.success {
+  color: #067647;
+}
+
+.extractPage .confirmBox {
+  margin-top: 14px;
+  border: 1px solid #f2c94c;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fffbeb;
+}
+
+.extractPage .confirmBox p {
+  margin: 0;
+  color: #713f12;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.extractPage .preview {
+  margin-top: 14px;
+  overflow: auto;
+  max-height: 300px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.extractPage pre {
+  margin: 0;
+  padding: 14px;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .extractPage .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .extractPage .extractShell button {
+    width: 100%;
+  }
+}

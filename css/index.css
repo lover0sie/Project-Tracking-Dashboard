@@ -80,8 +80,7 @@
 }
 
 .dashboardPage .actions .btn.secondary,
-.dashboardPage .actions button.secondary,
-.dashboardPage #btn-refresh {
+.dashboardPage .actions button.secondary {
   background: #ffffff;
   color: #111827;
   border-color: #d7dce5;
@@ -91,8 +90,7 @@
 }
 
 .dashboardPage .actions .btn.secondary:hover,
-.dashboardPage .actions button.secondary:hover,
-.dashboardPage #btn-refresh:hover {
+.dashboardPage .actions button.secondary:hover {
   background: #fbfdff;
   border-color: #b9c8dc;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);

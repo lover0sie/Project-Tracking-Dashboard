@@ -382,6 +382,10 @@ function buildHoldDisplayParts(window) {
     parts.push({ start: firstStart, end: firstEnd });
   }
 
+  // An ongoing hold belongs to the day it began, not the day we view it.
+  // Only a resumed hold has an actual event to display on its final day.
+  if (window.isOpen) return parts;
+
   const lastStart = workWindowStart(holdEnd);
   const lastEnd = earlierDate(holdEnd, workWindowEnd(holdEnd));
 
@@ -435,6 +439,7 @@ export function sliceSegForWaiting(seg) {
         end: displayPart.end,
         holdReason: w.holdReason || "",
         remarks: w.remarks || "",
+        holdStart,
         isOpen: !!w.isOpen
       });
     }

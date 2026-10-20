@@ -571,7 +571,7 @@ function tipTextBuilder(seg, sliceStart, sliceEnd, partType, part = null) {
 
     return `
       <div class="tipTitle">${seg.processLabel || "-"}</div>
-      <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(sliceStart)}</div>
+      <div class="tipRow"><span class="tipLabel">Start:</span> ${formatDateTime(part?.isOpen ? (part.holdStart || sliceStart) : sliceStart)}</div>
       <div class="tipRow"><span class="tipLabel">End:</span> ${endText}</div>
       <div class="tipRow"><span class="tipLabel">Duration:</span> ${formatDuration(holdMs)}</div>
       <b><div class="tipRow">Reason: ${
@@ -2052,6 +2052,18 @@ async function render({ forceRefresh = false } = {}) {
 
     const mode = el("dateMode")?.value || "daily";
 
+    // Reset the previous view before loading data, including empty/error paths.
+    const wrap = document.querySelector(".ganttWrap");
+    const grid = document.querySelector(".ganttGrid");
+    for (const container of [wrap, grid]) {
+      container?.classList.remove("treeMode", "treeMonthMode");
+      container?.classList.toggle("dailyMode", mode === "daily");
+      container?.classList.toggle("monthMode", mode === "month");
+      container?.classList.toggle("stationMode", mode === "station");
+    }
+    document.documentElement.style.setProperty("--todayLeft", "-9999px");
+    document.querySelectorAll(".todayCol").forEach(node => node.classList.remove("todayCol"));
+
     const picker = el("dayPicker");
     const todayKey = getMYTodayKey();
     const dayKey = picker?.value || todayKey;
@@ -2103,20 +2115,6 @@ async function render({ forceRefresh = false } = {}) {
     // Build segments FIRST
     const { segments } = buildSegmentsFromRuns(runs);
     
-    const wrap = document.querySelector(".ganttWrap");
-    const grid = document.querySelector(".ganttGrid");
-
-    wrap?.classList.remove("treeMode", "treeMonthMode");
-    grid?.classList.remove("treeMode", "treeMonthMode");
-
-    wrap?.classList.toggle("dailyMode", mode === "daily");
-    wrap?.classList.toggle("monthMode", mode === "month");
-    wrap?.classList.toggle("stationMode", mode === "station");
-
-    grid?.classList.toggle("dailyMode", mode === "daily");
-    grid?.classList.toggle("monthMode", mode === "month");
-    grid?.classList.toggle("stationMode", mode === "station");
-
     // DAILY MODE
     if (mode === "daily") {
       renderLegend("legendStations", LEGEND_STATIONS);
