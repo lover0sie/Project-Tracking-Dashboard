@@ -70,3 +70,48 @@ These jobs use the deployed function runtime's Firestore permissions. They do no
 - Level 1 and Level 2 cannot initialize Cleanup or write run corrections.
 
 References: [Firebase scheduled functions](https://firebase.google.com/docs/functions/schedule-functions), [Firestore transactions](https://firebase.google.com/docs/firestore/manage-data/transactions).
+
+## Auto-stop email reports (activated 6 November 2026)
+
+`autoStopDayShift`, `autoStopEveningShift` and `emailAutoStopReport` were deployed and verified ACTIVE on 6 November 2026. Both daily schedules were verified ENABLED for 5:30 PM and 9:30 PM in Asia/Kuala_Lumpur. A clearly labelled test notification passed through the deployed Firestore trigger and was accepted by the configured Gmail sending service on its first attempt. The recipient confirmed that the test email arrived in the inbox. No process records were changed by the test.
+
+The scheduled checks now prepare an email report after each 5:30 PM and 9:30 PM check, including checks with no eligible processes. Each report lists the candidate project/process, chiller and item/PV serials, intended hold time, and result: Applied, Skipped, Failed or Pending. Skipped means the process changed before its hold could be applied. Failed/Pending results require attention; scheduler retries can produce an updated report. A scan failure is clearly marked CHECK REQUIRED, rather than reporting success with zero candidates.
+
+An Applied result confirms that an automatic hold was saved. It does not confirm the process will remain on hold afterwards, and it does not fix the operator app issue described in the investigation. This email is an audit of the scheduled action, not continuous monitoring of later operator changes.
+
+The backend keeps `_autoStopReports/{scheduledEpochMs}/entries/{runPathHash}` separately from process records. Each automatic hold and its Applied audit entry are saved together. Retrying the same schedule retains its original candidates and successful results. Process records that later become completed cannot erase this audit. Existing same-day shift rules and painting exclusions are unchanged.
+
+Emails are queued in `_autoStopNotifications` and sent by the separate `emailAutoStopReport` function. Sending failures do not prevent automatic holds. Normal retries reuse the saved notification. The worker records `accepted` when the sending service accepts the message; this does not guarantee inbox delivery. Sending is attempted up to five times. SMTP cannot guarantee exactly one email if a connection is lost after the service accepts a message, so a rare duplicate is possible. Repeated identical scheduler results do not create another queued message; changed results after recovery do.
+
+### Activation
+
+1. Confirm the recipient address and a mailbox or sending service that supports authenticated SMTP. Authentication requirements depend on that service; do not place credentials in source code or chat.
+2. Store the sender/recipient and SMTP configuration as the Firebase Secret Manager secret `AUTO_STOP_EMAIL_CONFIG`. For example, the secret's JSON structure is:
+
+   ```json
+   {
+     "host": "smtp.example.com",
+     "port": 587,
+     "from": "Production Tracking <sender@example.com>",
+     "to": "recipient@example.com",
+     "auth": {
+       "user": "sender@example.com",
+       "pass": "service-issued-password"
+     }
+   }
+   ```
+
+   Create it using `firebase functions:secrets:set AUTO_STOP_EMAIL_CONFIG --project qrcodetesting-4f86e`. Enter the JSON at the protected prompt. The worker also supports an SMTP provider's Nodemailer OAuth2 `auth` configuration. Use the authentication method supported by the chosen service. Ports 465, 587 and 2525 are supported, with encrypted connections required.
+
+3. Run `npm test` inside `functions`. The tests use an in-memory database and a mocked sender; they do not change production records or send email.
+4. Deploy the scheduled functions and email worker together:
+
+   ```powershell
+   firebase deploy --only "functions:employee-login:autoStopDayShift,functions:employee-login:autoStopEveningShift,functions:employee-login:emailAutoStopReport" --project qrcodetesting-4f86e
+   ```
+
+5. Verify the next scheduled report against its saved audit entries and confirm receipt in the intended inbox. Notification documents created before the email worker was deployed are not automatically sent by the create trigger.
+
+The audit and notification collections are backend-only under the current Firestore rules. No browser access or rule changes are needed. Keep investigation reports, diagnostic scripts and collected evidence in the local `investigation/` directory; `.gitignore` excludes it from GitHub. The operational setup guide and production code remain tracked.
+
+References: [Firebase secrets](https://firebase.google.com/docs/functions/config-env), [Firestore event triggers](https://firebase.google.com/docs/functions/firestore-events), [Nodemailer SMTP configuration](https://nodemailer.com/smtp).
