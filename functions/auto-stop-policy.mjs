@@ -80,7 +80,14 @@ export function runningCleanupPlan(run, cutoffMs, nowMs = Date.now()) {
   };
 }
 
-export function autoHoldFields(plan, appliedAtMs, actor = {}, source = "auto_stop") {
+export function autoHoldFields(run, plan, appliedAtMs, actor = {}, source = "auto_stop") {
+  const start = activeStartMs(run);
+  if (start === null) throw new Error("A valid start/resume time is required.");
+  const savedDurationMs = Number(run.durationMs);
+  // Previously accumulated time is retained, and only the latest running segment
+  // through the cutoff is added. Time spent on hold is excluded.
+  const durationMs = (Number.isFinite(savedDurationMs) ? Math.max(0, savedDurationMs) : 0)
+    + Math.max(0, plan.cutoffMs - start);
   const appliedAt = new Date(appliedAtMs).toLocaleString("en-MY", { timeZone: TIME_ZONE });
   const cutoffAt = new Date(plan.cutoffMs).toLocaleString("en-MY", { timeZone: TIME_ZONE });
   const remarks = `Auto hold at shift cutoff ${cutoffAt}; applied at ${appliedAt}`;
@@ -94,6 +101,7 @@ export function autoHoldFields(plan, appliedAtMs, actor = {}, source = "auto_sto
     },
     fields: {
       status: "on_hold",
+      durationMs,
       holdReason: "end_of_shift",
       holdEpochMs: plan.cutoffMs,
       autoStopped: true,

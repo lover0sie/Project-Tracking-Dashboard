@@ -116,7 +116,7 @@ async function holdRow(index) {
     const run = current.data();
     const appliedAt = Date.now();
     const plan = runningCleanupPlan(run, cutoffMs, appliedAt);
-    const update = autoHoldFields(plan, appliedAt, { uid: actor.uid }, "running_cleanup");
+    const update = autoHoldFields(run, plan, appliedAt, { uid: actor.uid }, "running_cleanup");
     transaction.update(row.ref, {
       ...update.fields,
       holds: arrayUnion(update.hold),

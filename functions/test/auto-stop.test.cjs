@@ -104,6 +104,45 @@ test("completion before transaction is skipped instead of overwritten", async ()
   assert.equal(db.data.get(runPath).holds, undefined);
 });
 
+test("scheduled hold saves the first running segment only through the cutoff", async () => {
+  const db = memoryDb({ [runPath]: running });
+  await execute(db);
+  assert.equal(db.data.get(runPath).durationMs, scheduledMs - running.startEpochMs);
+});
+
+test("scheduled hold adds the latest resumed segment to the accumulated duration exactly once", async () => {
+  const durationMs = 2 * 3600000;
+  const resumedAtEpochMs = scheduledMs - 45 * 60000;
+  const db = memoryDb({ [runPath]: {
+    ...running, durationMs,
+    resumes: [
+      { resumedAtEpochMs },
+      { resumedAtEpochMs: scheduledMs - 2 * 3600000 }
+    ]
+  } });
+  await execute(db);
+  assert.equal(db.data.get(runPath).durationMs, durationMs + 45 * 60000);
+  await execute(db);
+  assert.equal(db.data.get(runPath).durationMs, durationMs + 45 * 60000);
+  assert.equal(db.data.get(runPath).holds.length, 1);
+});
+
+test("scheduled hold calculates duration from the current transactional run", async () => {
+  const db = memoryDb({ [runPath]: running });
+  const original = db.runTransaction;
+  let calls = 0;
+  db.runTransaction = async callback => {
+    if (++calls === 2) {
+      Object.assign(db.data.get(runPath), {
+        durationMs: 3600000, resumedEpochMs: scheduledMs - 30 * 60000
+      });
+    }
+    return original(callback);
+  };
+  await execute(db);
+  assert.equal(db.data.get(runPath).durationMs, 90 * 60000);
+});
+
 test("failed hold gets an attention report and retry recovers without losing candidate", async () => {
   const db = memoryDb({ [runPath]: running });
   db.failHolds = true;

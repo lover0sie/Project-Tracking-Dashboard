@@ -85,9 +85,9 @@ async function runAutoStop({ db, fieldValue, logger, scheduledMs, clock = Date.n
           return;
         }
 
-        // Both writes succeed together, preserving proof that the hold applied.
+        // The duration, hold and audit entry are saved together.
         const appliedMs = clock();
-        const update = autoHoldFields(plan, appliedMs, {}, "scheduled_auto_stop");
+        const update = autoHoldFields(current.data(), plan, appliedMs, {}, "scheduled_auto_stop");
         transaction.update(current.ref, { ...update.fields, holds: fieldValue.arrayUnion(update.hold) });
         transaction.update(candidate.ref, { result: "applied", appliedMs, reason: "", errorCode: "" });
       });
