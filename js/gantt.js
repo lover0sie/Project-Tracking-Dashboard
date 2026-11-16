@@ -5,7 +5,7 @@
 /* Consist of functions to build segments and slices for on hold, running, break time, and process */
 
 import { loadRuns, loadRunsForDay, loadRunsForDayWithCarryForward } from "./timeline.js";
-import { exportExcelReport, exportStationViewExcel } from "./excel-export.js";
+import { exportExcelReport, exportStationViewExcel, ensureExcelLibrary } from "./excel-export.js";
 import { db } from "./firebase.js";
 import { 
   getMYTodayKey, 
@@ -62,11 +62,13 @@ let cachedEvents = [];
 const cachedRunsByMonth = new Map();
 // Cache fetched runs to avoid hitting Firestore on every re-render.
 let ganttHistoricalStandardsByModelProcess = {};
+let ganttHistoricalStandardsReady = false;
 
 export function clearGanttCache() {
   cachedEvents = [];
   cachedRunsByMonth.clear();
   ganttHistoricalStandardsByModelProcess = {};
+  ganttHistoricalStandardsReady = false;
 }
 
 /* Helpers for time */
@@ -222,13 +224,14 @@ function normalizeHoldReason(reason){
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-async function refreshGanttHistoricalStandards({ forceRefresh = false } = {}) {
-  if (!forceRefresh && Object.keys(ganttHistoricalStandardsByModelProcess).length) return;
+async function refreshGanttHistoricalStandards({ forceRefresh = false, reuseLoadedRuns = false } = {}) {
+  if (!forceRefresh && ganttHistoricalStandardsReady) return;
 
-  const runs = await loadRuns(forceRefresh);
+  const runs = await loadRuns(forceRefresh && !reuseLoadedRuns);
   const { segments } = buildSegmentsFromRuns(runs);
   ganttHistoricalStandardsByModelProcess =
     buildHistoricalStandardsByModelProcess(segments);
+  ganttHistoricalStandardsReady = true;
 }
 
 function getGanttStandardMinutes(seg) {
@@ -337,6 +340,7 @@ const GANTT_LIVE_FETCH_MS = 60000;
 
 function startGanttLiveRefresh() {
   stopGanttLiveRefresh();
+  if (!lastGanttLiveFetchMs) lastGanttLiveFetchMs = Date.now();
   ganttLiveTimer = setInterval(async () => {
     if (ganttLiveRefreshInFlight) return;
 
@@ -672,7 +676,9 @@ function fitDailyToScreen(){
   const colProc    = parseFloat(wrapStyle.getPropertyValue("--colProc")) || 120;
   const colStatus  = parseFloat(wrapStyle.getPropertyValue("--colStatus")) || 110;
 
-  const wrapWidth = wrap.clientWidth;
+  // Mobile uses a wider canvas that can be swiped horizontally.
+  const minCanvasWidth = parseFloat(wrapStyle.getPropertyValue("--ganttMinWidth")) || 0;
+  const wrapWidth = Math.max(wrap.clientWidth, minCanvasWidth);
   const leftColumnsWidth = document.body.classList.contains("station-page")
     ? colProc + colProject + colStatus
     : colProject + colProc + colStatus;
@@ -767,7 +773,9 @@ function fitMonthlyToScreen(dayCount) {
     cssPxVar("--colProc") +
     cssPxVar("--colStatus");
 
-  const availableTimelineW = Math.max(1, ganttWrapEl.clientWidth - leftCols - 2);
+  const minCanvasWidth = parseFloat(getComputedStyle(ganttWrapEl).getPropertyValue("--ganttMinWidth")) || 0;
+  const canvasWidth = Math.max(ganttWrapEl.clientWidth, minCanvasWidth);
+  const availableTimelineW = Math.max(1, canvasWidth - leftCols - 2);
   const fittedDayW = Math.max(18, availableTimelineW / dayCount);
 
   document.documentElement.style.setProperty("--dayW", `${fittedDayW.toFixed(3)}px`);
@@ -964,6 +972,7 @@ function buildChillerGroups(segments){
 /* ========== Building Station View =============== */
 
 export async function exportStationSelectedDateExcel() {
+  await ensureExcelLibrary();
   const dayPicker = el("dayPicker");
   const stationPicker = el("stationBalancePicker");
 
@@ -1110,8 +1119,14 @@ function groupStationByProcess(segments) {
   return stationMap;
 }
 
+let stationRenderRequest = 0;
+
 export async function renderStationOnlyView({ forceRefresh = false } = {}) {
+  const request = ++stationRenderRequest;
   try {
+    renderLegend("legendStations", LEGEND_STATIONS);
+    renderLegend("legendStatus", LEGEND_STATUS);
+    if (!bodyEl?.hasChildNodes()) showGanttMessage("Loading station chart...");
     const dayPicker = el("dayPicker");
     const stationPicker = el("stationBalancePicker");
     const stationTitle = el("stationViewTitle");
@@ -1120,6 +1135,8 @@ export async function renderStationOnlyView({ forceRefresh = false } = {}) {
     const dayKey = dayPicker?.value || todayKey;
 
     const runs = await loadRunsForDayWithCarryForward(dayKey, forceRefresh);
+    if (request !== stationRenderRequest) return;
+    if (forceRefresh) lastGanttLiveFetchMs = Date.now();
 
     if (!runs.length) {
       showGanttMessage("No runs found for the selected day. Try another date.");
@@ -1131,12 +1148,10 @@ export async function renderStationOnlyView({ forceRefresh = false } = {}) {
       return;
     }
 
-    await refreshGanttHistoricalStandards({ forceRefresh });
+    await refreshGanttHistoricalStandards({ forceRefresh, reuseLoadedRuns: true });
+    if (request !== stationRenderRequest) return;
 
     const { segments } = buildSegmentsFromRuns(runs);
-
-    renderLegend("legendStations", LEGEND_STATIONS);
-    renderLegend("legendStatus", LEGEND_STATUS);
 
     if (dayPicker && !dayPicker.value) {
       dayPicker.value = todayKey;
@@ -1200,7 +1215,7 @@ export async function renderStationOnlyView({ forceRefresh = false } = {}) {
 
   } catch (err) {
     console.error(err);
-    showGanttError(err);
+    if (request === stationRenderRequest) showGanttError(err);
   }
 }
 
@@ -2459,25 +2474,45 @@ function bindFloatingTooltip(){
 
 /* Make the resize handler page aware */
 
-window.addEventListener("resize", async () => {
-  // Main dashboard page
-  if (el("dateMode") && !document.body.classList.contains("tree-page")) {
-    fitDailyToScreen();
-    await render();
-    return;
-  }
+let ganttResizeTimer = null;
+function ganttViewportKey() {
+  return `${window.innerWidth}:${window.matchMedia("(orientation: portrait)").matches}:${window.innerHeight <= 600}`;
+}
+let lastGanttViewportKey = ganttViewportKey();
 
-  // Station-only page
-  if (document.body.classList.contains("station-page")) {
-    fitDailyToScreen();
-    await renderStationOnlyView();
-  }
+window.addEventListener("resize", () => {
+  const nextKey = ganttViewportKey();
+  if (nextKey === lastGanttViewportKey) return;
+  lastGanttViewportKey = nextKey;
+  clearTimeout(ganttResizeTimer);
+  ganttResizeTimer = setTimeout(async () => {
+    // Main dashboard page
+    if (el("dateMode") && !document.body.classList.contains("tree-page")) {
+      fitDailyToScreen();
+      await render();
+      return;
+    }
+
+    // Station-only page
+    if (document.body.classList.contains("station-page")) {
+      fitDailyToScreen();
+      await renderStationOnlyView();
+    }
+  }, 200);
 });
 
 const btnExportStationExcel = document.getElementById("btnExportStationExcel");
 
 btnExportStationExcel?.addEventListener("click", async () => {
-  await exportStationSelectedDateExcel();
+  btnExportStationExcel.disabled = true;
+  try {
+    await exportStationSelectedDateExcel();
+  } catch (error) {
+    console.error("Station export failed", error);
+    alert("Unable to export Excel. Check your connection and try again.");
+  } finally {
+    btnExportStationExcel.disabled = false;
+  }
 });
 
 

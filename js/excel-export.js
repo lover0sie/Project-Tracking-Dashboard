@@ -1,6 +1,31 @@
 /* Export the data from firebase to excel workbook */
 import { assertExportAccess } from "./access-control.js";
 
+let excelLibraryPending = null;
+export function ensureExcelLibrary() {
+  if (globalThis.XLSX) return Promise.resolve();
+  if (excelLibraryPending) return excelLibraryPending;
+  excelLibraryPending = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.onload = () => {
+      if (globalThis.XLSX) resolve();
+      else {
+        excelLibraryPending = null;
+        script.remove();
+        reject(new Error("Excel library did not initialize"));
+      }
+    };
+    script.onerror = () => {
+      excelLibraryPending = null;
+      script.remove();
+      reject(new Error("Unable to load Excel library"));
+    };
+    document.head.appendChild(script);
+  });
+  return excelLibraryPending;
+}
+
 import {
   buildSegmentsFromRuns,
   getActualEffectiveDurationMs

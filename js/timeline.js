@@ -13,31 +13,37 @@ import {
 import { db } from "./firebase.js";
 
 // Cache: all-runs + per-day
-let cachedRunsAll = [];
+let cachedRunsAll = null;
+let runsAllInFlight = null;
 const cachedRunsByDay = new Map();
 
 export function clearCache() {
-  cachedRunsAll = [];
+  cachedRunsAll = null;
+  runsAllInFlight = null;
   cachedRunsByDay.clear();
 }
 
 /* Existing behavior (loads everything). */
 export async function loadRuns(force = false) {
-  if (!force && cachedRunsAll.length) {
-    console.warn("loadRuns() returning cached runs to prevent excessive Firestore reads.");
-    return cachedRunsAll;
+  // Share concurrent requests, including refreshes, rather than downloading twice.
+  if (runsAllInFlight) return runsAllInFlight;
+  if (!force && cachedRunsAll !== null) return cachedRunsAll;
+
+  const pending = (async () => {
+    const snap = await getDocs(collectionGroup(db, "runs"));
+    const runs = [];
+    snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
+    return runs;
+  })();
+  runsAllInFlight = pending;
+
+  try {
+    const runs = await pending;
+    if (runsAllInFlight === pending) cachedRunsAll = runs;
+    return runs;
+  } finally {
+    if (runsAllInFlight === pending) runsAllInFlight = null;
   }
-
-  if (!force) {
-    console.warn("loadRuns() fetching all runs from Firestore; use force=true only when you need fresh data.");
-  }
-
-  const snap = await getDocs(collectionGroup(db, "runs"));
-  const runs = [];
-  snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
-
-  cachedRunsAll = runs;
-  return runs;
 }
 
 /* NEW: load only one day (recommended for daily gantt 07:00–22:00 view) */

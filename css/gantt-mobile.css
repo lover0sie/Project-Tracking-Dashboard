@@ -1,0 +1,128 @@
+/* Mobile scrolling and time headers for the project and station Gantt pages. */
+@media (max-width: 900px) and (orientation: portrait),
+       (max-width: 1100px) and (max-height: 600px) and (orientation: landscape) {
+  body:is(.dashboardPage, .station-page) {
+    --ganttMinWidth: 1000px;
+  }
+
+  body:is(.dashboardPage, .station-page) .ganttTopBar {
+    flex-shrink: 0;
+  }
+
+  body:is(.dashboardPage, .station-page) .ganttWrap,
+  body:is(.dashboardPage, .station-page) .ganttWrap:is(.dailyMode, .monthMode, .stationMode) {
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+
+  body:is(.dashboardPage, .station-page) .ganttWrap .ganttGrid {
+    width: max-content;
+    min-width: max(100%, var(--ganttMinWidth));
+  }
+
+  /* Let the left columns move away so the timeline can fill a narrow screen. */
+  body:is(.dashboardPage, .station-page) .ganttWrap .ganttGrid .ganttLeftHead,
+  body:is(.dashboardPage, .station-page) .ganttWrap .ganttGrid .ganttCell,
+  body:is(.dashboardPage, .station-page) .ganttWrap .ganttGrid .unitMerged,
+  body:is(.dashboardPage, .station-page) .ganttWrap .ganttGrid .ganttLeft {
+    position: relative;
+    left: auto;
+    top: auto;
+  }
+
+  body:is(.dashboardPage, .station-page) .ganttWrap:is(.dailyMode, .stationMode) #ganttDayHead .dayCol {
+    height: 84px;
+    padding: 8px 0;
+  }
+
+  body:is(.dashboardPage, .station-page) .ganttWrap:is(.dailyMode, .stationMode) #ganttDayHead .d1 {
+    width: max-content;
+    white-space: nowrap;
+    transform: rotate(-90deg);
+  }
+
+  body:is(.dashboardPage, .station-page) .ganttWrap:is(.dailyMode, .stationMode) #ganttDayHead .d2:empty {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  body:is(.dashboardPage, .station-page) .legendTopRow,
+  body:is(.dashboardPage, .station-page) .legendBlock {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body:is(.dashboardPage, .station-page) .legendInlineSection,
+  body:is(.dashboardPage, .station-page) .legendInlineSection.statusSection {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  body:is(.dashboardPage, .station-page) #legendStations,
+  body:is(.dashboardPage, .station-page) #legendStatus {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+}
+
+@media (max-width: 1100px) and (max-height: 600px) and (orientation: landscape) {
+  body:is(.dashboardPage, .station-page) .legendTopRow,
+  body:is(.dashboardPage, .station-page) .legendBlock {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body:is(.dashboardPage, .station-page) .legendInlineSection,
+  body:is(.dashboardPage, .station-page) .legendInlineSection.statusSection {
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    height: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body:is(.dashboardPage, .station-page) #legendStations,
+  body:is(.dashboardPage, .station-page) #legendStatus {
+    width: 100%;
+    min-width: 0;
+    max-height: 140px;
+    flex-wrap: wrap;
+    overflow: auto;
+    scrollbar-width: thin;
+  }
+
+  html {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body:is(.dashboardPage, .station-page) {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  body:is(.dashboardPage, .station-page) .appShell,
+  body:is(.dashboardPage, .station-page) .appShell > .wrap,
+  body:is(.dashboardPage, .station-page) .card {
+    height: auto;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  body:is(.dashboardPage, .station-page) .ganttWrap {
+    flex: 0 0 auto;
+    height: max(320px, 70vh);
+  }
+}
