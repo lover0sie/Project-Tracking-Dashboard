@@ -939,7 +939,7 @@ function buildChillerGroups(segments){
   const groups = new Map();
   const sharedChillerSerial = "K27A018";
   const sharedGroupKey = `CH_ALIAS::${sharedChillerSerial}`;
-  const sharedRunPath = /^processRuns\/(MCK260621|MCK260622)\/runs\/[^/]+$/;
+  const sharedRunPath = /^processRuns\/(MCK260621|MCK260622|K27A108)\/runs\/[^/]+$/;
 
   for (const seg of segments) {
     const isSharedRun = sharedRunPath.test(seg.runPath);
