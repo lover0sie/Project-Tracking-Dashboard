@@ -938,8 +938,7 @@ function unitInfoFromSeg(seg) {
 function buildChillerGroups(segments){
   const groups = new Map();
   const sharedChillerSerial = "K27A018";
-  const sharedGroupKey = `CH_ALIAS::${sharedChillerSerial}`;
-  const sharedRunPath = /^processRuns\/(MCK260621|MCK260622|K27A108)\/runs\/[^/]+$/;
+  const sharedRunPath = /^processRuns\/(MCK260621|MCK260622|K27A018|K27A108)\/runs\/[^/]+$/;
 
   for (const seg of segments) {
     const isSharedRun = sharedRunPath.test(seg.runPath);
@@ -947,11 +946,9 @@ function buildChillerGroups(segments){
     const materialNumber = seg.materialNumber || "(No Material)";
     const chillerSerialNumber = isSharedRun ? sharedChillerSerial : (seg.chillerSerialNumber || "");
 
-    const groupKey = isSharedRun
-      ? sharedGroupKey
-      : chillerSerialNumber
-        ? `CH::${chillerSerialNumber}`
-        : `PM::${projectName}||${materialNumber}`;
+    const groupKey = chillerSerialNumber
+      ? `CH::${chillerSerialNumber}`
+      : `PM::${projectName}||${materialNumber}`;
 
     const { unitType, unitSerial } = unitInfoFromSeg(
       isSharedRun ? { ...seg, chillerSerialNumber } : seg
