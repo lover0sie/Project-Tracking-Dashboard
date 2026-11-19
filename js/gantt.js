@@ -4,7 +4,7 @@
 /* Consist of functions to render the daily and monthly gantt chart */
 /* Consist of functions to build segments and slices for on hold, running, break time, and process */
 
-import { loadRuns, loadRunsForDay, loadRunsForDayWithCarryForward } from "./timeline.js";
+import { loadRuns, loadRunsForDayWithCarryForward, runFromSnapshot } from "./timeline.js";
 import { exportExcelReport, exportStationViewExcel, ensureExcelLibrary } from "./excel-export.js";
 import { db } from "./firebase.js";
 import { 
@@ -937,18 +937,25 @@ function unitInfoFromSeg(seg) {
 
 function buildChillerGroups(segments){
   const groups = new Map();
+  const sharedChillerSerial = "K27A018";
+  const sharedGroupKey = `CH_ALIAS::${sharedChillerSerial}`;
+  const sharedRunPath = /^processRuns\/(MCK260621|MCK260622)\/runs\/[^/]+$/;
 
   for (const seg of segments) {
+    const isSharedRun = sharedRunPath.test(seg.runPath);
     const projectName = seg.projectName || "(No Project)";
     const materialNumber = seg.materialNumber || "(No Material)";
-    const chillerSerialNumber = seg.chillerSerialNumber || "";
+    const chillerSerialNumber = isSharedRun ? sharedChillerSerial : (seg.chillerSerialNumber || "");
 
-    const groupKey = chillerSerialNumber
-    ? `CH::${chillerSerialNumber}`
-    : `PM::${projectName}||${materialNumber}`;
+    const groupKey = isSharedRun
+      ? sharedGroupKey
+      : chillerSerialNumber
+        ? `CH::${chillerSerialNumber}`
+        : `PM::${projectName}||${materialNumber}`;
 
-
-    const { unitType, unitSerial } = unitInfoFromSeg(seg);
+    const { unitType, unitSerial } = unitInfoFromSeg(
+      isSharedRun ? { ...seg, chillerSerialNumber } : seg
+    );
     const unitKey = `${unitType}||${unitSerial}`;
 
     if (!groups.has(groupKey)) {
@@ -962,7 +969,7 @@ function buildChillerGroups(segments){
 
     const g = groups.get(groupKey);
 
-    if (!g.projectName || g.projectName === "(No Project)") {
+    if (g.projectName === "(No Project)") {
       g.projectName = projectName;
     }
 
@@ -981,7 +988,10 @@ function buildChillerGroups(segments){
     g.units.get(unitKey).segs.push(seg);
   }
 
-  return groups;
+  return Array.from(groups.values()).sort((a, b) =>
+    (a.projectName || "").localeCompare(b.projectName || "") ||
+    (a.chillerSerialNumber || "").localeCompare(b.chillerSerialNumber || "")
+  );
 }
 
 /* ========== Building Station View =============== */
@@ -1667,19 +1677,7 @@ function renderGanttDaily(rangeMin, rangeMax, segments) {
   const headWrap = monthHeadEl.parentElement;
   if (headWrap) headWrap.style.width = totalWidthPx + "px";
 
-  // ---- Same grouping as your multi-day gantt ----
-  /* const groups = buildMaterialGroups(segments); */
-  const groups = buildChillerGroups(segments);
-  /* const groupArr = Array.from(groups.values()).sort((a,b) =>
-    (a.projectName || "").localeCompare(b.projectName || "") ||
-    (a.materialNumber || "").localeCompare(b.materialNumber || "")
-  ); */
-  const groupArr = Array.from(groups.values()).sort((a,b) =>
-    (a.projectName || "").localeCompare(b.projectName || "") ||
-    (a.chillerSerialNumber || "").localeCompare(b.chillerSerialNumber || "")
-  );
-
-  bodyEl.innerHTML = groupArr.map(g => {
+  bodyEl.innerHTML = buildChillerGroups(segments).map(g => {
 
     const headerRow = `
       <div class="ganttRow groupRow">
@@ -1923,23 +1921,7 @@ function renderGantt(days, rangeMin, rangeMax, segments, dom) {
   const headWrap = monthHeadEl.parentElement;
   if (headWrap) headWrap.style.width = totalWidthPx + "px";
 
-  // ---- Group by material number -> units ----
-  /* const groups = buildMaterialGroups(segments); */
-  const groups = buildChillerGroups(segments);
-  /* const groupArr = Array.from(groups.values()).sort((a,b) =>
-    (a.projectName || "").localeCompare(b.projectName || "") ||
-    (a.materialNumber || "").localeCompare(b.materialNumber || "")
-  ); */
-  const groupArr = Array.from(groups.values()).sort((a,b) =>
-    (a.projectName || "").localeCompare(b.projectName || "") ||
-    (a.chillerSerialNumber || "").localeCompare(b.chillerSerialNumber || "")
-  );
-
-  bodyEl.innerHTML = groupArr.map(g => {
-
-    
-
-    // Group header row (Project + Material)
+  bodyEl.innerHTML = buildChillerGroups(segments).map(g => {
     const headerRow = `
       <div class="ganttRow groupRow">
         <div class="ganttCell project" style="grid-column: 1 / span 3;">
@@ -2129,7 +2111,7 @@ async function render({ forceRefresh = false } = {}) {
 
         const snap = await getDocs(q);
         runs = [];
-        snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
+        snap.forEach(d => runs.push(runFromSnapshot(d)));
 
         cachedRunsByMonth.set(monthKey, runs);
       }

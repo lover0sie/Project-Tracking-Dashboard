@@ -23,6 +23,10 @@ export function clearCache() {
   cachedRunsByDay.clear();
 }
 
+export function runFromSnapshot(snapshot) {
+  return { id: snapshot.id, ...snapshot.data(), runPath: snapshot.ref.path };
+}
+
 /* Existing behavior (loads everything). */
 export async function loadRuns(force = false) {
   // Share concurrent requests, including refreshes, rather than downloading twice.
@@ -32,7 +36,7 @@ export async function loadRuns(force = false) {
   const pending = (async () => {
     const snap = await getDocs(collectionGroup(db, "runs"));
     const runs = [];
-    snap.forEach(d => runs.push({ id: d.id, ...d.data() }));
+    snap.forEach(d => runs.push(runFromSnapshot(d)));
     return runs;
   })();
   runsAllInFlight = pending;
@@ -144,7 +148,7 @@ export async function loadRunsForDayWithCarryForward(dayKey, force = false) {
 
   const seen = new Set();
   return merged.filter(r => {
-    const key = r.id || `${r.serialNumber || ""}|${r.station || ""}|${r.startEpochMs || ""}`;
+    const key = r.runPath || r.id || `${r.serialNumber || ""}|${r.station || ""}|${r.startEpochMs || ""}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

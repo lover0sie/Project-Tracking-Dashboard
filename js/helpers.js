@@ -856,6 +856,7 @@ export function buildSegmentsFromRuns(runs) {
 
     segments.push({
       serial,
+      runPath: r.runPath,
       projectName: r.projectName || "(No Project)",
       materialNumber: r.materialNumber || "",
       description: r.description || "",
