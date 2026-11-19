@@ -950,6 +950,13 @@
     0 0 16px rgba(194, 65, 121, 0.35);
 }
 
+.bar.st-wiring-shop.bar-hover {
+  box-shadow:
+    0 0 0 1px #134e4a,
+    0 0 8px rgba(19, 78, 74, 0.60),
+    0 0 16px rgba(15, 118, 110, 0.35);
+}
+
 /* Dim others */
 .bar.bar-dim {
   opacity: 0.35;
@@ -1103,6 +1110,14 @@
 .ganttTip.st-packing { background:#a288e6; color: #000000;}
 .ganttTip.st-mig { background:#bc879e; color: #000000;}
 .ganttTip.st-wiring { background:#fbcf67; color: #000000; }
+
+.bar.st-wiring-shop,
+.swatch.st-wiring-shop,
+.ganttTip.st-wiring-shop {
+  background: #0f766e;
+  border-color: #134e4a;
+  color: #fff;
+}
 
 
 /* ==================== Responsive Rules ==================== */

@@ -737,6 +737,7 @@ function stationClass(station) {
   if (s.includes("insulationg") || s.includes("insulation2")) return "st-insulationg"; // Insulation G
   if (s.includes ("packing")) return "st-packing"; // Packing
   if (s.includes ("mig")) return "st-mig"; // MIG
+  if (s === "wiringshop") return "st-wiring-shop";
   if (s.includes("wiring")) return "st-wiring"; // Wiring
 
   return "st-pv1"; // default
@@ -881,10 +882,24 @@ function chillerUnitSerialFromSeg(seg) {
   );
 }
 
+function getWiringItemType(seg) {
+  return String(seg.qrKind || "").trim().toUpperCase() === "WIRING"
+    ? String(seg.itemType || "").trim()
+    : "";
+}
+
 function unitInfoFromSeg(seg) {
   const qrKind = String(seg.qrKind || "").toUpperCase().trim();
   const insulationItemType = String(seg.insulationItemType || "").toUpperCase().trim();
   const relatedQrKind = String(seg.relatedQrKind || "").toUpperCase().trim();
+  const wiringItemType = getWiringItemType(seg);
+
+  if (wiringItemType) {
+    return {
+      unitType: wiringItemType,
+      unitSerial: chillerUnitSerialFromSeg(seg)
+    };
+  }
 
   if (
     qrKind === "CHILLER" &&
@@ -1090,7 +1105,7 @@ function groupStationByProcess(segments) {
         ? pvUnitSerialFromSeg(seg)
         : chillerUnitSerialFromSeg(seg);
 
-    const processKey = `${processNo}__${serialKey}`;
+    const processKey = `${processNo}__${JSON.stringify([serialKey, getWiringItemType(seg)])}`;
 
     if (!stationMap.has(station)) {
       stationMap.set(station, new Map());
@@ -1339,10 +1354,11 @@ function buildStationProjectCell(segs) {
 
   const qrKind = String(firstSeg.qrKind || "").toUpperCase();
 
-  const typeText =
+  const typeText = getWiringItemType(firstSeg) || (
     qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
       ? (firstSeg.vesselType || "-")
-      : (firstSeg.coolingType || "-");
+      : (firstSeg.coolingType || "-")
+  );
 
   const serialText =
     qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
@@ -1373,10 +1389,11 @@ function buildStationProjectMiniCell(segs) {
   const firstSeg = segs[0] || {};
   const qrKind = String(firstSeg.qrKind || "").toUpperCase();
 
-  const typeText =
+  const typeText = getWiringItemType(firstSeg) || (
     qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
       ? (firstSeg.vesselType || "-")
-      : (firstSeg.coolingType || "-");
+      : (firstSeg.coolingType || "-")
+  );
 
   const serialText =
     qrKind === "PV" || hasExplicitChillerVesselType(firstSeg)
@@ -2359,7 +2376,8 @@ function hideTip(){
     "st-insulationg",
     "st-packing",
     "st-mig",
-    "st-wiring"
+    "st-wiring",
+    "st-wiring-shop"
 
   );
 
@@ -2428,6 +2446,7 @@ function showTipForBar(barEl){
     else if (barEl.classList.contains("st-packing")) tip.classList.add("st-packing");
     else if (barEl.classList.contains("st-mig")) tip.classList.add("st-mig");
     else if (barEl.classList.contains("st-wiring")) tip.classList.add("st-wiring");
+    else if (barEl.classList.contains("st-wiring-shop")) tip.classList.add("st-wiring-shop");
   }
 
   tip.innerHTML = html;

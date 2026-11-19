@@ -111,7 +111,8 @@ export const LEGEND_STATIONS = [
   { cls: "st-insulationg", label: "Insulation G" },
   { cls: "st-packing", label: "Packing" },
   { cls: "st-mig", label: "MIG" },
-  { cls: "st-wiring", label: "Wiring" }
+  { cls: "st-wiring", label: "Wiring" },
+  { cls: "st-wiring-shop", label: "Wiring Shop" }
 
 ];
 
@@ -885,6 +886,7 @@ export function buildSegmentsFromRuns(runs) {
       pvSerialNumber: r.pvSerialNumber || "",
       vesselType: r.vesselType || "",
       coolingType: r.coolingType || "",
+      itemType: r.itemType || "",
 
       // added for insulation item merging
       serialNumber: r.serialNumber || "",
